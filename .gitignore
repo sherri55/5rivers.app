@@ -44,5 +44,5 @@ _ReSharper*/
 packages/
 certificates
 
-5rivers.app.client/node_modules/*
-5rivers.app.server/node_modules/*
+node_modules
+package-lock.json
