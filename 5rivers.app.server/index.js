@@ -4,6 +4,7 @@ const cors = require("cors");
 const { Sequelize } = require("sequelize");
 const path = require("path");
 const multer = require("multer");
+require('dotenv').config();
 
 // Configure multer storage
 const storage = multer.diskStorage({
