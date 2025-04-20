@@ -4,6 +4,7 @@ const cors = require("cors");
 const { Sequelize } = require("sequelize");
 const path = require("path");
 const multer = require("multer");
+require('dotenv').config();
 
 // Configure multer storage
 const storage = multer.diskStorage({
@@ -258,6 +259,101 @@ app.post("/invoices", async (req, res) => {
     }
     res.status(201).json(invoice);
   } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Add this code after the existing POST /invoices route in index.js
+
+app.get("/invoices", async (req, res) => {
+  try {
+    const invoices = await Invoice.findAll({
+      order: [['createdAt', 'DESC']] // Sort by newest first
+    });
+    
+    // For each invoice, find the associated jobs
+    const invoicesWithJobs = await Promise.all(
+      invoices.map(async (invoice) => {
+        const invoiceData = invoice.toJSON();
+        
+        // Find all jobs associated with this invoice
+        const associatedJobs = await Job.findAll({
+          where: { invoiceId: invoice.invoiceId },
+          include: [
+            { model: JobType },
+            { model: Driver },
+            { model: Dispatcher },
+            { model: Unit }
+          ]
+        });
+        
+        return {
+          ...invoiceData,
+          jobs: associatedJobs
+        };
+      })
+    );
+    
+    res.json(invoicesWithJobs);
+  } catch (error) {
+    console.error("Error fetching invoices:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Add a route to get a single invoice by ID
+app.get("/invoices/:id", async (req, res) => {
+  try {
+    const invoice = await Invoice.findByPk(req.params.id);
+    
+    if (!invoice) {
+      return res.status(404).json({ error: "Invoice not found" });
+    }
+    
+    // Find all jobs associated with this invoice
+    const associatedJobs = await Job.findAll({
+      where: { invoiceId: invoice.invoiceId },
+      include: [
+        { model: JobType },
+        { model: Driver },
+        { model: Dispatcher },
+        { model: Unit }
+      ]
+    });
+    
+    const invoiceData = invoice.toJSON();
+    
+    res.json({
+      ...invoiceData,
+      jobs: associatedJobs
+    });
+  } catch (error) {
+    console.error("Error fetching invoice:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Add a route to delete an invoice by ID
+app.delete("/invoices/:id", async (req, res) => {
+  try {
+    const invoice = await Invoice.findByPk(req.params.id);
+    
+    if (!invoice) {
+      return res.status(404).json({ error: "Invoice not found" });
+    }
+    
+    // Update associated jobs to remove the invoiceId
+    await Job.update(
+      { invoiceId: null },
+      { where: { invoiceId: invoice.invoiceId } }
+    );
+    
+    // Delete the invoice
+    await invoice.destroy();
+    
+    res.json({ success: true, message: "Invoice deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting invoice:", error);
     res.status(500).json({ error: error.message });
   }
 });
