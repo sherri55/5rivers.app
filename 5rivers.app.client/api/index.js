@@ -1,37 +1,37 @@
+// api/index.js
 require("dotenv").config();
+const serverless = require("serverless-http");
 const express = require("express");
 const cors = require("cors");
 const { Sequelize } = require("sequelize");
 const path = require("path");
 const multer = require("multer");
-require("dotenv").config();
 
-// Configure multer storage
+// Multer: write to /tmp/uploads (only writable in Vercel)
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, "uploads/"); // Save files in the "uploads" folder
+    cb(null, "/tmp/uploads/");
   },
   filename: (req, file, cb) => {
-    cb(null, Date.now() + path.extname(file.originalname)); // Unique filename
+    cb(null, Date.now() + path.extname(file.originalname));
   },
 });
-
 const upload = multer({ storage });
 
 const app = express();
 app.use(express.json());
 app.use(cors());
 
-app.use("/uploads", express.static("uploads"));
+// Serve uploads from /tmp/uploads
+app.use("/uploads", express.static("/tmp/uploads/"));
 
-const PORT = process.env.PORT || 3000;
-DB_STORAGE_URL =
+const DB_STORAGE =
+  process.env.DB_STORAGE_URL ||
   "sqlitecloud://cpswgotjhk.g5.sqlite.cloud:8860/db.sqlite?apikey=pknGfxX8nbq1AIZZRzEaNtqTbXesiKsmn8AY2QtnJ6E";
-// Initialize Sequelize
 const sequelize = new Sequelize({
   dialect: "sqlite",
   storage: DB_STORAGE,
-  logging: false, // Disable logging for cleaner output
+  logging: false,
 });
 
 // Import models
@@ -670,16 +670,5 @@ app.post("/jobs", (req, res) => {
     });
 });
 
-// Start the server
-const start = async () => {
-  try {
-    await sequelize.sync({ force: false }); // Set `force: true` to reset the database
-    app.listen(PORT, () => {
-      console.log(`Server started on http://localhost:${PORT}`);
-    });
-  } catch (error) {
-    console.error("Unable to start the app:", error);
-  }
-};
-
-start();
+module.exports = app;
+module.exports.handler = serverless(app);
