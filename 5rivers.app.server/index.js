@@ -4,7 +4,7 @@ const cors = require("cors");
 const { Sequelize } = require("sequelize");
 const path = require("path");
 const multer = require("multer");
-require('dotenv').config();
+require("dotenv").config();
 
 // Configure multer storage
 const storage = multer.diskStorage({
@@ -73,18 +73,37 @@ function computeHours(start, end) {
   return (endTotal - startTotal) / 60;
 }
 
+// index.js
+
 function computeJobGrossAmount(job, jobType) {
   const { hoursOfJob, weight, loads } = job;
   const { rateOfJob, dispatchType } = jobType;
-
   const parsedRate = parseFloat(rateOfJob) || 0;
+
+  // Helper to pull out a total weight from job.weight
+  let totalWeight = 0;
+  if (dispatchType === "Tonnage") {
+    try {
+      // job.weight may be a JSON string or an array
+      const weights = Array.isArray(weight) ? weight : JSON.parse(weight);
+      if (Array.isArray(weights)) {
+        totalWeight = weights
+          .map((w) => parseFloat(w) || 0)
+          .reduce((sum, w) => sum + w, 0);
+      } else {
+        totalWeight = parseFloat(weights) || 0;
+      }
+    } catch {
+      totalWeight = parseFloat(weight) || 0;
+    }
+  }
 
   switch (dispatchType) {
     case "Hourly":
       return (parseFloat(hoursOfJob) || 0) * parsedRate;
 
     case "Tonnage":
-      return (parseFloat(weight) || 0) * parsedRate;
+      return totalWeight * parsedRate;
 
     case "Load":
       return (parseInt(loads, 10) || 0) * parsedRate;
@@ -246,15 +265,14 @@ app.post("/invoices", async (req, res) => {
     const { subItems } = req.body;
     // Now, invoiceData should only include fields defined in your Invoice model
     const invoice = await Invoice.create(req.body);
-    if (subItems && Array.isArray(subItems) && subItems.length > 0) {
+    if (req.body.subItems?.length) {
       await Promise.all(
-        subItems.map((item) => {
-          console.log(item);
-          return Job.update(
-            { invoiceId: invoice.invoiceId },
-            { where: { jobId: item.jobId } }
-          );
-        })
+        req.body.subItems.map((item) =>
+          Job.update(
+            { invoiceId: invoice.invoiceId, invoiceStatus: "Raised" },
+            { where: { jobId: item.jobId }, transaction: t }
+          )
+        )
       );
     }
     res.status(201).json(invoice);
@@ -268,14 +286,14 @@ app.post("/invoices", async (req, res) => {
 app.get("/invoices", async (req, res) => {
   try {
     const invoices = await Invoice.findAll({
-      order: [['createdAt', 'DESC']] // Sort by newest first
+      order: [["createdAt", "DESC"]], // Sort by newest first
     });
-    
+
     // For each invoice, find the associated jobs
     const invoicesWithJobs = await Promise.all(
       invoices.map(async (invoice) => {
         const invoiceData = invoice.toJSON();
-        
+
         // Find all jobs associated with this invoice
         const associatedJobs = await Job.findAll({
           where: { invoiceId: invoice.invoiceId },
@@ -283,17 +301,17 @@ app.get("/invoices", async (req, res) => {
             { model: JobType },
             { model: Driver },
             { model: Dispatcher },
-            { model: Unit }
-          ]
+            { model: Unit },
+          ],
         });
-        
+
         return {
           ...invoiceData,
-          jobs: associatedJobs
+          jobs: associatedJobs,
         };
       })
     );
-    
+
     res.json(invoicesWithJobs);
   } catch (error) {
     console.error("Error fetching invoices:", error);
@@ -305,11 +323,11 @@ app.get("/invoices", async (req, res) => {
 app.get("/invoices/:id", async (req, res) => {
   try {
     const invoice = await Invoice.findByPk(req.params.id);
-    
+
     if (!invoice) {
       return res.status(404).json({ error: "Invoice not found" });
     }
-    
+
     // Find all jobs associated with this invoice
     const associatedJobs = await Job.findAll({
       where: { invoiceId: invoice.invoiceId },
@@ -317,15 +335,15 @@ app.get("/invoices/:id", async (req, res) => {
         { model: JobType },
         { model: Driver },
         { model: Dispatcher },
-        { model: Unit }
-      ]
+        { model: Unit },
+      ],
     });
-    
+
     const invoiceData = invoice.toJSON();
-    
+
     res.json({
       ...invoiceData,
-      jobs: associatedJobs
+      jobs: associatedJobs,
     });
   } catch (error) {
     console.error("Error fetching invoice:", error);
@@ -337,20 +355,20 @@ app.get("/invoices/:id", async (req, res) => {
 app.delete("/invoices/:id", async (req, res) => {
   try {
     const invoice = await Invoice.findByPk(req.params.id);
-    
+
     if (!invoice) {
       return res.status(404).json({ error: "Invoice not found" });
     }
-    
+
     // Update associated jobs to remove the invoiceId
     await Job.update(
       { invoiceId: null },
       { where: { invoiceId: invoice.invoiceId } }
     );
-    
+
     // Delete the invoice
     await invoice.destroy();
-    
+
     res.json({ success: true, message: "Invoice deleted successfully" });
   } catch (error) {
     console.error("Error deleting invoice:", error);
@@ -468,8 +486,11 @@ app.delete("/drivers/:id", async (req, res) => {
 app.put("/jobs/:id", upload.array("images", 10), async (req, res) => {
   try {
     const jobId = req.params.id;
-    const jobData = req.body;
-
+    const jobData = {
+      ...req.body,
+      // if client omitted invoiceStatus, keep existing or fallback to Pending
+      invoiceStatus: req.body.invoiceStatus ?? job.invoiceStatus ?? "Pending",
+    };
     // Find the job by ID
     const job = await Job.findByPk(jobId);
     if (!job) {
@@ -509,8 +530,10 @@ app.put("/jobs/:id", upload.array("images", 10), async (req, res) => {
       jobData.imageUrls = req.files.map((file) => `/uploads/${file.filename}`);
     }
 
+    const updates = { ...jobData };
+
     // Update the job
-    await job.update(jobData);
+    await job.update(updates);
     res.status(200).json(job);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -552,6 +575,24 @@ app.delete("/jobs/:id", async (req, res) => {
   }
 });
 
+app.put("/jobs/:id/invoice-status", async (req, res) => {
+  const { status } = req.body;
+  const allowed = ["Pending", "Raised", "Received"];
+  if (!allowed.includes(status)) {
+    return res.status(400).json({ error: "Invalid invoiceStatus" });
+  }
+
+  try {
+    const job = await Job.findByPk(req.params.id);
+    if (!job) return res.status(404).json({ error: "Job not found" });
+    job.invoiceStatus = status;
+    await job.save();
+    res.json(job);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get("/jobs", async (req, res) => {
   try {
     const jobs = await Job.findAll({
@@ -569,7 +610,13 @@ app.get("/jobs", async (req, res) => {
 });
 
 app.post("/jobs", (req, res) => {
-  const jobData = req.body;
+  const jobData = {
+    ...req.body,
+    invoiceStatus: req.body.invoiceStatus || "Pending",
+  };
+  if (req.files) {
+    jobData.imageUrls = req.files.map((f) => `/uploads/${f.filename}`);
+  }
 
   JobType.findByPk(jobData.jobTypeId)
     .then((jobTypeData) => {

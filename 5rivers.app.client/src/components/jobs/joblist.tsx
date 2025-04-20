@@ -25,6 +25,10 @@ interface JobListSectionProps {
   jobsByMonthAndUnit: Record<string, Record<string, Job[]>>;
   handleEdit: (job: Job) => void;
   handleDelete: (jobId: number) => void;
+  updateInvoiceStatus: (
+    jobId: number,
+    status: "Pending" | "Raised" | "Received"
+  ) => void;
 }
 
 export default function JobListSection({
@@ -34,6 +38,7 @@ export default function JobListSection({
   jobsByMonthAndUnit,
   handleEdit,
   handleDelete,
+  updateInvoiceStatus,
 }: JobListSectionProps) {
   const [selectedMonth, setSelectedMonth] = useState("");
   const [selectedUnit, setSelectedUnit] = useState("");
@@ -244,15 +249,21 @@ export default function JobListSection({
                             return (
                               <div
                                 key={job.jobId}
-                                className="bg-white p-5 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow"
+                                className={`p-5 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow ${
+                                  job.invoiceStatus === "Received"
+                                    ? "bg-green-100 "
+                                    : job.invoiceStatus === "Raised"
+                                    ? "bg-yellow-100 "
+                                    : ""
+                                }`}
                               >
                                 <h3 className="text-xl font-bold mb-3 text-indigo-700 flex items-start justify-between">
                                   <span className="flex-grow">{job.title}</span>
-                                  {job.amountReceived && (
-                                    <span className="bg-green-100 text-green-800 text-xs font-medium me-2 px-2.5 py-0.5 rounded">
-                                      Paid
-                                    </span>
-                                  )}
+                                  <span
+                                    className={`text-xs font-medium px-2 py-0.5 rounded`}
+                                  >
+                                    {job.invoiceStatus}
+                                  </span>
                                 </h3>
 
                                 <div className="space-y-2 mb-4 text-sm">
@@ -339,6 +350,28 @@ export default function JobListSection({
                                       </div>
                                     </div>
                                   )}
+                                </div>
+                                <div className="flex gap-2 mb-4">
+                                  {(
+                                    ["Pending", "Raised", "Received"] as const
+                                  ).map((s) => (
+                                    <button
+                                      key={s}
+                                      onClick={() =>
+                                        updateInvoiceStatus(job.jobId, s)
+                                      }
+                                      className={`
+                          px-3 py-1 rounded text-sm
+                          ${
+                            job.invoiceStatus === s
+                              ? "bg-indigo-600 text-white"
+                              : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                          }
+                        `}
+                                    >
+                                      {s}
+                                    </button>
+                                  ))}
                                 </div>
 
                                 {/* Show images if available */}

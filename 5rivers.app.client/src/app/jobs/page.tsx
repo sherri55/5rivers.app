@@ -48,7 +48,7 @@ export type Job = {
   startTimeForJob: string;
   endTimeForJob: string;
   invoiceId: string;
-  amountReceived: boolean;
+  invoiceStatus: "Pending" | "Raised" | "Received";
 };
 
 export type JobType = {
@@ -97,7 +97,7 @@ type JobFilters = {
   unitId: string;
   jobTypeId: string;
   dispatchType: string;
-  amountReceived: string; // "all", "received", "pending"
+  invoiceStatus: string; // "all", "received", "pending"
 };
 
 export default function JobsPage() {
@@ -119,6 +119,7 @@ export default function JobsPage() {
     unitName: "",
     weight: [] as number[],
     loads: 0,
+    invoiceStatus: "",
     ticketIds: [] as string[],
   });
 
@@ -147,7 +148,7 @@ export default function JobsPage() {
     unitId: "",
     jobTypeId: "",
     dispatchType: "",
-    amountReceived: "all",
+    invoiceStatus: "all",
   });
 
   const [showFilters, setShowFilters] = useState(false);
@@ -236,6 +237,22 @@ export default function JobsPage() {
     }
   }, [API_URL]);
 
+  const updateInvoiceStatus = async (jobId: number, status: string) => {
+    try {
+      const res = await fetch(`${API_URL}/jobs/${jobId}/invoice-status`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) throw new Error("Failed to update status");
+      toast.success(`Status set to ${status}`);
+      await fetchJobs(); // re-fetch to pick up the change
+    } catch (err) {
+      console.error(err);
+      toast.error("Could not update status");
+    }
+  };
+
   useEffect(() => {
     fetchJobs();
     fetchJobTypes();
@@ -300,10 +317,10 @@ export default function JobsPage() {
     }
 
     // Apply amount received filter
-    if (filters.amountReceived === "received") {
-      result = result.filter((job) => job.amountReceived);
-    } else if (filters.amountReceived === "pending") {
-      result = result.filter((job) => !job.amountReceived);
+    if (filters.invoiceStatus !== "all") {
+      result = result.filter(
+        (job) => job.invoiceStatus === filters.invoiceStatus
+      );
     }
 
     // Sort by date (newest first)
@@ -337,6 +354,7 @@ export default function JobsPage() {
             ? JSON.parse(job.weight)
             : job.weight || [],
         loads: job.loads || 0,
+        invoiceStatus: job.invoiceStatus || "",
         ticketIds:
           typeof job.ticketIds === "string"
             ? JSON.parse(job.ticketIds)
@@ -452,7 +470,7 @@ export default function JobsPage() {
       unitId: "",
       jobTypeId: "",
       dispatchType: "",
-      amountReceived: "all",
+      invoiceStatus: "all",
     });
   };
 
@@ -468,6 +486,7 @@ export default function JobsPage() {
 
     const job = {
       ...formData,
+      invoiceStatus: formData.invoiceStatus,
       ticketIds: JSON.stringify(formData.ticketIds),
       weight: JSON.stringify(formData.weight),
     };
@@ -512,6 +531,7 @@ export default function JobsPage() {
       unitName: "",
       weight: [],
       loads: 0,
+      invoiceStatus: "",
       ticketIds: [],
     });
     setIsEditing(false);
@@ -753,14 +773,14 @@ export default function JobsPage() {
                         Payment Status
                       </label>
                       <select
-                        name="amountReceived"
-                        value={filters.amountReceived}
+                        name="invoiceStatus"
+                        value={filters.invoiceStatus}
                         onChange={handleFilterChange}
-                        className="shadow border rounded w-full py-1 px-2 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-indigo-500"
                       >
                         <option value="all">All Jobs</option>
-                        <option value="received">Received</option>
-                        <option value="pending">Pending</option>
+                        <option value="Pending">Pending</option>
+                        <option value="Raised">Raised</option>
+                        <option value="Received">Received</option>
                       </select>
                     </div>
                   </div>
@@ -1200,13 +1220,15 @@ export default function JobsPage() {
 
                 <div className="flex justify-end gap-2 mt-8">
                   {isEditing && (
-                    <button
-                      type="button"
-                      onClick={resetForm}
-                      className="bg-gray-500 hover:bg-gray-600 text-white py-2 px-4 rounded transition-colors"
-                    >
-                      Cancel
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        onClick={resetForm}
+                        className="bg-gray-500 hover:bg-gray-600 text-white py-2 px-4 rounded transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </>
                   )}
                   <button
                     type="submit"
@@ -1247,6 +1269,7 @@ export default function JobsPage() {
                 jobsByMonthAndUnit={jobsByMonthAndUnit}
                 handleEdit={handleEdit}
                 handleDelete={handleDelete}
+                updateInvoiceStatus={updateInvoiceStatus}
               />
             </div>
           )}

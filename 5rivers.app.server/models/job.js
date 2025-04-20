@@ -34,7 +34,7 @@ module.exports = (sequelize) => {
     estimatedFuel: DataTypes.FLOAT,
     estimatedRevenue: DataTypes.FLOAT,
     invoiceId: DataTypes.STRING,
-    amountReceived: DataTypes.BOOLEAN,
+    invoiceStatus: DataTypes.STRING,
     weight: {
       type: DataTypes.JSON,
       allowNull: true,
@@ -75,6 +75,18 @@ module.exports = (sequelize) => {
         model: "Unit",
         key: "unitId",
       },
+    },
+    unitId: {
+      type: DataTypes.UUID,
+      references: {
+        model: "Invoice",
+        key: "invoiceId",
+      },
+    },
+    invoiceStatus: {
+      type: DataTypes.ENUM("Pending", "Raised", "Received"),
+      allowNull: false,
+      defaultValue: "Pending",
     },
   });
 
