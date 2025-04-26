@@ -1,7 +1,8 @@
+// models/job.js
 const { DataTypes } = require("sequelize");
 
 module.exports = (sequelize) => {
-  const Job = sequelize.define("Job", {
+  return sequelize.define("Job", {
     jobId: {
       type: DataTypes.UUID,
       defaultValue: DataTypes.UUIDV4,
@@ -16,9 +17,7 @@ module.exports = (sequelize) => {
       type: DataTypes.DATEONLY,
       allowNull: false,
     },
-    dayOfJob: {
-      type: DataTypes.STRING,
-    },
+    dayOfJob: DataTypes.STRING,
     dispatchType: DataTypes.STRING,
     startTimeForDriver: DataTypes.STRING,
     endTimeForDriver: DataTypes.STRING,
@@ -33,25 +32,60 @@ module.exports = (sequelize) => {
     driverPay: DataTypes.FLOAT,
     estimatedFuel: DataTypes.FLOAT,
     estimatedRevenue: DataTypes.FLOAT,
-    invoiceId: DataTypes.STRING,
-    invoiceStatus: DataTypes.STRING,
-    weight: {
-      type: DataTypes.JSON,
+    invoiceId: {
+      type: DataTypes.UUID,
       allowNull: true,
+      references: {
+        model: "Invoice",
+        key: "invoiceId",
+      },
+    },
+    invoiceStatus: {
+      type: DataTypes.STRING(20),
+      allowNull: false,
+      defaultValue: "Pending",
+      validate: {
+        isIn: [["Pending", "Raised", "Received"]],
+      },
+    },
+    weight: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      get() {
+        const v = this.getDataValue("weight");
+        return v ? JSON.parse(v) : null;
+      },
+      set(val) {
+        this.setDataValue("weight", JSON.stringify(val));
+      },
     },
     loads: DataTypes.FLOAT,
     ticketIds: {
-      type: DataTypes.JSON,
+      type: DataTypes.TEXT,
       allowNull: true,
+      get() {
+        const v = this.getDataValue("ticketIds");
+        return v ? JSON.parse(v) : null;
+      },
+      set(val) {
+        this.setDataValue("ticketIds", JSON.stringify(val));
+      },
     },
     imageUrls: {
-      type: DataTypes.JSON,
+      type: DataTypes.TEXT,
       allowNull: true,
+      get() {
+        const v = this.getDataValue("imageUrls");
+        return v ? JSON.parse(v) : [];
+      },
+      set(val) {
+        this.setDataValue("imageUrls", JSON.stringify(val));
+      },
     },
     jobTypeId: {
       type: DataTypes.UUID,
       references: {
-        model: "jobType",
+        model: "JobType",
         key: "jobTypeId",
       },
     },
@@ -76,19 +110,5 @@ module.exports = (sequelize) => {
         key: "unitId",
       },
     },
-    unitId: {
-      type: DataTypes.UUID,
-      references: {
-        model: "Invoice",
-        key: "invoiceId",
-      },
-    },
-    invoiceStatus: {
-      type: DataTypes.ENUM("Pending", "Raised", "Received"),
-      allowNull: false,
-      defaultValue: "Pending",
-    },
   });
-
-  return Job;
 };

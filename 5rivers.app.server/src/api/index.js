@@ -41,18 +41,6 @@ const Job = require("./models/job")(sequelize);
 const JobType = require("./models/jobType")(sequelize);
 const Invoice = require("./models/invoice")(sequelize);
 
-// Define associations
-Job.belongsTo(JobType, { foreignKey: "jobTypeId" });
-Job.belongsTo(Driver, { foreignKey: "driverId" });
-Job.belongsTo(Dispatcher, { foreignKey: "dispatcherId" });
-Job.belongsTo(Unit, { foreignKey: "unitId" });
-
-JobType.belongsTo(Company, { foreignKey: "companyId" });
-JobType.hasMany(Job, { foreignKey: "jobTypeId" });
-Driver.hasMany(Job, { foreignKey: "driverId" });
-Dispatcher.hasMany(Job, { foreignKey: "dispatcherId" });
-Unit.hasMany(Job, { foreignKey: "unitId" });
-
 // Helper functions for computed fields
 function computeDayOfJob(dateStr) {
   const date = new Date(`${dateStr}T00:00:00`);

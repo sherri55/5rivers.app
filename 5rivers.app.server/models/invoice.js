@@ -1,3 +1,4 @@
+// models/invoice.js
 const { DataTypes } = require("sequelize");
 
 module.exports = (sequelize) => {
@@ -11,7 +12,6 @@ module.exports = (sequelize) => {
     invoiceNumber: {
       type: DataTypes.STRING,
       allowNull: false,
-      unique: true,
     },
     invoiceDate: {
       type: DataTypes.DATE,
@@ -46,8 +46,15 @@ module.exports = (sequelize) => {
       allowNull: false,
     },
     subItems: {
-      type: DataTypes.JSON,
+      type: DataTypes.TEXT,
       allowNull: true,
+      get() {
+        const v = this.getDataValue("subItems");
+        return v ? JSON.parse(v) : [];
+      },
+      set(val) {
+        this.setDataValue("subItems", JSON.stringify(val));
+      },
     },
   });
 };
