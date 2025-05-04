@@ -1,0 +1,164 @@
+/**
+ * prisma/schema.prisma
+ */
+datasource db {
+  provider = "sqlite"
+  url      = "file:./src/db/5rivers.sqlite"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Company {
+  companyId   String    @id @default(uuid())
+  name        String
+  description String?
+  email       String?
+  phone       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  jobTypes    JobType[]
+}
+
+model Dispatcher {
+  dispatcherId      String    @id @default(uuid())
+  name              String
+  description       String?
+  email             String
+  phone             String?
+  commissionPercent Float
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  jobTypes          JobType[]
+  invoices          Invoice[]
+  jobs              Job[]
+}
+
+model Driver {
+  driverId    String       @id @default(uuid())
+  name        String
+  description String?
+  email       String
+  phone       String?
+  hourlyRate  Float
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  jobs        Job[]
+  driverRates DriverRate[]
+}
+
+model Unit {
+  unitId      String   @id @default(uuid())
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  jobs        Job[]
+}
+
+model JobType {
+  jobTypeId     String       @id @default(uuid())
+  title         String
+  startLocation String?
+  endLocation   String?
+  dispatchType  String
+  rateOfJob     Float
+  companyId     String?
+  dispatcherId  String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  company       Company?     @relation(fields: [companyId], references: [companyId])
+  dispatcher    Dispatcher?  @relation(fields: [dispatcherId], references: [dispatcherId])
+  jobs          Job[]
+  driverRates   DriverRate[]
+}
+
+model DriverRate {
+  driverRateId   String   @id @default(uuid())
+  driverId       String
+  jobTypeId      String
+  hourlyRate     Float?
+  percentageRate Float?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  driver         Driver   @relation(fields: [driverId], references: [driverId])
+  jobType        JobType  @relation(fields: [jobTypeId], references: [jobTypeId])
+
+  @@unique([driverId, jobTypeId])
+}
+
+model Job {
+  jobId            String   @id @default(uuid())
+  name             String
+  jobDate          DateTime
+  dispatchType     String
+  jobGrossAmount   Float?
+  driverRate       Float?
+  driverPay        Float?
+  estimatedFuel    Float?
+  estimatedRevenue Float?
+  jobTypeId        String?
+  driverId         String?
+  dispatcherId     String?
+  unitId           String?
+  invoiceId        String?
+  invoiceStatus    String   @default("Pending")
+  weight           String?
+  loads            Int?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  jobType      JobType?      @relation(fields: [jobTypeId], references: [jobTypeId])
+  driver       Driver?       @relation(fields: [driverId], references: [driverId])
+  dispatcher   Dispatcher?   @relation(fields: [dispatcherId], references: [dispatcherId])
+  unit         Unit?         @relation(fields: [unitId], references: [unitId])
+  invoice      Invoice?      @relation(fields: [invoiceId], references: [invoiceId])
+  tickets      JobTicket[]
+  invoiceLines InvoiceLine[]
+}
+
+model JobTicket {
+  ticketId     String   @id @default(uuid())
+  jobId        String
+  ticketNumber String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  job Job @relation(fields: [jobId], references: [jobId])
+
+  @@unique([jobId, ticketNumber])
+}
+
+model Invoice {
+  invoiceId       String   @id @default(uuid())
+  dispatcherId    String
+  invoiceNumber   String   @unique
+  invoiceDate     DateTime
+  status          String   @default("Pending")
+  subTotal        Float?
+  dispatchPercent Float?
+  commission      Float?
+  hst             Float?
+  total           Float?
+  billedTo        String?
+  billedEmail     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  dispatcher   Dispatcher    @relation(fields: [dispatcherId], references: [dispatcherId])
+  jobs         Job[]
+  invoiceLines InvoiceLine[]
+}
+
+model InvoiceLine {
+  invoiceLineId String   @id @default(uuid())
+  invoiceId     String
+  jobId         String
+  lineAmount    Float    @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  invoice Invoice @relation(fields: [invoiceId], references: [invoiceId])
+  job     Job     @relation(fields: [jobId], references: [jobId])
+}
