@@ -1,72 +1,104 @@
-import { useState, useEffect } from "react";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { createUnit, updateUnit } from "@/lib/unitApi";
+"use client";
 
-export function UnitForm({ unit, onSuccess, onCancel }) {
+import { useState, useEffect } from "react";
+import { Button } from "../../components/ui/button";
+import { FormField } from "../../components/common/FormField";
+import { unitApi } from "@/lib/api";
+import { toast } from "sonner";
+
+interface Unit {
+  unitId: string;
+  name: string;
+  plateNumber?: string;
+  vin?: string;
+  color?: string;
+  description?: string;
+}
+
+interface UnitFormProps {
+  unit?: Unit;
+  onSuccess: () => void;
+  onCancel: () => void;
+}
+
+export function UnitForm({ unit, onSuccess, onCancel }: UnitFormProps) {
   const [name, setName] = useState(unit?.name || "");
+  const [plateNumber, setPlateNumber] = useState(unit?.plateNumber || "");
+  const [vin, setVin] = useState(unit?.vin || "");
+  const [color, setColor] = useState(unit?.color || "");
   const [description, setDescription] = useState(unit?.description || "");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    setName(unit?.name || "");
-    setDescription(unit?.description || "");
+    if (unit) {
+      setName(unit.name);
+      setPlateNumber(unit.plateNumber || "");
+      setVin(unit.vin || "");
+      setColor(unit.color || "");
+      setDescription(unit.description || "");
+    }
   }, [unit]);
 
-  const handleSubmit = async (e) => {
+  const validate = () => {
+    const newErrors: Record<string, string> = {};
+
+    if (!name.trim()) {
+      newErrors.name = "Name is required";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!validate()) {
+      return;
+    }
+
     setLoading(true);
-    setError("");
     try {
-      if (unit) {
-        await updateUnit(unit.unitId, { name, description });
+      const unitData = {
+        name,
+        plateNumber,
+        vin,
+        color,
+        description,
+      };
+
+      if (unit?.unitId) {
+        await unitApi.update(unit.unitId, unitData);
+        toast.success("Unit updated successfully");
       } else {
-        await createUnit({ name, description });
+        await unitApi.create(unitData);
+        toast.success("Unit created successfully");
       }
+
       setLoading(false);
-      if (onSuccess) onSuccess();
-    } catch {
-      setError("Failed to save unit");
+      onSuccess();
+    } catch (error) {
+      console.error("Error saving unit:", error);
+      toast.error(`Failed to ${unit ? "update" : "create"} unit`);
       setLoading(false);
     }
   };
 
   return (
-    <form className="space-y-6 max-w-md mx-auto" onSubmit={handleSubmit}>
-      <div>
-        <Label htmlFor="name">Unit Name</Label>
-        <Input
-          id="name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Enter unit name"
-          className="mt-1"
-          required
-        />
-      </div>
-      <div>
-        <Label htmlFor="description">Description</Label>
-        <Input
-          id="description"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="Enter description"
-          className="mt-1"
-        />
-      </div>
-      {error && <div className="text-destructive text-sm">{error}</div>}
-      <div className="flex gap-2">
-        <Button type="submit" className="w-full" disabled={loading}>
-          {unit ? "Update" : "Create"} Unit
-        </Button>
-        {onCancel && (
-          <Button type="button" variant="outline" onClick={onCancel}>
-            Cancel
-          </Button>
-        )}
-      </div>
-    </form>
-  );
-}
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <FormField
+        id="name"
+        label="Unit Name"
+        value={name}
+        onChange={setName}
+        placeholder="Enter unit name"
+        required
+        error={errors.name}
+      />
+
+      <FormField
+        id="plateNumber"
+        label="Plate Number"
+        value={plateNumber}
+        onChange={setPlateNumber}

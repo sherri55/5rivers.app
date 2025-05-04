@@ -9,7 +9,8 @@ export const getInvoices = async (req: Request, res: Response) => {
       include: { dispatcher: true, invoiceLines: true, jobs: true },
     });
     res.json(invoices);
-  } catch {
+  } catch (error) {
+    console.error('Error in getInvoices:', error);
     res.status(500).json({ error: "Failed to fetch invoices" });
   }
 };
@@ -21,7 +22,8 @@ export const getInvoiceById = async (req: Request, res: Response) => {
       include: { dispatcher: true, invoiceLines: true, jobs: true },
     });
     res.json(invoice);
-  } catch {
+  } catch (error) {
+    console.error('Error in getInvoiceById:', error);
     res.status(500).json({ error: "Failed to fetch invoice" });
   }
 };
@@ -116,6 +118,7 @@ export const createInvoice = async (req: Request, res: Response) => {
     });
     res.status(201).json(invoice);
   } catch (err: any) {
+    console.error('Error in createInvoice:', err);
     res.status(400).json({
       error: "Failed to create invoice",
       details: err && err.message ? err.message : err,
@@ -219,6 +222,7 @@ export const updateInvoice = async (req: Request, res: Response) => {
     });
     res.json(invoice);
   } catch (err: any) {
+    console.error('Error in updateInvoice:', err);
     res.status(400).json({
       error: "Failed to update invoice",
       details: err && err.message ? err.message : err,
@@ -231,7 +235,8 @@ export const deleteInvoice = async (req: Request, res: Response) => {
     const { id } = req.params;
     await prisma.invoice.delete({ where: { invoiceId: id } });
     res.json({ message: "Invoice deleted" });
-  } catch {
+  } catch (error) {
+    console.error('Error in deleteInvoice:', error);
     res.status(400).json({ error: "Failed to delete invoice" });
   }
 };

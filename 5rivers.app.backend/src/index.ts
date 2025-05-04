@@ -1,4 +1,5 @@
 import express, { Application } from "express";
+import cors from "cors";
 import companyRoutes from "./routes/companies";
 import driverRoutes from "./routes/drivers";
 import jobRoutes from "./routes/jobs";
@@ -9,6 +10,7 @@ import jobTypeRoutes from "./routes/jobtypes";
 
 const app: Application = express();
 
+app.use(cors({ origin: "http://localhost:3000" }));
 app.use(express.json());
 
 app.use("/companies", companyRoutes);

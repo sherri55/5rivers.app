@@ -8,7 +8,8 @@ export const getDispatchers = async (req: Request, res: Response) => {
       include: { jobs: true },
     });
     res.json(dispatchers);
-  } catch {
+  } catch (error) {
+    console.error('Error in getDispatchers:', error);
     res.status(500).json({ error: "Failed to fetch dispatchers" });
   }
 };
@@ -20,7 +21,8 @@ export const getDispatcherById = async (req: Request, res: Response) => {
       include: { jobs: true },
     });
     res.json(dispatcher);
-  } catch {
+  } catch (error) {
+    console.error('Error in getDispatcherById:', error);
     res.status(500).json({ error: "Failed to fetch dispatcher" });
   }
 };
@@ -32,7 +34,8 @@ export const createDispatcher = async (req: Request, res: Response) => {
       data: { name, description, email, phone, commissionPercent },
     });
     res.status(201).json(dispatcher);
-  } catch {
+  } catch (error) {
+    console.error('Error in createDispatcher:', error);
     res.status(400).json({ error: "Failed to create dispatcher" });
   }
 };
@@ -45,7 +48,8 @@ export const updateDispatcher = async (req: Request, res: Response) => {
       data: req.body,
     });
     res.json(dispatcher);
-  } catch {
+  } catch (error) {
+    console.error('Error in updateDispatcher:', error);
     res.status(400).json({ error: "Failed to update dispatcher" });
   }
 };
@@ -55,7 +59,8 @@ export const deleteDispatcher = async (req: Request, res: Response) => {
     const { id } = req.params;
     await prisma.dispatcher.delete({ where: { dispatcherId: id } });
     res.json({ message: "Dispatcher deleted" });
-  } catch {
+  } catch (error) {
+    console.error('Error in deleteDispatcher:', error);
     res.status(400).json({ error: "Failed to delete dispatcher" });
   }
 };

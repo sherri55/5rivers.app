@@ -1,0 +1,127 @@
+// Centralized API utilities for all entities
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:9999";
+
+// Generic API request handlers
+async function fetchData(endpoint: string) {
+  const res = await fetch(`${API_URL}/${endpoint}`);
+  if (!res.ok) throw new Error(`Failed to fetch from ${endpoint}`);
+  return res.json();
+}
+
+async function deleteData(endpoint: string, id: string) {
+  const res = await fetch(`${API_URL}/${endpoint}/${id}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`Failed to delete from ${endpoint}`);
+  return res.json();
+}
+
+async function createData(endpoint: string, data: any) {
+  const res = await fetch(`${API_URL}/${endpoint}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Failed to create in ${endpoint}`);
+  return res.json();
+}
+
+async function updateData(endpoint: string, id: string, data: any) {
+  const res = await fetch(`${API_URL}/${endpoint}/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Failed to update in ${endpoint}`);
+  return res.json();
+}
+
+// Companies API
+export const companyApi = {
+  fetchAll: () => fetchData("companies"),
+  getById: (id: string) => fetchData(`companies/${id}`),
+  create: (data: any) => createData("companies", data),
+  update: (id: string, data: any) => updateData("companies", id, data),
+  delete: (id: string) => deleteData("companies", id),
+};
+
+// Dispatchers API
+export const dispatcherApi = {
+  fetchAll: () => fetchData("dispatchers"),
+  getById: (id: string) => fetchData(`dispatchers/${id}`),
+  create: (data: any) => createData("dispatchers", data),
+  update: (id: string, data: any) => updateData("dispatchers", id, data),
+  delete: (id: string) => deleteData("dispatchers", id),
+};
+
+// Drivers API
+export const driverApi = {
+  fetchAll: () => fetchData("drivers"),
+  getById: (id: string) => fetchData(`drivers/${id}`),
+  create: (data: any) => createData("drivers", data),
+  update: (id: string, data: any) => updateData("drivers", id, data),
+  delete: (id: string) => deleteData("drivers", id),
+};
+
+// Units API
+export const unitApi = {
+  fetchAll: () => fetchData("units"),
+  getById: (id: string) => fetchData(`units/${id}`),
+  create: (data: any) => createData("units", data),
+  update: (id: string, data: any) => updateData("units", id, data),
+  delete: (id: string) => deleteData("units", id),
+};
+
+// JobTypes API
+export const jobTypeApi = {
+  fetchAll: () => fetchData("jobtypes"),
+  getById: (id: string) => fetchData(`jobtypes/${id}`),
+  create: (data: any) => createData("jobtypes", data),
+  update: (id: string, data: any) => updateData("jobtypes", id, data),
+  delete: (id: string) => deleteData("jobtypes", id),
+};
+
+// DriverRates API
+export const driverRateApi = {
+  fetchByDriver: (driverId: string) => fetchData(`drivers/${driverId}/rates`),
+  fetchByJobType: (jobTypeId: string) => fetchData(`jobtypes/${jobTypeId}/rates`),
+  create: (data: any) => createData("driverrates", data),
+  update: (id: string, data: any) => updateData("driverrates", id, data),
+  delete: (id: string) => deleteData("driverrates", id),
+};
+
+// Jobs API
+export const jobApi = {
+  fetchAll: () => fetchData("jobs"),
+  getById: (id: string) => fetchData(`jobs/${id}`),
+  create: (data: any) => createData("jobs", data),
+  update: (id: string, data: any) => updateData("jobs", id, data),
+  delete: (id: string) => deleteData("jobs", id),
+};
+
+// JobTicket API
+export const jobTicketApi = {
+  fetchByJob: (jobId: string) => fetchData(`jobs/${jobId}/tickets`),
+  create: (jobId: string, data: any) => createData(`jobs/${jobId}/tickets`, data),
+  update: (jobId: string, ticketId: string, data: any) => 
+    updateData(`jobs/${jobId}/tickets`, ticketId, data),
+  delete: (jobId: string, ticketId: string) => 
+    deleteData(`jobs/${jobId}/tickets`, ticketId),
+};
+
+// Invoices API
+export const invoiceApi = {
+  fetchAll: () => fetchData("invoices"),
+  getById: (id: string) => fetchData(`invoices/${id}`),
+  create: (data: any) => createData("invoices", data),
+  update: (id: string, data: any) => updateData("invoices", id, data),
+  delete: (id: string) => deleteData("invoices", id),
+};
+
+// Invoice Line Items API
+export const invoiceLineApi = {
+  fetchByInvoice: (invoiceId: string) => fetchData(`invoices/${invoiceId}/lines`),
+  create: (invoiceId: string, data: any) => createData(`invoices/${invoiceId}/lines`, data),
+  update: (invoiceId: string, lineId: string, data: any) => 
+    updateData(`invoices/${invoiceId}/lines`, lineId, data),
+  delete: (invoiceId: string, lineId: string) => 
+    deleteData(`invoices/${invoiceId}/lines`, lineId),
+};

@@ -3,86 +3,85 @@
 import { useState, useEffect } from "react";
 import { Button } from "../../components/ui/button";
 import { Eye, Pencil, Trash2, Plus } from "lucide-react";
-import { unitApi } from "@/lib/api";
+import { driverApi } from "@/lib/api";
 import { toast } from "sonner";
 import { DataTable, Column } from "../../components/common/DataTable";
 import { ConfirmDialog } from "../../components/common/Modal";
 
-interface Unit {
-  unitId: string;
+interface Driver {
+  driverId: string;
   name: string;
-  plateNumber?: string;
-  vin?: string;
-  color?: string;
-  description?: string;
-  jobsCount?: number;
+  email: string;
+  phone?: string;
+  hourlyRate?: number;
+  activeJobsCount?: number;
 }
 
-interface UnitListProps {
-  onSelect: (unit: Unit) => void;
-  onEdit: (unit: Unit) => void;
+interface DriverListProps {
+  onSelect: (driver: Driver) => void;
+  onEdit: (driver: Driver) => void;
   onCreate: () => void;
   refresh: number;
 }
 
-export function UnitList({ onSelect, onEdit, onCreate, refresh }: UnitListProps) {
-  const [units, setUnits] = useState<Unit[]>([]);
+export function DriverList({ onSelect, onEdit, onCreate, refresh }: DriverListProps) {
+  const [drivers, setDrivers] = useState<Driver[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   useEffect(() => {
     setLoading(true);
-    unitApi.fetchAll()
+    driverApi.fetchAll()
       .then((data) => {
-        setUnits(data);
+        setDrivers(data);
         setLoading(false);
       })
       .catch(() => {
-        setError("Failed to load units");
+        setError("Failed to load drivers");
         setLoading(false);
       });
   }, [refresh]);
 
   const handleDelete = async (id: string) => {
     try {
-      await unitApi.delete(id);
-      setUnits(units.filter(unit => unit.unitId !== id));
-      toast.success("Unit deleted successfully");
+      await driverApi.delete(id);
+      setDrivers(drivers.filter(d => d.driverId !== id));
+      toast.success("Driver deleted successfully");
     } catch {
-      setError("Failed to delete unit");
-      toast.error("Failed to delete unit");
+      setError("Failed to delete driver");
+      toast.error("Failed to delete driver");
     }
   };
 
-  const columns: Column<Unit>[] = [
+  const formatCurrency = (value?: number) => {
+    if (value === undefined || value === null) return "—";
+    return `$${value.toFixed(2)}`;
+  };
+
+  const columns: Column<Driver>[] = [
     {
       header: "Name",
       accessorKey: "name",
     },
     {
-      header: "Plate",
-      accessorKey: "plateNumber",
-      cell: (row) => row.plateNumber || "—"
+      header: "Email",
+      accessorKey: "email",
     },
     {
-      header: "VIN",
-      accessorKey: "vin",
-      cell: (row) => (
-        <span className="font-mono text-xs">
-          {row.vin || "—"}
-        </span>
-      )
+      header: "Phone",
+      accessorKey: "phone",
+      cell: (row) => row.phone || "—"
     },
     {
-      header: "Color",
-      accessorKey: "color",
-      cell: (row) => row.color || "—"
+      header: "Hourly Rate",
+      accessorKey: "hourlyRate",
+      cell: (row) => formatCurrency(row.hourlyRate)
     },
     {
-      header: "Jobs Count",
-      accessorKey: "jobsCount",
-      cell: (row) => row.jobsCount || 0
+      header: "Active Jobs",
+      accessorKey: "activeJobsCount",
+      cell: (row) => row.activeJobsCount || 0
     },
     {
       header: "Actions",
@@ -108,7 +107,7 @@ export function UnitList({ onSelect, onEdit, onCreate, refresh }: UnitListProps)
           <Button
             size="icon"
             variant="ghost"
-            onClick={() => setConfirmDelete(row.unitId)}
+            onClick={() => setConfirmDelete(row.driverId)}
             className="text-destructive hover:text-destructive"
             title="Delete"
           >
@@ -122,26 +121,26 @@ export function UnitList({ onSelect, onEdit, onCreate, refresh }: UnitListProps)
   return (
     <div>
       <div className="flex justify-between mb-4">
-        <h2 className="text-lg font-medium">All Units</h2>
+        <h2 className="text-lg font-medium">All Drivers</h2>
         <Button onClick={onCreate} className="gap-1">
-          <Plus className="h-4 w-4" /> Add Unit
+          <Plus className="h-4 w-4" /> Add Driver
         </Button>
       </div>
       
       <DataTable
-        data={units}
+        data={drivers}
         columns={columns}
         loading={loading}
         error={error}
         searchField="name"
-        searchPlaceholder="Search by name, plate, or VIN..."
-        emptyTitle="No Units"
-        emptyDescription="There are no units to display. Add a new unit to get started."
+        searchPlaceholder="Search by name..."
+        emptyTitle="No Drivers"
+        emptyDescription="There are no drivers to display. Add a new driver to get started."
       />
 
       <ConfirmDialog
-        title="Delete Unit"
-        message="Are you sure you want to delete this unit? This action cannot be undone."
+        title="Delete Driver"
+        message="Are you sure you want to delete this driver? This action cannot be undone."
         isOpen={!!confirmDelete}
         onConfirm={() => {
           if (confirmDelete) handleDelete(confirmDelete);

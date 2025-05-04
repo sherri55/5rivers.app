@@ -17,7 +17,8 @@ export const getJobs = async (req: Request, res: Response) => {
       },
     });
     res.json(jobs);
-  } catch {
+  } catch (error) {
+    console.error('Error in getJobs:', error);
     res.status(500).json({ error: "Failed to fetch jobs" });
   }
 };
@@ -37,7 +38,8 @@ export const getJobById = async (req: Request, res: Response) => {
       },
     });
     res.json(job);
-  } catch {
+  } catch (error) {
+    console.error('Error in getJobById:', error);
     res.status(500).json({ error: "Failed to fetch job" });
   }
 };
@@ -51,7 +53,8 @@ export const createJob = async (req: Request, res: Response) => {
       },
     });
     res.status(201).json(job);
-  } catch {
+  } catch (error) {
+    console.error('Error in createJob:', error);
     res.status(400).json({ error: "Failed to create job" });
   }
 };
@@ -64,7 +67,8 @@ export const updateJob = async (req: Request, res: Response) => {
       data: req.body,
     });
     res.json(job);
-  } catch {
+  } catch (error) {
+    console.error('Error in updateJob:', error);
     res.status(400).json({ error: "Failed to update job" });
   }
 };
@@ -74,7 +78,8 @@ export const deleteJob = async (req: Request, res: Response) => {
     const { id } = req.params;
     await prisma.job.delete({ where: { jobId: id } });
     res.json({ message: "Job deleted" });
-  } catch {
+  } catch (error) {
+    console.error('Error in deleteJob:', error);
     res.status(400).json({ error: "Failed to delete job" });
   }
 };

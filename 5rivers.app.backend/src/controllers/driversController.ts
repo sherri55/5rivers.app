@@ -9,7 +9,8 @@ export const getDrivers = async (req: Request, res: Response) => {
       include: { jobs: true },
     });
     res.json(drivers);
-  } catch {
+  } catch (error) {
+    console.error('Error in getDrivers:', error);
     res.status(500).json({ error: "Failed to fetch drivers" });
   }
 };
@@ -21,7 +22,8 @@ export const getDriverById = async (req: Request, res: Response) => {
       include: { jobs: true },
     });
     res.json(driver);
-  } catch {
+  } catch (error) {
+    console.error('Error in getDriverById:', error);
     res.status(500).json({ error: "Failed to fetch driver" });
   }
 };
@@ -33,7 +35,8 @@ export const createDriver = async (req: Request, res: Response) => {
       data: { name, email, phone, hourlyRate, description },
     });
     res.status(201).json(driver);
-  } catch {
+  } catch (error) {
+    console.error('Error in createDriver:', error);
     res.status(400).json({ error: "Failed to create driver" });
   }
 };
@@ -46,7 +49,8 @@ export const updateDriver = async (req: Request, res: Response) => {
       data: req.body,
     });
     res.json(driver);
-  } catch {
+  } catch (error) {
+    console.error('Error in updateDriver:', error);
     res.status(400).json({ error: "Failed to update driver" });
   }
 };
@@ -56,7 +60,8 @@ export const deleteDriver = async (req: Request, res: Response) => {
     const { id } = req.params;
     await prisma.driver.delete({ where: { driverId: id } });
     res.json({ message: "Driver deleted" });
-  } catch {
+  } catch (error) {
+    console.error('Error in deleteDriver:', error);
     res.status(400).json({ error: "Failed to delete driver" });
   }
 };

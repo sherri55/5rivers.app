@@ -3,86 +3,86 @@
 import { useState, useEffect } from "react";
 import { Button } from "../../components/ui/button";
 import { Eye, Pencil, Trash2, Plus } from "lucide-react";
-import { unitApi } from "@/lib/api";
+import { dispatcherApi } from "@/lib/api";
 import { toast } from "sonner";
 import { DataTable, Column } from "../../components/common/DataTable";
 import { ConfirmDialog } from "../../components/common/Modal";
 
-interface Unit {
-  unitId: string;
+interface Dispatcher {
+  dispatcherId: string;
   name: string;
-  plateNumber?: string;
-  vin?: string;
-  color?: string;
-  description?: string;
+  email: string;
+  phone?: string;
+  commissionPercentage?: number;
   jobsCount?: number;
+  invoicesCount?: number;
 }
 
-interface UnitListProps {
-  onSelect: (unit: Unit) => void;
-  onEdit: (unit: Unit) => void;
+interface DispatcherListProps {
+  onSelect: (dispatcher: Dispatcher) => void;
+  onEdit: (dispatcher: Dispatcher) => void;
   onCreate: () => void;
   refresh: number;
 }
 
-export function UnitList({ onSelect, onEdit, onCreate, refresh }: UnitListProps) {
-  const [units, setUnits] = useState<Unit[]>([]);
+export function DispatcherList({ onSelect, onEdit, onCreate, refresh }: DispatcherListProps) {
+  const [dispatchers, setDispatchers] = useState<Dispatcher[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   useEffect(() => {
     setLoading(true);
-    unitApi.fetchAll()
+    dispatcherApi.fetchAll()
       .then((data) => {
-        setUnits(data);
+        setDispatchers(data);
         setLoading(false);
       })
       .catch(() => {
-        setError("Failed to load units");
+        setError("Failed to load dispatchers");
         setLoading(false);
       });
   }, [refresh]);
 
   const handleDelete = async (id: string) => {
     try {
-      await unitApi.delete(id);
-      setUnits(units.filter(unit => unit.unitId !== id));
-      toast.success("Unit deleted successfully");
+      await dispatcherApi.delete(id);
+      setDispatchers(dispatchers.filter(d => d.dispatcherId !== id));
+      toast.success("Dispatcher deleted successfully");
     } catch {
-      setError("Failed to delete unit");
-      toast.error("Failed to delete unit");
+      setError("Failed to delete dispatcher");
+      toast.error("Failed to delete dispatcher");
     }
   };
 
-  const columns: Column<Unit>[] = [
+  const formatCommission = (value?: number) => {
+    if (value === undefined || value === null) return "—";
+    return `${value}%`;
+  };
+
+  const columns: Column<Dispatcher>[] = [
     {
       header: "Name",
       accessorKey: "name",
     },
     {
-      header: "Plate",
-      accessorKey: "plateNumber",
-      cell: (row) => row.plateNumber || "—"
+      header: "Email",
+      accessorKey: "email",
     },
     {
-      header: "VIN",
-      accessorKey: "vin",
-      cell: (row) => (
-        <span className="font-mono text-xs">
-          {row.vin || "—"}
-        </span>
-      )
-    },
-    {
-      header: "Color",
-      accessorKey: "color",
-      cell: (row) => row.color || "—"
+      header: "Commission %",
+      accessorKey: "commissionPercentage",
+      cell: (row) => formatCommission(row.commissionPercentage)
     },
     {
       header: "Jobs Count",
       accessorKey: "jobsCount",
       cell: (row) => row.jobsCount || 0
+    },
+    {
+      header: "Invoices",
+      accessorKey: "invoicesCount",
+      cell: (row) => row.invoicesCount || 0
     },
     {
       header: "Actions",
@@ -108,7 +108,7 @@ export function UnitList({ onSelect, onEdit, onCreate, refresh }: UnitListProps)
           <Button
             size="icon"
             variant="ghost"
-            onClick={() => setConfirmDelete(row.unitId)}
+            onClick={() => setConfirmDelete(row.dispatcherId)}
             className="text-destructive hover:text-destructive"
             title="Delete"
           >
@@ -122,26 +122,26 @@ export function UnitList({ onSelect, onEdit, onCreate, refresh }: UnitListProps)
   return (
     <div>
       <div className="flex justify-between mb-4">
-        <h2 className="text-lg font-medium">All Units</h2>
+        <h2 className="text-lg font-medium">All Dispatchers</h2>
         <Button onClick={onCreate} className="gap-1">
-          <Plus className="h-4 w-4" /> Add Unit
+          <Plus className="h-4 w-4" /> Add Dispatcher
         </Button>
       </div>
       
       <DataTable
-        data={units}
+        data={dispatchers}
         columns={columns}
         loading={loading}
         error={error}
         searchField="name"
-        searchPlaceholder="Search by name, plate, or VIN..."
-        emptyTitle="No Units"
-        emptyDescription="There are no units to display. Add a new unit to get started."
+        searchPlaceholder="Search by name..."
+        emptyTitle="No Dispatchers"
+        emptyDescription="There are no dispatchers to display. Add a new dispatcher to get started."
       />
 
       <ConfirmDialog
-        title="Delete Unit"
-        message="Are you sure you want to delete this unit? This action cannot be undone."
+        title="Delete Dispatcher"
+        message="Are you sure you want to delete this dispatcher? This action cannot be undone."
         isOpen={!!confirmDelete}
         onConfirm={() => {
           if (confirmDelete) handleDelete(confirmDelete);

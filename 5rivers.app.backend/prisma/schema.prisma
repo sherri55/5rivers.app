@@ -3,7 +3,7 @@
  */
 datasource db {
   provider = "sqlite"
-  url      = "file:./src/db/5rivers.sqlite"
+  url      = "file:../src/db/5rivers.db"
 }
 
 generator client {
@@ -52,6 +52,9 @@ model Unit {
   unitId      String   @id @default(uuid())
   name        String
   description String?
+  plateNumber String?
+  color       String?
+  vin         String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   jobs        Job[]

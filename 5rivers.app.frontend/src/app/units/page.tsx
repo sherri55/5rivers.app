@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "../../components/ui/tabs";
+import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { UnitList } from "../../components/units/UnitList";
 import { UnitForm } from "../../components/units/UnitForm";
 import { UnitDetails } from "../../components/units/UnitDetails";

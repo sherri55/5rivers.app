@@ -8,7 +8,8 @@ export const getUnits = async (req: Request, res: Response) => {
       include: { jobs: true },
     });
     res.json(units);
-  } catch {
+  } catch (error) {
+    console.error('Error in getUnits:', error);
     res.status(500).json({ error: "Failed to fetch units" });
   }
 };
@@ -20,19 +21,21 @@ export const getUnitById = async (req: Request, res: Response) => {
       include: { jobs: true },
     });
     res.json(unit);
-  } catch {
+  } catch (error) {
+    console.error('Error in getUnitById:', error);
     res.status(500).json({ error: "Failed to fetch unit" });
   }
 };
 
 export const createUnit = async (req: Request, res: Response) => {
   try {
-    const { name, description } = req.body;
+    const { name, description, plateNumber, color, vin } = req.body;
     const unit = await prisma.unit.create({
-      data: { name, description },
+      data: { name, description, plateNumber, color, vin },
     });
     res.status(201).json(unit);
-  } catch {
+  } catch (error) {
+    console.error('Error in createUnit:', error);
     res.status(400).json({ error: "Failed to create unit" });
   }
 };
@@ -40,12 +43,14 @@ export const createUnit = async (req: Request, res: Response) => {
 export const updateUnit = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const { name, description, plateNumber, color, vin } = req.body;
     const unit = await prisma.unit.update({
       where: { unitId: id },
-      data: req.body,
+      data: { name, description, plateNumber, color, vin },
     });
     res.json(unit);
-  } catch {
+  } catch (error) {
+    console.error('Error in updateUnit:', error);
     res.status(400).json({ error: "Failed to update unit" });
   }
 };
@@ -55,7 +60,8 @@ export const deleteUnit = async (req: Request, res: Response) => {
     const { id } = req.params;
     await prisma.unit.delete({ where: { unitId: id } });
     res.json({ message: "Unit deleted" });
-  } catch {
+  } catch (error) {
+    console.error('Error in deleteUnit:', error);
     res.status(400).json({ error: "Failed to delete unit" });
   }
 };
