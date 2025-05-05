@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "../../components/ui/button";
 import { Eye, Pencil, Trash2, Plus } from "lucide-react";
-import { companyApi } from "@/lib/api";
+import { companyApi } from "@/src/lib/api";
 import { toast } from "sonner";
 import { DataTable, Column } from "../../components/common/DataTable";
 import { ConfirmDialog } from "../../components/common/Modal";
@@ -23,7 +23,12 @@ interface CompanyListProps {
   refresh: number;
 }
 
-export function CompanyList({ onSelect, onEdit, onCreate, refresh }: CompanyListProps) {
+export function CompanyList({
+  onSelect,
+  onEdit,
+  onCreate,
+  refresh,
+}: CompanyListProps) {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -31,7 +36,8 @@ export function CompanyList({ onSelect, onEdit, onCreate, refresh }: CompanyList
 
   useEffect(() => {
     setLoading(true);
-    companyApi.fetchAll()
+    companyApi
+      .fetchAll()
       .then((data) => {
         setCompanies(data);
         setLoading(false);
@@ -45,7 +51,7 @@ export function CompanyList({ onSelect, onEdit, onCreate, refresh }: CompanyList
   const handleDelete = async (id: string) => {
     try {
       await companyApi.delete(id);
-      setCompanies(companies.filter(c => c.companyId !== id));
+      setCompanies(companies.filter((c) => c.companyId !== id));
       toast.success("Company deleted successfully");
     } catch {
       setError("Failed to delete company");
@@ -65,12 +71,12 @@ export function CompanyList({ onSelect, onEdit, onCreate, refresh }: CompanyList
     {
       header: "Phone",
       accessorKey: "phone",
-      cell: (row) => row.phone || "—"
+      cell: (row) => row.phone || "—",
     },
     {
       header: "Job Types",
       accessorKey: "jobTypesCount",
-      cell: (row) => row.jobTypesCount || 0
+      cell: (row) => row.jobTypesCount || 0,
     },
     {
       header: "Actions",
@@ -115,7 +121,7 @@ export function CompanyList({ onSelect, onEdit, onCreate, refresh }: CompanyList
           <Plus className="h-4 w-4" /> Add Company
         </Button>
       </div>
-      
+
       <DataTable
         data={companies}
         columns={columns}

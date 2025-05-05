@@ -6,7 +6,7 @@ import { CompanyDetails } from "../../components/companies/CompanyDetails";
 import { CompanyForm } from "../../components/companies/CompanyForm";
 import { Modal } from "../../components/common/Modal";
 import { ConfirmDialog } from "../../components/common/Modal";
-import { companyApi } from "@/lib/api";
+import { companyApi } from "@/src/lib/api";
 import { toast } from "sonner";
 
 interface Company {
@@ -26,7 +26,7 @@ export default function CompaniesPage() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   // Refresh the list when data changes
-  const refresh = () => setRefreshTrigger(prev => prev + 1);
+  const refresh = () => setRefreshTrigger((prev) => prev + 1);
 
   const handleCreate = () => {
     setEditingCompany(null);
@@ -40,14 +40,14 @@ export default function CompaniesPage() {
 
   const handleDelete = async () => {
     if (!selectedCompany) return;
-    
+
     try {
       await companyApi.delete(selectedCompany.companyId);
       toast.success("Company deleted successfully");
       setSelectedCompany(null);
       refresh();
     } catch (error) {
-      toast.error("Failed to delete company");
+      toast.error("Failed to delete company" + error.message);
     }
     setConfirmDelete(false);
   };
@@ -70,13 +70,15 @@ export default function CompaniesPage() {
             refresh={refreshTrigger}
           />
         </div>
-        
+
         <div className="md:col-span-1">
-          <CompanyDetails
-            company={selectedCompany}
-            onDelete={() => setConfirmDelete(true)}
-            onEdit={() => selectedCompany && handleEdit(selectedCompany)}
-          />
+          {selectedCompany && (
+            <CompanyDetails
+              company={selectedCompany}
+              onDelete={() => setConfirmDelete(true)}
+              onEdit={() => selectedCompany && handleEdit(selectedCompany)}
+            />
+          )}
         </div>
       </div>
 

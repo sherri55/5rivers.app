@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // Centralized API utilities for all entities
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:9999";
 
@@ -82,7 +83,8 @@ export const jobTypeApi = {
 // DriverRates API
 export const driverRateApi = {
   fetchByDriver: (driverId: string) => fetchData(`drivers/${driverId}/rates`),
-  fetchByJobType: (jobTypeId: string) => fetchData(`jobtypes/${jobTypeId}/rates`),
+  fetchByJobType: (jobTypeId: string) =>
+    fetchData(`jobtypes/${jobTypeId}/rates`),
   create: (data: any) => createData("driverrates", data),
   update: (id: string, data: any) => updateData("driverrates", id, data),
   delete: (id: string) => deleteData("driverrates", id),
@@ -100,10 +102,11 @@ export const jobApi = {
 // JobTicket API
 export const jobTicketApi = {
   fetchByJob: (jobId: string) => fetchData(`jobs/${jobId}/tickets`),
-  create: (jobId: string, data: any) => createData(`jobs/${jobId}/tickets`, data),
-  update: (jobId: string, ticketId: string, data: any) => 
+  create: (jobId: string, data: any) =>
+    createData(`jobs/${jobId}/tickets`, data),
+  update: (jobId: string, ticketId: string, data: any) =>
     updateData(`jobs/${jobId}/tickets`, ticketId, data),
-  delete: (jobId: string, ticketId: string) => 
+  delete: (jobId: string, ticketId: string) =>
     deleteData(`jobs/${jobId}/tickets`, ticketId),
 };
 
@@ -118,10 +121,12 @@ export const invoiceApi = {
 
 // Invoice Line Items API
 export const invoiceLineApi = {
-  fetchByInvoice: (invoiceId: string) => fetchData(`invoices/${invoiceId}/lines`),
-  create: (invoiceId: string, data: any) => createData(`invoices/${invoiceId}/lines`, data),
-  update: (invoiceId: string, lineId: string, data: any) => 
+  fetchByInvoice: (invoiceId: string) =>
+    fetchData(`invoices/${invoiceId}/lines`),
+  create: (invoiceId: string, data: any) =>
+    createData(`invoices/${invoiceId}/lines`, data),
+  update: (invoiceId: string, lineId: string, data: any) =>
     updateData(`invoices/${invoiceId}/lines`, lineId, data),
-  delete: (invoiceId: string, lineId: string) => 
+  delete: (invoiceId: string, lineId: string) =>
     deleteData(`invoices/${invoiceId}/lines`, lineId),
 };

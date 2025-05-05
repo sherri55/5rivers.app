@@ -1,9 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Button } from "../../components/ui/button";
 import { FormField } from "../../components/common/FormField";
-import { unitApi } from "@/lib/api";
+import { unitApi } from "@/src/lib/api";
 import { toast } from "sonner";
 
 interface Unit {
@@ -102,3 +101,52 @@ export function UnitForm({ unit, onSuccess, onCancel }: UnitFormProps) {
         label="Plate Number"
         value={plateNumber}
         onChange={setPlateNumber}
+        placeholder="Enter plate number"
+      />
+
+      <FormField
+        id="vin"
+        label="VIN"
+        value={vin}
+        onChange={setVin}
+        placeholder="Enter VIN"
+      />
+
+      <FormField
+        id="color"
+        label="Color"
+        value={color}
+        onChange={setColor}
+        placeholder="Enter color"
+      />
+
+      <FormField
+        id="description"
+        label="Description"
+        value={description}
+        onChange={setDescription}
+        placeholder="Enter description"
+      />
+
+      <div className="flex gap-2 justify-end">
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={onCancel}
+          disabled={loading}
+        >
+          Cancel
+        </button>
+        <button type="submit" className="btn btn-primary" disabled={loading}>
+          {loading
+            ? unit
+              ? "Updating..."
+              : "Creating..."
+            : unit
+            ? "Update Unit"
+            : "Create Unit"}
+        </button>
+      </div>
+    </form>
+  );
+}

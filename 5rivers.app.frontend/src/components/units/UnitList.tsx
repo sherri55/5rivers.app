@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Button } from "../../components/ui/button";
+import { Button } from "../ui/button";
 import { Eye, Pencil, Trash2, Plus } from "lucide-react";
-import { unitApi } from "@/lib/api";
+import { unitApi } from "@/src/lib/api";
 import { toast } from "sonner";
 import { DataTable, Column } from "../../components/common/DataTable";
 import { ConfirmDialog } from "../../components/common/Modal";
@@ -25,7 +25,12 @@ interface UnitListProps {
   refresh: number;
 }
 
-export function UnitList({ onSelect, onEdit, onCreate, refresh }: UnitListProps) {
+export function UnitList({
+  onSelect,
+  onEdit,
+  onCreate,
+  refresh,
+}: UnitListProps) {
   const [units, setUnits] = useState<Unit[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -33,7 +38,8 @@ export function UnitList({ onSelect, onEdit, onCreate, refresh }: UnitListProps)
 
   useEffect(() => {
     setLoading(true);
-    unitApi.fetchAll()
+    unitApi
+      .fetchAll()
       .then((data) => {
         setUnits(data);
         setLoading(false);
@@ -47,7 +53,7 @@ export function UnitList({ onSelect, onEdit, onCreate, refresh }: UnitListProps)
   const handleDelete = async (id: string) => {
     try {
       await unitApi.delete(id);
-      setUnits(units.filter(unit => unit.unitId !== id));
+      setUnits(units.filter((unit) => unit.unitId !== id));
       toast.success("Unit deleted successfully");
     } catch {
       setError("Failed to delete unit");
@@ -63,26 +69,24 @@ export function UnitList({ onSelect, onEdit, onCreate, refresh }: UnitListProps)
     {
       header: "Plate",
       accessorKey: "plateNumber",
-      cell: (row) => row.plateNumber || "—"
+      cell: (row) => row.plateNumber || "—",
     },
     {
       header: "VIN",
       accessorKey: "vin",
       cell: (row) => (
-        <span className="font-mono text-xs">
-          {row.vin || "—"}
-        </span>
-      )
+        <span className="font-mono text-xs">{row.vin || "—"}</span>
+      ),
     },
     {
       header: "Color",
       accessorKey: "color",
-      cell: (row) => row.color || "—"
+      cell: (row) => row.color || "—",
     },
     {
       header: "Jobs Count",
       accessorKey: "jobsCount",
-      cell: (row) => row.jobsCount || 0
+      cell: (row) => row.jobsCount || 0,
     },
     {
       header: "Actions",
@@ -127,7 +131,7 @@ export function UnitList({ onSelect, onEdit, onCreate, refresh }: UnitListProps)
           <Plus className="h-4 w-4" /> Add Unit
         </Button>
       </div>
-      
+
       <DataTable
         data={units}
         columns={columns}

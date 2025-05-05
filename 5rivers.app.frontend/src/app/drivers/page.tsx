@@ -7,7 +7,7 @@ import { DriverForm } from "../../components/drivers/DriverForm";
 import { DriverRateForm } from "../../components/drivers/DriverRateForm";
 import { Modal } from "../../components/common/Modal";
 import { ConfirmDialog } from "../../components/common/Modal";
-import { driverApi, driverRateApi } from "@/lib/api";
+import { driverApi } from "@/src/lib/api";
 import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
 import { Plus } from "lucide-react";
@@ -40,7 +40,7 @@ export default function DriversPage() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   // Refresh the list when data changes
-  const refresh = () => setRefreshTrigger(prev => prev + 1);
+  const refresh = () => setRefreshTrigger((prev) => prev + 1);
 
   const handleCreate = () => {
     setEditingDriver(null);
@@ -59,14 +59,14 @@ export default function DriversPage() {
 
   const handleDelete = async () => {
     if (!selectedDriver) return;
-    
+
     try {
       await driverApi.delete(selectedDriver.driverId);
       toast.success("Driver deleted successfully");
       setSelectedDriver(null);
       refresh();
     } catch (error) {
-      toast.error("Failed to delete driver");
+      toast.error("Failed to delete driver" + error.message);
     }
     setConfirmDelete(false);
   };
@@ -89,20 +89,21 @@ export default function DriversPage() {
             refresh={refreshTrigger}
           />
         </div>
-        
+
         <div className="md:col-span-1">
-          <DriverDetails
-            driver={selectedDriver}
-            onDelete={() => setConfirmDelete(true)}
-            onEdit={() => selectedDriver && handleEdit(selectedDriver)}
-          />
-          
           {selectedDriver && (
-            <div className="mt-4 flex justify-end">
-              <Button onClick={handleCreateRate} className="gap-1">
-                <Plus className="h-4 w-4" /> Add Job Type Rate
-              </Button>
-            </div>
+            <>
+              <DriverDetails
+                driver={selectedDriver}
+                onDelete={() => setConfirmDelete(true)}
+                onEdit={() => selectedDriver && handleEdit(selectedDriver)}
+              />
+              <div className="mt-4 flex justify-end">
+                <Button onClick={handleCreateRate} className="gap-1">
+                  <Plus className="h-4 w-4" /> Add Job Type Rate
+                </Button>
+              </div>
+            </>
           )}
         </div>
       </div>
@@ -118,7 +119,10 @@ export default function DriversPage() {
           onSuccess={() => {
             setIsFormOpen(false);
             refresh();
-            if (editingDriver && selectedDriver?.driverId === editingDriver.driverId) {
+            if (
+              editingDriver &&
+              selectedDriver?.driverId === editingDriver.driverId
+            ) {
               // Update the selected driver data
               driverApi
                 .getById(editingDriver.driverId)

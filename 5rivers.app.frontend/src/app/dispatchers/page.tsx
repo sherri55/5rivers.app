@@ -6,7 +6,7 @@ import { DispatcherDetails } from "../../components/dispatchers/DispatcherDetail
 import { DispatcherForm } from "../../components/dispatchers/DispatcherForm";
 import { Modal } from "../../components/common/Modal";
 import { ConfirmDialog } from "../../components/common/Modal";
-import { dispatcherApi } from "@/lib/api";
+import { dispatcherApi } from "@/src/lib/api";
 import { toast } from "sonner";
 
 interface Dispatcher {
@@ -21,14 +21,17 @@ interface Dispatcher {
 }
 
 export default function DispatchersPage() {
-  const [selectedDispatcher, setSelectedDispatcher] = useState<Dispatcher | null>(null);
+  const [selectedDispatcher, setSelectedDispatcher] =
+    useState<Dispatcher | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingDispatcher, setEditingDispatcher] = useState<Dispatcher | null>(null);
+  const [editingDispatcher, setEditingDispatcher] = useState<Dispatcher | null>(
+    null
+  );
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   // Refresh the list when data changes
-  const refresh = () => setRefreshTrigger(prev => prev + 1);
+  const refresh = () => setRefreshTrigger((prev) => prev + 1);
 
   const handleCreate = () => {
     setEditingDispatcher(null);
@@ -42,14 +45,14 @@ export default function DispatchersPage() {
 
   const handleDelete = async () => {
     if (!selectedDispatcher) return;
-    
+
     try {
       await dispatcherApi.delete(selectedDispatcher.dispatcherId);
       toast.success("Dispatcher deleted successfully");
       setSelectedDispatcher(null);
       refresh();
     } catch (error) {
-      toast.error("Failed to delete dispatcher");
+      toast.error("Failed to delete dispatcher" + error.message);
     }
     setConfirmDelete(false);
   };
@@ -72,13 +75,17 @@ export default function DispatchersPage() {
             refresh={refreshTrigger}
           />
         </div>
-        
+
         <div className="md:col-span-1">
-          <DispatcherDetails
-            dispatcher={selectedDispatcher}
-            onDelete={() => setConfirmDelete(true)}
-            onEdit={() => selectedDispatcher && handleEdit(selectedDispatcher)}
-          />
+          {selectedDispatcher && (
+            <DispatcherDetails
+              dispatcher={selectedDispatcher}
+              onDelete={() => setConfirmDelete(true)}
+              onEdit={() =>
+                selectedDispatcher && handleEdit(selectedDispatcher)
+              }
+            />
+          )}
         </div>
       </div>
 

@@ -10,7 +10,7 @@ import {
 import { Alert, AlertTitle, AlertDescription } from "../../components/ui/alert";
 import { Button } from "../../components/ui/button";
 import { DataTable, Column } from "../../components/common/DataTable";
-import { driverRateApi } from "@/lib/api";
+import { driverRateApi } from "@/src/lib/api";
 
 interface Driver {
   driverId: string;
@@ -50,12 +50,13 @@ export function DriverDetails({
   useEffect(() => {
     if (driver?.driverId) {
       setLoadingRates(true);
-      driverRateApi.fetchByDriver(driver.driverId)
-        .then(data => {
+      driverRateApi
+        .fetchByDriver(driver.driverId)
+        .then((data) => {
           setDriverRates(data);
           setLoadingRates(false);
         })
-        .catch(error => {
+        .catch((error) => {
           console.error("Failed to load driver rates:", error);
           setLoadingRates(false);
         });
@@ -100,23 +101,23 @@ export function DriverDetails({
     {
       header: "Job Type",
       accessorKey: "jobType",
-      cell: (row) => row.jobType.title
+      cell: (row) => row.jobType.title,
     },
     {
       header: "Hourly Rate",
       accessorKey: "hourlyRate",
-      cell: (row) => formatCurrency(row.hourlyRate)
+      cell: (row) => formatCurrency(row.hourlyRate),
     },
     {
       header: "Percentage",
       accessorKey: "percentage",
-      cell: (row) => formatPercentage(row.percentage)
+      cell: (row) => formatPercentage(row.percentage),
     },
     {
       header: "Created",
       accessorKey: "createdAt",
-      cell: (row) => formatDate(row.createdAt)
-    }
+      cell: (row) => formatDate(row.createdAt),
+    },
   ];
 
   return (
@@ -176,7 +177,7 @@ export function DriverDetails({
         {/* Driver Rates Section */}
         <div className="mt-6">
           <h3 className="text-base font-semibold mb-2">Job Type Rates</h3>
-          
+
           <DataTable
             data={driverRates}
             columns={rateColumns}
@@ -185,14 +186,10 @@ export function DriverDetails({
             emptyDescription="This driver has no specific job type rates configured."
           />
         </div>
-        
+
         {onDelete && (
           <div className="flex justify-end mt-6">
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={onDelete}
-            >
+            <Button type="button" variant="destructive" onClick={onDelete}>
               Delete Driver
             </Button>
           </div>

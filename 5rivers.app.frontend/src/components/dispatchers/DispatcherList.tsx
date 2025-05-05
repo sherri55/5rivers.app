@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "../../components/ui/button";
 import { Eye, Pencil, Trash2, Plus } from "lucide-react";
-import { dispatcherApi } from "@/lib/api";
+import { dispatcherApi } from "@/src/lib/api";
 import { toast } from "sonner";
 import { DataTable, Column } from "../../components/common/DataTable";
 import { ConfirmDialog } from "../../components/common/Modal";
@@ -25,7 +25,12 @@ interface DispatcherListProps {
   refresh: number;
 }
 
-export function DispatcherList({ onSelect, onEdit, onCreate, refresh }: DispatcherListProps) {
+export function DispatcherList({
+  onSelect,
+  onEdit,
+  onCreate,
+  refresh,
+}: DispatcherListProps) {
   const [dispatchers, setDispatchers] = useState<Dispatcher[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -33,7 +38,8 @@ export function DispatcherList({ onSelect, onEdit, onCreate, refresh }: Dispatch
 
   useEffect(() => {
     setLoading(true);
-    dispatcherApi.fetchAll()
+    dispatcherApi
+      .fetchAll()
       .then((data) => {
         setDispatchers(data);
         setLoading(false);
@@ -47,7 +53,7 @@ export function DispatcherList({ onSelect, onEdit, onCreate, refresh }: Dispatch
   const handleDelete = async (id: string) => {
     try {
       await dispatcherApi.delete(id);
-      setDispatchers(dispatchers.filter(d => d.dispatcherId !== id));
+      setDispatchers(dispatchers.filter((d) => d.dispatcherId !== id));
       toast.success("Dispatcher deleted successfully");
     } catch {
       setError("Failed to delete dispatcher");
@@ -72,17 +78,17 @@ export function DispatcherList({ onSelect, onEdit, onCreate, refresh }: Dispatch
     {
       header: "Commission %",
       accessorKey: "commissionPercentage",
-      cell: (row) => formatCommission(row.commissionPercentage)
+      cell: (row) => formatCommission(row.commissionPercentage),
     },
     {
       header: "Jobs Count",
       accessorKey: "jobsCount",
-      cell: (row) => row.jobsCount || 0
+      cell: (row) => row.jobsCount || 0,
     },
     {
       header: "Invoices",
       accessorKey: "invoicesCount",
-      cell: (row) => row.invoicesCount || 0
+      cell: (row) => row.invoicesCount || 0,
     },
     {
       header: "Actions",
@@ -127,7 +133,7 @@ export function DispatcherList({ onSelect, onEdit, onCreate, refresh }: Dispatch
           <Plus className="h-4 w-4" /> Add Dispatcher
         </Button>
       </div>
-      
+
       <DataTable
         data={dispatchers}
         columns={columns}

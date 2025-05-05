@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "../../components/ui/button";
 import { Eye, Pencil, Trash2, Plus } from "lucide-react";
-import { driverApi } from "@/lib/api";
+import { driverApi } from "@/src/lib/api";
 import { toast } from "sonner";
 import { DataTable, Column } from "../../components/common/DataTable";
 import { ConfirmDialog } from "../../components/common/Modal";
@@ -24,7 +24,12 @@ interface DriverListProps {
   refresh: number;
 }
 
-export function DriverList({ onSelect, onEdit, onCreate, refresh }: DriverListProps) {
+export function DriverList({
+  onSelect,
+  onEdit,
+  onCreate,
+  refresh,
+}: DriverListProps) {
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -32,7 +37,8 @@ export function DriverList({ onSelect, onEdit, onCreate, refresh }: DriverListPr
 
   useEffect(() => {
     setLoading(true);
-    driverApi.fetchAll()
+    driverApi
+      .fetchAll()
       .then((data) => {
         setDrivers(data);
         setLoading(false);
@@ -46,7 +52,7 @@ export function DriverList({ onSelect, onEdit, onCreate, refresh }: DriverListPr
   const handleDelete = async (id: string) => {
     try {
       await driverApi.delete(id);
-      setDrivers(drivers.filter(d => d.driverId !== id));
+      setDrivers(drivers.filter((d) => d.driverId !== id));
       toast.success("Driver deleted successfully");
     } catch {
       setError("Failed to delete driver");
@@ -71,17 +77,17 @@ export function DriverList({ onSelect, onEdit, onCreate, refresh }: DriverListPr
     {
       header: "Phone",
       accessorKey: "phone",
-      cell: (row) => row.phone || "—"
+      cell: (row) => row.phone || "—",
     },
     {
       header: "Hourly Rate",
       accessorKey: "hourlyRate",
-      cell: (row) => formatCurrency(row.hourlyRate)
+      cell: (row) => formatCurrency(row.hourlyRate),
     },
     {
       header: "Active Jobs",
       accessorKey: "activeJobsCount",
-      cell: (row) => row.activeJobsCount || 0
+      cell: (row) => row.activeJobsCount || 0,
     },
     {
       header: "Actions",
@@ -126,7 +132,7 @@ export function DriverList({ onSelect, onEdit, onCreate, refresh }: DriverListPr
           <Plus className="h-4 w-4" /> Add Driver
         </Button>
       </div>
-      
+
       <DataTable
         data={drivers}
         columns={columns}

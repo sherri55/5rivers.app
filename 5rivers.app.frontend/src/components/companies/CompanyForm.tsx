@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "../../components/ui/button";
 import { FormField } from "../../components/common/FormField";
-import { companyApi } from "@/lib/api";
+import { companyApi } from "@/src/lib/api";
 import { toast } from "sonner";
 
 interface Company {
@@ -20,7 +20,11 @@ interface CompanyFormProps {
   onCancel: () => void;
 }
 
-export function CompanyForm({ company, onSuccess, onCancel }: CompanyFormProps) {
+export function CompanyForm({
+  company,
+  onSuccess,
+  onCancel,
+}: CompanyFormProps) {
   const [name, setName] = useState(company?.name || "");
   const [email, setEmail] = useState(company?.email || "");
   const [phone, setPhone] = useState(company?.phone || "");

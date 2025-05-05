@@ -1,70 +1,108 @@
 "use client";
+
 import { useState } from "react";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "../../components/ui/tabs";
-import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { UnitList } from "../../components/units/UnitList";
 import { UnitForm } from "../../components/units/UnitForm";
 import { UnitDetails } from "../../components/units/UnitDetails";
+import { Modal, ConfirmDialog } from "../../components/common/Modal";
+import { unitApi } from "../../lib/api";
+import { toast } from "sonner";
+import { Button } from "../../components/ui/button";
 import { Plus } from "lucide-react";
 
 export default function UnitsPage() {
-  const [tab, setTab] = useState("list");
-  const [selected, setSelected] = useState(null);
-  const [edit, setEdit] = useState(null);
-  const [refresh, setRefresh] = useState(0);
+  const [selectedUnit, setSelectedUnit] = useState(null);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingUnit, setEditingUnit] = useState(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
-  const handleSelect = (unit) => {
-    setSelected(unit);
-    setTab("details");
+  const refresh = () => setRefreshTrigger((r) => r + 1);
+
+  const handleCreate = () => {
+    setEditingUnit(null);
+    setIsFormOpen(true);
   };
+
   const handleEdit = (unit) => {
-    setEdit(unit);
-    setTab("create");
+    setEditingUnit(unit);
+    setIsFormOpen(true);
   };
-  const handleSuccess = () => {
-    setEdit(null);
-    setTab("list");
-    setRefresh((r) => r + 1);
-  };
-  const handleCancel = () => {
-    setEdit(null);
-    setTab("list");
+
+  const handleDelete = async () => {
+    if (!selectedUnit) return;
+    try {
+      await unitApi.delete(selectedUnit.unitId);
+      toast.success("Unit deleted successfully");
+      setSelectedUnit(null);
+      refresh();
+    } catch (error) {
+      toast.error("Failed to delete unit" + error.message);
+    }
+    setConfirmDelete(false);
   };
 
   return (
-    <section className="max-w-5xl mx-auto py-8">
-      <Card>
-        <CardHeader>
-          <CardTitle>Units</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Tabs value={tab} onValueChange={setTab} className="w-full">
-            <TabsList className="gap-2 mb-6">
-              <TabsTrigger value="list">List</TabsTrigger>
-              <TabsTrigger value="create" onClick={() => setEdit(null)}>
-                <Plus className="w-4 h-4 mr-1" /> Create
-              </TabsTrigger>
-            </TabsList>
-            <TabsContent value="list">
-              <UnitList
-                onSelect={handleSelect}
-                onEdit={handleEdit}
-                refresh={refresh}
+    <div className="container mx-auto p-4">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold mb-2">Units</h1>
+        <p className="text-muted-foreground">
+          Manage units, view details, and add or edit unit information.
+        </p>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="md:col-span-1">
+          <UnitList
+            onSelect={setSelectedUnit}
+            onEdit={handleEdit}
+            onCreate={handleCreate}
+            refresh={refreshTrigger}
+          />
+        </div>
+        <div className="md:col-span-1">
+          {selectedUnit && (
+            <>
+              <div className="flex justify-end mb-4">
+                <Button onClick={handleCreate} className="gap-1">
+                  <Plus className="h-4 w-4" /> Add Unit
+                </Button>
+              </div>
+              <UnitDetails
+                unit={selectedUnit}
+                onDelete={() => setConfirmDelete(true)}
               />
-            </TabsContent>
-            <TabsContent value="create">
-              <UnitForm
-                unit={edit}
-                onSuccess={handleSuccess}
-                onCancel={handleCancel}
-              />
-            </TabsContent>
-            <TabsContent value="details">
-              <UnitDetails unit={selected} />
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
-    </section>
+            </>
+          )}
+        </div>
+      </div>
+      {/* Create/Edit Unit Modal */}
+      <Modal
+        title={editingUnit ? "Edit Unit" : "Create Unit"}
+        isOpen={isFormOpen}
+        onClose={() => setIsFormOpen(false)}
+      >
+        <UnitForm
+          unit={editingUnit || undefined}
+          onSuccess={() => {
+            setIsFormOpen(false);
+            refresh();
+            if (editingUnit && selectedUnit?.unitId === editingUnit.unitId) {
+              setSelectedUnit(editingUnit); // Optionally refresh details
+            }
+          }}
+          onCancel={() => setIsFormOpen(false)}
+        />
+      </Modal>
+      {/* Confirm Delete Dialog */}
+      <ConfirmDialog
+        title="Delete Unit"
+        message="Are you sure you want to delete this unit? This action cannot be undone."
+        isOpen={confirmDelete}
+        onConfirm={handleDelete}
+        onCancel={() => setConfirmDelete(false)}
+        confirmText="Delete"
+        variant="destructive"
+      />
+    </div>
   );
 }

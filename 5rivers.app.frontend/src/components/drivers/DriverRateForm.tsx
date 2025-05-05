@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "../../components/ui/button";
 import { FormField } from "../../components/common/FormField";
-import { driverRateApi, jobTypeApi } from "@/lib/api";
+import { driverRateApi, jobTypeApi } from "@/src/lib/api";
 import { toast } from "sonner";
 
 interface JobType {
@@ -33,9 +33,15 @@ export function DriverRateForm({
   onCancel,
 }: DriverRateFormProps) {
   const [jobTypes, setJobTypes] = useState<JobType[]>([]);
-  const [selectedJobTypeId, setSelectedJobTypeId] = useState(driverRate?.jobTypeId || "");
-  const [hourlyRate, setHourlyRate] = useState<number | undefined>(driverRate?.hourlyRate);
-  const [percentage, setPercentage] = useState<number | undefined>(driverRate?.percentage);
+  const [selectedJobTypeId, setSelectedJobTypeId] = useState(
+    driverRate?.jobTypeId || ""
+  );
+  const [hourlyRate, setHourlyRate] = useState<number | undefined>(
+    driverRate?.hourlyRate
+  );
+  const [percentage, setPercentage] = useState<number | undefined>(
+    driverRate?.percentage
+  );
   const [loading, setLoading] = useState(false);
   const [loadingJobTypes, setLoadingJobTypes] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -138,7 +144,9 @@ export function DriverRateForm({
         type="select"
         value={selectedJobTypeId}
         onChange={setSelectedJobTypeId}
-        placeholder={loadingJobTypes ? "Loading job types..." : "Select job type"}
+        placeholder={
+          loadingJobTypes ? "Loading job types..." : "Select job type"
+        }
         options={jobTypeOptions}
         required
         error={errors.jobTypeId}
@@ -191,11 +199,7 @@ export function DriverRateForm({
           Cancel
         </Button>
         <Button type="submit" disabled={loading || loadingJobTypes}>
-          {loading
-            ? "Saving..."
-            : driverRate
-            ? "Update Rate"
-            : "Add Rate"}
+          {loading ? "Saving..." : driverRate ? "Update Rate" : "Add Rate"}
         </Button>
       </div>
     </form>

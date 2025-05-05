@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "../../components/ui/button";
 import { FormField } from "../../components/common/FormField";
-import { dispatcherApi } from "@/lib/api";
+import { dispatcherApi } from "@/src/lib/api";
 import { toast } from "sonner";
 
 interface Dispatcher {
@@ -12,7 +12,7 @@ interface Dispatcher {
   email: string;
   phone?: string;
   description?: string;
-  commissionPercentage?: number;
+  commissionPercent?: number;
 }
 
 interface DispatcherFormProps {
@@ -21,13 +21,17 @@ interface DispatcherFormProps {
   onCancel: () => void;
 }
 
-export function DispatcherForm({ dispatcher, onSuccess, onCancel }: DispatcherFormProps) {
+export function DispatcherForm({
+  dispatcher,
+  onSuccess,
+  onCancel,
+}: DispatcherFormProps) {
   const [name, setName] = useState(dispatcher?.name || "");
   const [email, setEmail] = useState(dispatcher?.email || "");
   const [phone, setPhone] = useState(dispatcher?.phone || "");
   const [description, setDescription] = useState(dispatcher?.description || "");
-  const [commissionPercentage, setCommissionPercentage] = useState<number>(
-    dispatcher?.commissionPercentage || 0
+  const [commissionPercent, setCommissionPercent] = useState<number>(
+    dispatcher?.commissionPercent || 0
   );
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -38,7 +42,7 @@ export function DispatcherForm({ dispatcher, onSuccess, onCancel }: DispatcherFo
       setEmail(dispatcher.email);
       setPhone(dispatcher.phone || "");
       setDescription(dispatcher.description || "");
-      setCommissionPercentage(dispatcher.commissionPercentage || 0);
+      setCommissionPercent(dispatcher.commissionPercent || 0);
     }
   }, [dispatcher]);
 
@@ -55,8 +59,8 @@ export function DispatcherForm({ dispatcher, onSuccess, onCancel }: DispatcherFo
       newErrors.email = "Invalid email format";
     }
 
-    if (commissionPercentage < 0 || commissionPercentage > 100) {
-      newErrors.commissionPercentage = "Commission must be between 0% and 100%";
+    if (commissionPercent < 0 || commissionPercent > 100) {
+      newErrors.commissionPercent = "Commission must be between 0% and 100%";
     }
 
     setErrors(newErrors);
@@ -77,7 +81,7 @@ export function DispatcherForm({ dispatcher, onSuccess, onCancel }: DispatcherFo
         email,
         phone,
         description,
-        commissionPercentage,
+        commissionPercent,
       };
 
       if (dispatcher?.dispatcherId) {
@@ -130,16 +134,16 @@ export function DispatcherForm({ dispatcher, onSuccess, onCancel }: DispatcherFo
       />
 
       <FormField
-        id="commissionPercentage"
+        id="commissionPercent"
         label="Commission Percentage"
         type="number"
-        value={commissionPercentage}
-        onChange={setCommissionPercentage}
+        value={commissionPercent}
+        onChange={setCommissionPercent}
         placeholder="Enter commission percentage"
         min={0}
         max={100}
         step={0.1}
-        error={errors.commissionPercentage}
+        error={errors.commissionPercent}
       />
 
       <FormField
