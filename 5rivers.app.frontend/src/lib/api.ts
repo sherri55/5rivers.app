@@ -1,4 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { Company, Unit, Driver, Dispatcher } from "@/src/types/entities";
+
 // Centralized API utilities for all entities
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:9999";
 
@@ -15,7 +17,7 @@ async function deleteData(endpoint: string, id: string) {
   return res.json();
 }
 
-async function createData(endpoint: string, data: any) {
+async function createData<T>(endpoint: string, data: T) {
   const res = await fetch(`${API_URL}/${endpoint}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -25,7 +27,7 @@ async function createData(endpoint: string, data: any) {
   return res.json();
 }
 
-async function updateData(endpoint: string, id: string, data: any) {
+async function updateData<T>(endpoint: string, id: string, data: T) {
   const res = await fetch(`${API_URL}/${endpoint}/${id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
@@ -39,8 +41,9 @@ async function updateData(endpoint: string, id: string, data: any) {
 export const companyApi = {
   fetchAll: () => fetchData("companies"),
   getById: (id: string) => fetchData(`companies/${id}`),
-  create: (data: any) => createData("companies", data),
-  update: (id: string, data: any) => updateData("companies", id, data),
+  create: (data: Omit<Company, "companyId">) => createData("companies", data),
+  update: (id: string, data: Omit<Company, "companyId">) =>
+    updateData("companies", id, data),
   delete: (id: string) => deleteData("companies", id),
 };
 
@@ -48,8 +51,10 @@ export const companyApi = {
 export const dispatcherApi = {
   fetchAll: () => fetchData("dispatchers"),
   getById: (id: string) => fetchData(`dispatchers/${id}`),
-  create: (data: any) => createData("dispatchers", data),
-  update: (id: string, data: any) => updateData("dispatchers", id, data),
+  create: (data: Omit<Dispatcher, "dispatcherId">) =>
+    createData("dispatchers", data),
+  update: (id: string, data: Omit<Dispatcher, "dispatcherId">) =>
+    updateData("dispatchers", id, data),
   delete: (id: string) => deleteData("dispatchers", id),
 };
 
@@ -57,8 +62,9 @@ export const dispatcherApi = {
 export const driverApi = {
   fetchAll: () => fetchData("drivers"),
   getById: (id: string) => fetchData(`drivers/${id}`),
-  create: (data: any) => createData("drivers", data),
-  update: (id: string, data: any) => updateData("drivers", id, data),
+  create: (data: Omit<Driver, "driverId">) => createData("drivers", data),
+  update: (id: string, data: Omit<Driver, "driverId">) =>
+    updateData("drivers", id, data),
   delete: (id: string) => deleteData("drivers", id),
 };
 
@@ -66,8 +72,9 @@ export const driverApi = {
 export const unitApi = {
   fetchAll: () => fetchData("units"),
   getById: (id: string) => fetchData(`units/${id}`),
-  create: (data: any) => createData("units", data),
-  update: (id: string, data: any) => updateData("units", id, data),
+  create: (data: Omit<Unit, "unitId">) => createData("units", data),
+  update: (id: string, data: Omit<Unit, "unitId">) =>
+    updateData("units", id, data),
   delete: (id: string) => deleteData("units", id),
 };
 
@@ -117,7 +124,43 @@ export const invoiceApi = {
   create: (data: any) => createData("invoices", data),
   update: (id: string, data: any) => updateData("invoices", id, data),
   delete: (id: string) => deleteData("invoices", id),
+  /**
+   * Fetches the PDF for an invoice as a Blob.
+   * @param invoiceId The ID of the invoice
+   * @returns Promise<Blob>
+   */
+  fetchPdf: async (invoiceId: string): Promise<Blob> => {
+    const res = await fetch(`${API_URL}/api/invoices/${invoiceId}/pdf`, {
+      method: "GET",
+    });
+    if (!res.ok) throw new Error("Failed to fetch invoice PDF");
+    return res.blob();
+  },
 };
+
+/**
+ * Downloads the PDF for an invoice and triggers a file download in the browser.
+ * @param invoiceId The ID of the invoice
+ */
+export async function downloadInvoicePdf(invoiceId: string) {
+  try {
+    const response = await fetch(`${API_URL}/invoices/${invoiceId}/pdf`, {
+      method: 'GET',
+    });
+    if (!response.ok) throw new Error('Failed to download PDF');
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `invoice-${invoiceId}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  } catch {
+    alert('Could not download PDF.');
+  }
+}
 
 // Invoice Line Items API
 export const invoiceLineApi = {

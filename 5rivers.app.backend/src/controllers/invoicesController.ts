@@ -1,6 +1,10 @@
 // controllers/invoicesController.ts
 import { Request, Response } from "express";
 import { PrismaClient } from "@prisma/client";
+import pdfMake from "pdfmake/build/pdfmake";
+import pdfFonts from "pdfmake/build/vfs_fonts";
+(pdfMake as any).vfs = pdfFonts.vfs;
+
 const prisma = new PrismaClient();
 
 export const getInvoices = async (req: Request, res: Response) => {
@@ -32,21 +36,19 @@ export const createInvoice = async (req: Request, res: Response) => {
   /*
     Expects req.body to contain:
     - invoiceDate
-    - invoiceNumber
-    - billedTo
-    - billedEmail
+    - invoiceNumber (optional)
+    - billedTo (optional)
+    - billedEmail (optional)
     - dispatchPercent (optional, will use dispatcher default if not provided)
     - jobIds: string[]
   */
   try {
-    const {
-      invoiceDate,
-      invoiceNumber,
-      billedTo,
-      billedEmail,
-      dispatchPercent,
-      jobIds,
-    } = req.body;
+    const invoiceDate = req.body.invoiceDate;
+    let invoiceNumber = req.body.invoiceNumber;
+    let billedTo = req.body.billedTo;
+    let billedEmail = req.body.billedEmail;
+    const dispatchPercent = req.body.dispatchPercent;
+    const jobIds = req.body.jobIds;
     // Fetch jobs
     const jobs = await prisma.job.findMany({
       where: { jobId: { in: jobIds }, invoiceId: null },
@@ -72,6 +74,27 @@ export const createInvoice = async (req: Request, res: Response) => {
         .json({ error: "Dispatcher not found for the selected jobs" });
       return;
     }
+    // Auto-generate invoice number if not provided
+    if (!invoiceNumber) {
+      const today = new Date();
+      const y = today.getFullYear();
+      const m = String(today.getMonth() + 1).padStart(2, "0");
+      const d = String(today.getDate()).padStart(2, "0");
+      // Find count of invoices for today for sequence
+      const count = await prisma.invoice.count({
+        where: {
+          invoiceDate: {
+            gte: new Date(`${y}-${m}-${d}T00:00:00.000Z`),
+            lt: new Date(`${y}-${m}-${d}T23:59:59.999Z`),
+          },
+        },
+      });
+      const seq = String(count + 1).padStart(4, "0");
+      invoiceNumber = `INV-${y}${m}${d}-${seq}`;
+    }
+    // Fill billedTo and billedEmail from dispatcher if not provided
+    if (!billedTo) billedTo = dispatcher.name;
+    if (!billedEmail) billedEmail = dispatcher.email;
     // Calculate subTotal
     const subTotal = jobs.reduce(
       (sum, job) => sum + (job.jobGrossAmount || 0),
@@ -240,3 +263,206 @@ export const deleteInvoice = async (req: Request, res: Response) => {
     res.status(400).json({ error: "Failed to delete invoice" });
   }
 };
+
+export const downloadInvoicePdf = async (req: Request, res: Response) => {
+  const { id } = req.params;
+  try {
+    const invoice = await prisma.invoice.findUnique({
+      where: { invoiceId: id },
+      include: {
+        dispatcher: true,
+        jobs: {
+          include: {
+            driver: true,
+            unit: true,
+            jobType: true,
+          },
+        },
+      },
+    });
+    if (!invoice) return res.status(404).json({ error: "Invoice not found" });
+
+    // Table header
+    const tableHeader = [
+      { text: "Date", style: "tableHeaderCell" },
+      { text: "Unit", style: "tableHeaderCell" },
+      { text: "Driver", style: "tableHeaderCell" },
+      { text: "Customer", style: "tableHeaderCell" },
+      { text: "Type", style: "tableHeaderCell" },
+      { text: "Job Description", style: "tableHeaderCell" },
+      { text: "Tickets", style: "tableHeaderCell" },
+      { text: "HRS/TON/LOADS", style: "tableHeaderCell" },
+      { text: "Rate", style: "tableHeaderCell" },
+      { text: "Amount", style: "tableHeaderCell" },
+    ];
+
+    // Table rows
+    const tableRows = invoice.jobs.map((job: any) => {
+      let value = "";
+      const dispatchType = job.jobType?.dispatchType || job.jobType?.type || job.jobType?.title;
+      if (dispatchType && typeof dispatchType === "string") {
+        if (dispatchType.toLowerCase() === "hourly") {
+          let hours = 0;
+          if (job.startTime && job.endTime) {
+            const [sh, sm] = job.startTime.split(":").map(Number);
+            const [eh, em] = job.endTime.split(":").map(Number);
+            const start = sh * 60 + sm;
+            let end = eh * 60 + em;
+            if (end < start) end += 24 * 60;
+            hours = (end - start) / 60;
+          } else if (job.hoursOfJob) {
+            hours = job.hoursOfJob;
+          }
+          value = hours ? hours.toFixed(2) : "";
+        } else if (dispatchType.toLowerCase() === "tonnage") {
+          let tonnage = 0;
+          let weights: number[] = [];
+          if (Array.isArray(job.weight)) {
+            weights = job.weight.map((w: any) => parseFloat(w) || 0);
+          } else if (typeof job.weight === "string") {
+            try {
+              const arr = JSON.parse(job.weight);
+              if (Array.isArray(arr)) {
+                weights = arr.map((w) => parseFloat(w) || 0);
+              } else {
+                weights = [parseFloat(arr) || 0];
+              }
+            } catch {
+              weights = [parseFloat(job.weight) || 0];
+            }
+          }
+          tonnage = weights.reduce((sum, w) => sum + w, 0);
+          value = tonnage ? tonnage.toFixed(2) : "";
+        } else if (["load", "loads"].includes(dispatchType.toLowerCase())) {
+          value = job.loads ? job.loads.toString() : "";
+        } else if (dispatchType.toLowerCase() === "fixed") {
+          value = "1";
+        }
+      }
+      return [
+        { text: job.jobDate ? new Date(job.jobDate).toLocaleDateString() : "", style: "tableCell" },
+        { text: job.unit?.name || "", style: "tableCell" },
+        { text: job.driver?.name || "", style: "tableCell" },
+        { text: job.customer || "", style: "tableCell" },
+        { text: job.jobType?.title || "", style: "tableCell" },
+        { text: job.jobType?.startLocation && job.jobType?.endLocation ? `${job.jobType.startLocation} to ${job.jobType.endLocation}` : "", style: "tableCell" },
+        { text: job.ticketIds ? job.ticketIds.toString() : "", style: "tableCell" },
+        { text: value, style: "tableCell" },
+        { text: job.jobType?.rateOfJob ? `$${job.jobType.rateOfJob}` : "", style: "tableCell" },
+        { text: job.jobGrossAmount?.toFixed(2) || "", style: "tableCell" },
+      ];
+    });
+
+    // Document definition
+    const docDefinition = {
+      pageOrientation: "landscape",
+      pageMargins: [30, 60, 30, 60],
+      content: [
+        {
+          columns: [
+            [
+              { text: "5 Rivers Trucking Inc.", style: "companyName" },
+              { text: "140 Cherryhill Place\nLondon, Ontario\nN6H4M5\n+1 (437) 679 9350\ninfo@5riverstruckinginc.ca\nHST #760059956", style: "companyInfo", margin: [0, 0, 0, 20] },
+            ],
+            [
+              { text: "INVOICE", style: "invoiceTitle", alignment: "right" },
+              { text: `${invoice.invoiceNumber}\nInvoice Date: ${invoice.invoiceDate.toLocaleDateString()}\nBilled To: ${invoice.billedTo}\n${invoice.billedEmail}`,
+                alignment: "right", style: "invoiceInfo", margin: [0, 10, 0, 0] },
+            ]
+          ],
+          columnGap: 40,
+          margin: [0, 0, 0, 30]
+        },
+        {
+          style: "mainTable",
+          table: {
+            headerRows: 1,
+            widths: ['auto', 'auto', 'auto', 'auto', 'auto', '*', 'auto', 'auto', 'auto', 'auto'],
+            body: [
+              tableHeader,
+              ...tableRows,
+              [
+                { text: '', colSpan: 8, border: [false, false, false, false] }, {}, {}, {}, {}, {}, {}, {},
+                { text: 'SUBTOTAL', style: 'totalsLabel', alignment: 'right', border: [false, true, false, false] },
+                { text: `$${Number(invoice.subTotal).toFixed(2)}`, style: 'totalsValue', alignment: 'right', border: [false, true, false, false] }
+              ],
+              [
+                { text: '', colSpan: 8, border: [false, false, false, false] }, {}, {}, {}, {}, {}, {}, {},
+                { text: `DISPATCH ${invoice.dispatchPercent?.toFixed(2) || ''}%`, style: 'totalsLabel', alignment: 'right', border: [false, false, false, false] },
+                { text: `$${Number(invoice.commission).toFixed(2)}`, style: 'totalsValue', alignment: 'right', border: [false, false, false, false] }
+              ],
+              [
+                { text: '', colSpan: 8, border: [false, false, false, false] }, {}, {}, {}, {}, {}, {}, {},
+                { text: 'COMM.', style: 'totalsLabel', alignment: 'right', border: [false, false, false, false] },
+                { text: `$${Number(invoice.commission).toFixed(2)}`, style: 'totalsValue', alignment: 'right', border: [false, false, false, false] }
+              ],
+              [
+                { text: '', colSpan: 8, border: [false, false, false, false] }, {}, {}, {}, {}, {}, {}, {},
+                { text: 'HST', style: 'totalsLabel', alignment: 'right', border: [false, false, false, false] },
+                { text: `$${Number(invoice.hst).toFixed(2)}`, style: 'totalsValue', alignment: 'right', border: [false, false, false, false] }
+              ],
+              [
+                { text: '', colSpan: 8, border: [false, false, false, false] }, {}, {}, {}, {}, {}, {}, {},
+                { text: 'TOTAL', style: 'totalsLabelBold', alignment: 'right', border: [false, true, false, false] },
+                { text: `$${Number(invoice.total).toFixed(2)}`, style: 'totalsValueBold', alignment: 'right', border: [false, true, false, false] }
+              ]
+            ],
+          },
+          layout: {
+            fillColor: function (rowIndex: number) {
+              return rowIndex === 0 ? '#f2f2f2' : null;
+            },
+            hLineWidth: function(i: number, node: any) { return i === 1 ? 2 : 0.5; },
+            vLineWidth: function() { return 0.5; },
+            hLineColor: function(i: number, node: any) { return i === 1 ? '#222' : '#aaa'; },
+            vLineColor: function() { return '#aaa'; },
+            paddingLeft: function() { return 6; },
+            paddingRight: function() { return 6; },
+            paddingTop: function() { return 4; },
+            paddingBottom: function() { return 4; },
+          },
+          margin: [0, 0, 0, 30],
+        },
+      ],
+      styles: {
+        companyName: { fontSize: 20, bold: true, margin: [0, 0, 0, 6] },
+        companyInfo: { fontSize: 10, margin: [0, 0, 0, 10] },
+        invoiceTitle: { fontSize: 18, bold: true, color: '#222', margin: [0, 0, 0, 10] },
+        invoiceInfo: { fontSize: 11, margin: [0, 0, 0, 10] },
+        mainTable: { margin: [0, 5, 0, 15] },
+        tableHeaderCell: { bold: true, fontSize: 11, color: 'black', fillColor: '#f2f2f2', alignment: 'center' },
+        tableCell: { fontSize: 10, color: '#222', alignment: 'left', margin: [0, 2, 0, 2], noWrap: false },
+        totalsLabel: { fontSize: 11, alignment: 'right', color: '#222' },
+        totalsValue: { fontSize: 11, alignment: 'right', color: '#222' },
+        totalsLabelBold: { fontSize: 12, bold: true, alignment: 'right', color: '#222' },
+        totalsValueBold: { fontSize: 12, bold: true, alignment: 'right', color: '#222' },
+      },
+      defaultStyle: {
+        font: 'Roboto',
+      },
+      fonts: {
+        Roboto: {
+          normal: 'Roboto-Regular.ttf',
+          bold: 'Roboto-Medium.ttf',
+          italics: 'Roboto-Italic.ttf',
+          bolditalics: 'Roboto-MediumItalic.ttf',
+        },
+      },
+    };
+
+    // Cast docDefinition as any to satisfy TypeScript
+    const pdfDocGenerator = pdfMake.createPdf(docDefinition as any);
+    pdfDocGenerator.getBuffer((buffer: Buffer) => {
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename=invoice-${invoice.invoiceNumber || id}.pdf`
+      );
+      res.end(buffer);
+    });
+  } catch (err) {
+    console.error("Error generating invoice PDF:", err);
+    res.status(500).json({ error: "Failed to generate PDF" });
+  }
+};
+

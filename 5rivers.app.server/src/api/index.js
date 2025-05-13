@@ -59,6 +59,13 @@ function computeHours(start, end) {
   return (endTotal - startTotal) / 60;
 }
 
+function roundUpToNext15Minutes(hours) {
+  // hours is a decimal (e.g., 1.08 for 1 hour 5 minutes)
+  const totalMinutes = Math.ceil(hours * 60);
+  const roundedMinutes = Math.ceil(totalMinutes / 15) * 15;
+  return roundedMinutes / 60;
+}
+
 // index.js
 
 function computeJobGrossAmount(job, jobType) {
@@ -85,18 +92,17 @@ function computeJobGrossAmount(job, jobType) {
   }
 
   switch (dispatchType) {
-    case "Hourly":
-      return (parseFloat(hoursOfJob) || 0) * parsedRate;
-
+    case "Hourly": {
+      // Round up to next 15-minute increment
+      const hoursRounded = roundUpToNext15Minutes(parseFloat(hoursOfJob) || 0);
+      return hoursRounded * parsedRate;
+    }
     case "Tonnage":
       return totalWeight * parsedRate;
-
     case "Load":
       return (parseInt(loads, 10) || 0) * parsedRate;
-
     case "Fixed":
       return parsedRate;
-
     default:
       console.warn(`Unknown dispatchType "${dispatchType}". Returning 0.`);
       return 0;

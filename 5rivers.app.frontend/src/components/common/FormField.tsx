@@ -19,9 +19,9 @@ interface Option {
 interface FormFieldProps {
   id: string;
   label: string;
-  type?: 'text' | 'email' | 'tel' | 'number' | 'textarea' | 'select';
+  type?: 'text' | 'email' | 'tel' | 'number' | 'textarea' | 'select' | 'date';
   value: string | number;
-  onChange: (value: any) => void;
+  onChange: (value: unknown) => void;
   placeholder?: string;
   required?: boolean;
   options?: Option[];
@@ -76,10 +76,15 @@ export function FormField({
       ) : (
         <Input
           id={id}
-          type={type}
-          value={value?.toString() ?? ''}
+          type={type === 'date' ? 'date' : type}
+          value={value === undefined || value === null ? '' : value.toString()}
           onChange={(e) => {
-            const newValue = type === 'number' ? parseFloat(e.target.value) : e.target.value;
+            let newValue: string | number = e.target.value;
+            if (type === 'number') {
+              newValue = e.target.value === '' ? '' : Number(e.target.value);
+              // If the input is not a valid number, fallback to empty string
+              if (isNaN(newValue as number)) newValue = '';
+            }
             onChange(newValue);
           }}
           placeholder={placeholder}

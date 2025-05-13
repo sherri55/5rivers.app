@@ -105,7 +105,10 @@ export function DriverList({
           <Button
             size="icon"
             variant="ghost"
-            onClick={() => onEdit(row)}
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit(row);
+            }}
             title="Edit"
           >
             <Pencil className="h-4 w-4" />

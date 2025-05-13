@@ -93,14 +93,8 @@ model DriverRate {
 
 model Job {
   jobId            String   @id @default(uuid())
-  name             String
   jobDate          DateTime
-  dispatchType     String
   jobGrossAmount   Float?
-  driverRate       Float?
-  driverPay        Float?
-  estimatedFuel    Float?
-  estimatedRevenue Float?
   jobTypeId        String?
   driverId         String?
   dispatcherId     String?
@@ -109,6 +103,8 @@ model Job {
   invoiceStatus    String   @default("Pending")
   weight           String?
   loads            Int?
+  startTime        String?  // NEW: Start time for job
+  endTime          String?  // NEW: End time for job
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
