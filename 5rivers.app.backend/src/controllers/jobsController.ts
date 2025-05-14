@@ -48,10 +48,9 @@ export const getJobById = async (req: Request, res: Response) => {
 
 export const createJob = async (req: Request, res: Response) => {
   try {
-    const jobDate = req.body.jobDate ? new Date(req.body.jobDate) : new Date();
     // Build JobCreateInput object
     const data: Prisma.JobCreateInput = {
-      jobDate,
+      jobDate: req.body.jobDate,
       jobGrossAmount: req.body.jobGrossAmount ? Number(req.body.jobGrossAmount) : null,
       jobType: req.body.jobTypeId ? { connect: { jobTypeId: req.body.jobTypeId } } : undefined,
       driver: req.body.driverId ? { connect: { driverId: req.body.driverId } } : undefined,
@@ -77,9 +76,8 @@ export const createJob = async (req: Request, res: Response) => {
 export const updateJob = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const jobDate = req.body.jobDate ? new Date(req.body.jobDate) : new Date();
     const data = {
-      jobDate,
+      jobDate: req.body.jobDate,
       jobGrossAmount: req.body.jobGrossAmount ? Number(req.body.jobGrossAmount) : undefined,
       jobTypeId: req.body.jobTypeId,
       driverId: req.body.driverId,

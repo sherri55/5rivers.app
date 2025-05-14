@@ -136,6 +136,25 @@ export const invoiceApi = {
     if (!res.ok) throw new Error("Failed to fetch invoice PDF");
     return res.blob();
   },
+  /**
+   * Fetch jobs for an invoice with pagination, grouping, and filtering
+   * @param invoiceId string
+   * @param params { page?: number, pageSize?: number, dispatcherId?: string, month?: number, year?: number }
+   */
+  fetchJobs: async (
+    invoiceId: string,
+    params: { page?: number; pageSize?: number; dispatcherId?: string; month?: number; year?: number } = {}
+  ) => {
+    const query = new URLSearchParams();
+    if (params.page) query.append("page", String(params.page));
+    if (params.pageSize) query.append("pageSize", String(params.pageSize));
+    if (params.dispatcherId) query.append("dispatcherId", params.dispatcherId);
+    if (params.month) query.append("month", String(params.month));
+    if (params.year) query.append("year", String(params.year));
+    const res = await fetch(`${API_URL}/api/invoices/${invoiceId}/jobs?${query.toString()}`);
+    if (!res.ok) throw new Error("Failed to fetch invoice jobs");
+    return res.json();
+  },
 };
 
 /**

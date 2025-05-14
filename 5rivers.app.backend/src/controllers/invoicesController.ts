@@ -52,7 +52,7 @@ export const createInvoice = async (req: Request, res: Response) => {
     // Fetch jobs
     const jobs = await prisma.job.findMany({
       where: { jobId: { in: jobIds }, invoiceId: null },
-      include: { dispatcher: true },
+      include: { dispatcher: true, unit: true },
     });
     if (jobs.length !== jobIds.length) {
       res
@@ -76,21 +76,27 @@ export const createInvoice = async (req: Request, res: Response) => {
     }
     // Auto-generate invoice number if not provided
     if (!invoiceNumber) {
-      const today = new Date();
-      const y = today.getFullYear();
-      const m = String(today.getMonth() + 1).padStart(2, "0");
-      const d = String(today.getDate()).padStart(2, "0");
-      // Find count of invoices for today for sequence
-      const count = await prisma.invoice.count({
-        where: {
-          invoiceDate: {
-            gte: new Date(`${y}-${m}-${d}T00:00:00.000Z`),
-            lt: new Date(`${y}-${m}-${d}T23:59:59.999Z`),
-          },
-        },
-      });
-      const seq = String(count + 1).padStart(4, "0");
-      invoiceNumber = `INV-${y}${m}${d}-${seq}`;
+      // Dispatcher initials
+      const nameParts = dispatcher.name.split(/\s+/).filter(Boolean);
+      const initials = nameParts.map((n: string) => n[0].toUpperCase()).join("");
+      // Get all unique truck/unit numbers from jobs
+      const unitNumbers = Array.from(new Set(jobs.map((job) => job.unit?.name || job.unitId || job.unit || "")));
+      let truckPart = "MUL";
+      if (unitNumbers.length === 1 && unitNumbers[0]) {
+        truckPart = unitNumbers[0].toString();
+      }
+      // Get all job dates, sort ascending
+      const jobDates = jobs.map((job) => new Date(job.jobDate)).filter((d) => !isNaN(d.getTime()));
+      jobDates.sort((a, b) => a.getTime() - b.getTime());
+      const formatYYMMDD = (date: Date) => {
+        const y = String(date.getFullYear()).slice(-2);
+        const m = String(date.getMonth() + 1).padStart(2, "0");
+        const d = String(date.getDate()).padStart(2, "0");
+        return `${y}${m}${d}`;
+      };
+      const firstDate = jobDates[0] ? formatYYMMDD(jobDates[0]) : "";
+      const lastDate = jobDates[jobDates.length - 1] ? formatYYMMDD(jobDates[jobDates.length - 1]) : "";
+      invoiceNumber = `INV-${initials}-${truckPart}-${firstDate}-${lastDate}`;
     }
     // Fill billedTo and billedEmail from dispatcher if not provided
     if (!billedTo) billedTo = dispatcher.name;
@@ -572,13 +578,13 @@ export const downloadInvoicePdf = async (req: Request, res: Response) => {
             fillColor: function (rowIndex: number) {
               return rowIndex === 0 ? "#f2f2f2" : null;
             },
-            hLineWidth: function (i: number, node: any) {
+            hLineWidth: function (i: number) {
               return i === 1 ? 2 : 0.5;
             },
             vLineWidth: function () {
               return 0.5;
             },
-            hLineColor: function (i: number, node: any) {
+            hLineColor: function (i: number) {
               return i === 1 ? "#222" : "#aaa";
             },
             vLineColor: function () {
@@ -666,5 +672,71 @@ export const downloadInvoicePdf = async (req: Request, res: Response) => {
   } catch (err) {
     console.error("Error generating invoice PDF:", err);
     res.status(500).json({ error: "Failed to generate PDF" });
+  }
+};
+
+export const getInvoiceJobs = async (req: Request, res: Response) => {
+  /*
+    Query params:
+      - page (default 1)
+      - pageSize (default 20)
+      - dispatcherId (optional)
+      - month (optional, 1-12)
+      - year (optional, 4-digit)
+  */
+  try {
+    const { id } = req.params;
+    const page = parseInt(req.query.page as string) || 1;
+    const pageSize = parseInt(req.query.pageSize as string) || 20;
+    const dispatcherId = req.query.dispatcherId as string | undefined;
+    const month = req.query.month ? parseInt(req.query.month as string) : undefined;
+    const year = req.query.year ? parseInt(req.query.year as string) : undefined;
+
+    // Build filter
+    const where: any = { invoiceId: id };
+    if (dispatcherId) where.dispatcherId = dispatcherId;
+    if (month && year) {
+      // Filter jobs by month/year
+      where.jobDate = {
+        gte: new Date(year, month - 1, 1),
+        lt: new Date(year, month, 1),
+      };
+    } else if (year) {
+      where.jobDate = {
+        gte: new Date(year, 0, 1),
+        lt: new Date(year + 1, 0, 1),
+      };
+    }
+
+    // Count total jobs for pagination
+    const total = await prisma.job.count({ where });
+
+    // Fetch jobs, sorted reverse chronologically
+    const jobs = await prisma.job.findMany({
+      where,
+      orderBy: { jobDate: 'desc' },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      include: { driver: true, unit: true, jobType: true },
+    });
+
+    // Group jobs by month/year
+    const grouped: Record<string, any[]> = {};
+    jobs.forEach((job) => {
+      const date = new Date(job.jobDate);
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push(job);
+    });
+
+    res.json({
+      total,
+      page,
+      pageSize,
+      groups: grouped,
+    });
+  } catch (err) {
+    console.error('Error in getInvoiceJobs:', err);
+    res.status(500).json({ error: 'Failed to fetch jobs for invoice' });
   }
 };

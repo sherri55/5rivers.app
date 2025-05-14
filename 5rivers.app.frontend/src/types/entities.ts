@@ -71,5 +71,4 @@ export interface JobType {
   dispatchType?: string;
   rateOfJob?: number | string;
   companyId?: string;
-  dispatcherId?: string;
 }

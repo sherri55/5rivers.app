@@ -15,7 +15,6 @@ export function JobTypeDetails({ jobType, onDelete, onEdit }: any) {
         <div>Dispatch Type: {jobType.dispatchType}</div>
         <div>Rate: {jobType.rateOfJob}</div>
         <div>Company ID: {jobType.companyId}</div>
-        <div>Dispatcher ID: {jobType.dispatcherId}</div>
       </div>
     </div>
   );

@@ -7,6 +7,7 @@ import {
   updateInvoice,
   deleteInvoice,
   downloadInvoicePdf,
+  getInvoiceJobs,
 } from "../controllers/invoicesController";
 
 // Utility to wrap async route handlers
@@ -22,4 +23,5 @@ invoiceRoutes.post("/", createInvoice);
 invoiceRoutes.put("/:id", updateInvoice);
 invoiceRoutes.delete("/:id", deleteInvoice);
 invoiceRoutes.get("/:id/pdf", asyncHandler(downloadInvoicePdf));
+invoiceRoutes.get("/:id/jobs", asyncHandler(getInvoiceJobs));
 export default invoiceRoutes;

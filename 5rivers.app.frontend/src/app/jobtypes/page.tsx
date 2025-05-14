@@ -16,7 +16,6 @@ interface JobType {
   dispatchType?: string;
   rateOfJob?: number;
   companyId?: string;
-  dispatcherId?: string;
 }
 
 export default function JobTypesPage() {

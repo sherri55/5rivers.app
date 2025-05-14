@@ -36,7 +36,6 @@ export const createJobType = async (req: Request, res: Response) => {
       dispatchType,
       rateOfJob,
       companyId,
-      dispatcherId,
     } = req.body;
     const jobType = await prisma.jobType.create({
       data: {
@@ -46,7 +45,6 @@ export const createJobType = async (req: Request, res: Response) => {
         dispatchType,
         rateOfJob,
         companyId,
-        dispatcherId,
       },
     });
     res.status(201).json(jobType);

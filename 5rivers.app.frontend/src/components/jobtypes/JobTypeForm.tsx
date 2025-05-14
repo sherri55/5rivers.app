@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
-import { jobTypeApi, companyApi, dispatcherApi } from "@/src/lib/api";
+import { jobTypeApi, companyApi } from "@/src/lib/api";
 import { Button } from "../ui/button";
 import { FormField } from "../common/FormField";
 import { toast } from "sonner";
-import type { JobType, Company, Dispatcher } from "@/src/types/entities";
+import type { JobType, Company } from "@/src/types/entities";
 
 interface JobTypeFormProps {
   jobType?: JobType;
@@ -24,13 +24,9 @@ export function JobTypeForm({
   const [dispatchType, setDispatchType] = useState(jobType?.dispatchType || "");
   const [rateOfJob, setRateOfJob] = useState(jobType?.rateOfJob || "");
   const [companyId, setCompanyId] = useState(jobType?.companyId || "");
-  const [dispatcherId, setDispatcherId] = useState(jobType?.dispatcherId || "");
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [companyOptions, setCompanyOptions] = useState<
-    { value: string; label: string }[]
-  >([]);
-  const [dispatcherOptions, setDispatcherOptions] = useState<
     { value: string; label: string }[]
   >([]);
 
@@ -38,11 +34,6 @@ export function JobTypeForm({
     companyApi.fetchAll().then((companies: Company[]) => {
       setCompanyOptions(
         companies.map((c) => ({ value: c.companyId || "", label: c.name }))
-      );
-    });
-    dispatcherApi.fetchAll().then((dispatchers: Dispatcher[]) => {
-      setDispatcherOptions(
-        dispatchers.map((d) => ({ value: d.dispatcherId || "", label: d.name }))
       );
     });
   }, []);
@@ -66,7 +57,6 @@ export function JobTypeForm({
         dispatchType,
         rateOfJob,
         companyId,
-        dispatcherId,
       };
       if (jobType && jobType.jobTypeId) {
         await jobTypeApi.update(jobType.jobTypeId, form);
@@ -140,16 +130,6 @@ export function JobTypeForm({
         placeholder="Select company"
         required
         error={errors.companyId}
-      />
-      <FormField
-        id="dispatcherId"
-        label="Dispatcher"
-        type="select"
-        value={dispatcherId}
-        onChange={setDispatcherId}
-        options={dispatcherOptions}
-        placeholder="Select dispatcher"
-        error={errors.dispatcherId}
       />
       <div className="flex gap-2 justify-end">
         <Button

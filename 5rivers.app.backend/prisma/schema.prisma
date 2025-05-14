@@ -30,7 +30,6 @@ model Dispatcher {
   commissionPercent Float
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
-  jobTypes          JobType[]
   invoices          Invoice[]
   jobs              Job[]
 }
@@ -68,11 +67,9 @@ model JobType {
   dispatchType  String
   rateOfJob     Float
   companyId     String?
-  dispatcherId  String?
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
   company       Company?     @relation(fields: [companyId], references: [companyId])
-  dispatcher    Dispatcher?  @relation(fields: [dispatcherId], references: [dispatcherId])
   jobs          Job[]
   driverRates   DriverRate[]
 }
@@ -92,21 +89,21 @@ model DriverRate {
 }
 
 model Job {
-  jobId            String   @id @default(uuid())
-  jobDate          DateTime
-  jobGrossAmount   Float?
-  jobTypeId        String?
-  driverId         String?
-  dispatcherId     String?
-  unitId           String?
-  invoiceId        String?
-  invoiceStatus    String   @default("Pending")
-  weight           String?
-  loads            Int?
-  startTime        String?  // NEW: Start time for job
-  endTime          String?  // NEW: End time for job
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  jobId          String   @id @default(uuid())
+  jobDate        String
+  jobGrossAmount Float?
+  jobTypeId      String?
+  driverId       String?
+  dispatcherId   String?
+  unitId         String?
+  invoiceId      String?
+  invoiceStatus  String   @default("Pending")
+  weight         String?
+  loads          Int?
+  startTime      String? // NEW: Start time for job
+  endTime        String? // NEW: End time for job
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   jobType      JobType?      @relation(fields: [jobTypeId], references: [jobTypeId])
   driver       Driver?       @relation(fields: [driverId], references: [driverId])
