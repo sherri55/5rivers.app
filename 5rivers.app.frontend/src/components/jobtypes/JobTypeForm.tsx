@@ -11,9 +11,15 @@ interface JobTypeFormProps {
   onCancel: () => void;
 }
 
-export function JobTypeForm({ jobType, onSuccess, onCancel }: JobTypeFormProps) {
+export function JobTypeForm({
+  jobType,
+  onSuccess,
+  onCancel,
+}: JobTypeFormProps) {
   const [title, setTitle] = useState(jobType?.title || "");
-  const [startLocation, setStartLocation] = useState(jobType?.startLocation || "");
+  const [startLocation, setStartLocation] = useState(
+    jobType?.startLocation || ""
+  );
   const [endLocation, setEndLocation] = useState(jobType?.endLocation || "");
   const [dispatchType, setDispatchType] = useState(jobType?.dispatchType || "");
   const [rateOfJob, setRateOfJob] = useState(jobType?.rateOfJob || "");
@@ -21,8 +27,12 @@ export function JobTypeForm({ jobType, onSuccess, onCancel }: JobTypeFormProps) 
   const [dispatcherId, setDispatcherId] = useState(jobType?.dispatcherId || "");
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [companyOptions, setCompanyOptions] = useState<{ value: string; label: string }[]>([]);
-  const [dispatcherOptions, setDispatcherOptions] = useState<{ value: string; label: string }[]>([]);
+  const [companyOptions, setCompanyOptions] = useState<
+    { value: string; label: string }[]
+  >([]);
+  const [dispatcherOptions, setDispatcherOptions] = useState<
+    { value: string; label: string }[]
+  >([]);
 
   useEffect(() => {
     companyApi.fetchAll().then((companies: Company[]) => {
@@ -142,8 +152,31 @@ export function JobTypeForm({ jobType, onSuccess, onCancel }: JobTypeFormProps) 
         error={errors.dispatcherId}
       />
       <div className="flex gap-2 justify-end">
-        <Button type="button" variant="outline" onClick={onCancel} disabled={loading}>Cancel</Button>
-        <Button type="submit" disabled={loading}>{loading ? (jobType ? "Updating..." : "Creating...") : jobType ? "Update Job Type" : "Create Job Type"}</Button>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onCancel}
+          disabled={loading}
+        >
+          Cancel
+        </Button>
+        <Button
+          type="submit"
+          disabled={loading}
+          className={
+            jobType
+              ? "bg-orange-500 hover:bg-orange-600 text-white"
+              : "bg-blue-600 hover:bg-blue-700 text-white"
+          }
+        >
+          {loading
+            ? jobType
+              ? "Updating..."
+              : "Creating..."
+            : jobType
+            ? "Update Job Type"
+            : "Create Job Type"}
+        </Button>
       </div>
     </form>
   );

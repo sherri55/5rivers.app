@@ -3,6 +3,7 @@ import { invoiceApi, dispatcherApi, jobApi } from "@/src/lib/api";
 import { Button } from "../ui/button";
 import { FormField } from "../common/FormField";
 import { toast } from "sonner";
+import Select from "react-select";
 import type { Invoice } from "@/src/types/entities";
 
 interface Dispatcher {
@@ -45,7 +46,11 @@ function generateInvoiceNumber(date: Date, sequence: number = 1) {
   return `INV-${y}${m}${d}-${seq}`;
 }
 
-export function InvoiceForm({ invoice, onSuccess, onCancel }: InvoiceFormProps) {
+export function InvoiceForm({
+  invoice,
+  onSuccess,
+  onCancel,
+}: InvoiceFormProps) {
   const [dispatchers, setDispatchers] = useState<Dispatcher[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [invoiceNumber, setInvoiceNumber] = useState("");
@@ -59,35 +64,75 @@ export function InvoiceForm({ invoice, onSuccess, onCancel }: InvoiceFormProps) 
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [status, setStatus] = useState("pending");
+
+  // Helper for react-select options
+  const jobOptions = jobs.map((j) => ({
+    value: j.jobId,
+    label: `${j.jobDate ? j.jobDate.slice(0, 10) : ""} | ${
+      j.jobType?.startLocation || "?"
+    } → ${j.jobType?.endLocation || "?"} | $${j.jobGrossAmount?.toFixed(2)}`,
+  }));
 
   // Fetch dispatchers on mount
   useEffect(() => {
-    dispatcherApi.fetchAll().then(setDispatchers).catch(() => toast.error("Failed to load dispatchers"));
+    dispatcherApi
+      .fetchAll()
+      .then(setDispatchers)
+      .catch(() => toast.error("Failed to load dispatchers"));
   }, []);
 
-  // Set defaults for new invoice
+  // Set defaults for new invoice or editing (except jobs)
   useEffect(() => {
     if (!invoice) {
       const today = new Date();
       setInvoiceDate(today.toISOString().slice(0, 10));
       setInvoiceNumber(generateInvoiceNumber(today));
+      setStatus("pending");
     } else {
       setInvoiceNumber(invoice.invoiceNumber || "");
-      setInvoiceDate(invoice.invoiceDate ? invoice.invoiceDate.slice(0, 10) : "");
+      setInvoiceDate(
+        invoice.invoiceDate ? invoice.invoiceDate.slice(0, 10) : ""
+      );
       setDispatcherId(invoice.dispatcherId || "");
       setBilledTo(invoice.billedTo || "");
       setBilledEmail(invoice.billedEmail || "");
       setCommission(invoice.commission ? String(invoice.commission) : "");
-      setSelectedJobIds(invoice.jobs ? invoice.jobs.map((j: any) => j.jobId) : []);
+      setStatus(invoice.status ? invoice.status.toLowerCase() : "pending");
     }
   }, [invoice]);
+
+  // Sync selectedJobIds with invoice.jobs after jobs are loaded
+  useEffect(() => {
+    if (invoice && invoice.jobs && jobs.length > 0) {
+      // Only select jobs that are present in the loaded jobs list
+      const validJobIds = invoice.jobs
+        .map((j: any) => j.jobId)
+        .filter((id: string) => jobs.some((job) => job.jobId === id));
+      setSelectedJobIds(validJobIds);
+    } else if (!invoice) {
+      setSelectedJobIds([]);
+    }
+  }, [jobs, invoice]);
 
   // Fetch jobs for selected dispatcher
   useEffect(() => {
     if (dispatcherId) {
       jobApi.fetchAll().then((allJobs: any[]) => {
-        // Only jobs for this dispatcher and not already invoiced
-        const filtered = allJobs.filter(j => j.dispatcherId === dispatcherId && !j.invoiceId);
+        let filtered;
+        if (invoice && invoice.invoiceId) {
+          // Include jobs for this dispatcher that are either not invoiced or belong to this invoice
+          filtered = allJobs.filter(
+            (j) =>
+              j.dispatcherId === dispatcherId &&
+              (!j.invoiceId || j.invoiceId === invoice.invoiceId)
+          );
+        } else {
+          // Only jobs for this dispatcher and not already invoiced
+          filtered = allJobs.filter(
+            (j) => j.dispatcherId === dispatcherId && !j.invoiceId
+          );
+        }
         setJobs(filtered);
       });
       // Fetch dispatcher details
@@ -103,26 +148,31 @@ export function InvoiceForm({ invoice, onSuccess, onCancel }: InvoiceFormProps) 
       setCommission("");
       setSelectedJobIds([]);
     }
-  }, [dispatcherId]);
+  }, [dispatcherId, invoice]);
 
   // Calculate subtotal and total when jobs or commission change
   useEffect(() => {
-    const selectedJobs = jobs.filter(j => selectedJobIds.includes(j.jobId));
-    const sub = selectedJobs.reduce((sum, j) => sum + (j.jobGrossAmount || 0), 0);
+    const selectedJobs = jobs.filter((j) => selectedJobIds.includes(j.jobId));
+    const sub = selectedJobs.reduce(
+      (sum, j) => sum + (j.jobGrossAmount || 0),
+      0
+    );
     setSubTotal(sub);
-    const comm = commission ? (sub * (parseFloat(commission) / 100)) : 0;
+    const comm = commission ? sub * (parseFloat(commission) / 100) : 0;
     const hst = (sub + comm) * 0.13;
     setTotal(sub + comm + hst);
   }, [selectedJobIds, jobs, commission]);
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
-    if (!invoiceNumber.trim()) newErrors.invoiceNumber = "Invoice number is required";
+    if (!invoiceNumber.trim())
+      newErrors.invoiceNumber = "Invoice number is required";
     if (!invoiceDate) newErrors.invoiceDate = "Date is required";
     if (!dispatcherId) newErrors.dispatcherId = "Dispatcher is required";
     if (!billedTo.trim()) newErrors.billedTo = "Billed To is required";
     if (!billedEmail.trim()) newErrors.billedEmail = "Billed Email is required";
-    if (!selectedJobIds.length) newErrors.jobs = "At least one job must be selected";
+    if (!selectedJobIds.length)
+      newErrors.jobs = "At least one job must be selected";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -140,6 +190,7 @@ export function InvoiceForm({ invoice, onSuccess, onCancel }: InvoiceFormProps) 
         billedEmail,
         commission: commission ? parseFloat(commission) : undefined,
         jobIds: selectedJobIds,
+        status,
       };
       if (invoice && invoice.invoiceId) {
         await invoiceApi.update(invoice.invoiceId, form);
@@ -182,16 +233,20 @@ export function InvoiceForm({ invoice, onSuccess, onCancel }: InvoiceFormProps) 
         <select
           id="dispatcherId"
           value={dispatcherId}
-          onChange={e => setDispatcherId(e.target.value)}
+          onChange={(e) => setDispatcherId(e.target.value)}
           className="w-full border rounded px-2 py-1"
           required
         >
           <option value="">Select dispatcher</option>
-          {dispatchers.map(d => (
-            <option key={d.dispatcherId} value={d.dispatcherId}>{d.name}</option>
+          {dispatchers.map((d) => (
+            <option key={d.dispatcherId} value={d.dispatcherId}>
+              {d.name}
+            </option>
           ))}
         </select>
-        {errors.dispatcherId && <div className="text-red-500 text-xs">{errors.dispatcherId}</div>}
+        {errors.dispatcherId && (
+          <div className="text-red-500 text-xs">{errors.dispatcherId}</div>
+        )}
       </div>
       <FormField
         id="billedTo"
@@ -226,42 +281,72 @@ export function InvoiceForm({ invoice, onSuccess, onCancel }: InvoiceFormProps) 
       />
       <div>
         <label className="block text-sm font-medium mb-1">Jobs</label>
+        <Select
+          isMulti
+          options={jobOptions}
+          value={jobOptions.filter((opt) => selectedJobIds.includes(opt.value))}
+          onChange={(selected) =>
+            setSelectedJobIds(selected.map((opt) => opt.value))
+          }
+          classNamePrefix="react-select"
+          placeholder="Select jobs..."
+        />
+        {errors.jobs && (
+          <div className="text-red-500 text-xs">{errors.jobs}</div>
+        )}
+      </div>
+      <div>
+        <label className="block text-sm font-medium mb-1">Status</label>
         <select
-          multiple
-          value={selectedJobIds}
-          onChange={e => {
-            const options = Array.from(e.target.selectedOptions).map(o => o.value);
-            setSelectedJobIds(options);
-          }}
-          className="w-full border rounded px-2 py-1 h-32"
-          required
+          value={status}
+          onChange={(e) => setStatus(e.target.value)}
+          className="w-full border rounded px-2 py-1"
         >
-          {jobs.map(j => {
-            const date = j.jobDate ? j.jobDate.slice(0, 10) : "";
-            const start = j.jobType?.startLocation || "?";
-            const end = j.jobType?.endLocation || "?";
-            return (
-              <option key={j.jobId} value={j.jobId}>
-                {date} | {start} → {end} | ${j.jobGrossAmount?.toFixed(2)}
-              </option>
-            );
-          })}
+          <option value="pending">Pending</option>
+          <option value="raised">Raised</option>
+          <option value="received">Received</option>
         </select>
-        {errors.jobs && <div className="text-red-500 text-xs">{errors.jobs}</div>}
       </div>
       <div className="flex gap-4">
         <div>
-          <label className="block text-xs text-muted-foreground">Subtotal</label>
+          <label className="block text-xs text-muted-foreground">
+            Subtotal
+          </label>
           <div className="font-semibold">${subTotal.toFixed(2)}</div>
         </div>
         <div>
-          <label className="block text-xs text-muted-foreground">Total (incl. 13% HST)</label>
+          <label className="block text-xs text-muted-foreground">
+            Total (incl. 13% HST)
+          </label>
           <div className="font-semibold">${total.toFixed(2)}</div>
         </div>
       </div>
       <div className="flex gap-2 justify-end">
-        <Button type="button" variant="outline" onClick={onCancel} disabled={loading}>Cancel</Button>
-        <Button type="submit" disabled={loading}>{loading ? (invoice ? "Updating..." : "Creating...") : invoice ? "Update Invoice" : "Create Invoice"}</Button>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onCancel}
+          disabled={loading}
+        >
+          Cancel
+        </Button>
+        <Button
+          type="submit"
+          disabled={loading}
+          className={
+            invoice
+              ? "bg-orange-500 hover:bg-orange-600 text-white"
+              : "bg-blue-600 hover:bg-blue-700 text-white"
+          }
+        >
+          {loading
+            ? invoice
+              ? "Updating..."
+              : "Creating..."
+            : invoice
+            ? "Update Invoice"
+            : "Create Invoice"}
+        </Button>
       </div>
     </form>
   );

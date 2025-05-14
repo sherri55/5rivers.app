@@ -143,7 +143,15 @@ export function CompanyForm({
         >
           Cancel
         </Button>
-        <Button type="submit" disabled={loading}>
+        <Button
+          type="submit"
+          disabled={loading}
+          className={
+            company
+              ? "bg-orange-500 hover:bg-orange-600 text-white"
+              : "bg-blue-600 hover:bg-blue-700 text-white"
+          }
+        >
           {loading
             ? "Saving..."
             : company

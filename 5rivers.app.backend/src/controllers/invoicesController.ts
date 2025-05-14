@@ -14,7 +14,7 @@ export const getInvoices = async (req: Request, res: Response) => {
     });
     res.json(invoices);
   } catch (error) {
-    console.error('Error in getInvoices:', error);
+    console.error("Error in getInvoices:", error);
     res.status(500).json({ error: "Failed to fetch invoices" });
   }
 };
@@ -27,7 +27,7 @@ export const getInvoiceById = async (req: Request, res: Response) => {
     });
     res.json(invoice);
   } catch (error) {
-    console.error('Error in getInvoiceById:', error);
+    console.error("Error in getInvoiceById:", error);
     res.status(500).json({ error: "Failed to fetch invoice" });
   }
 };
@@ -141,7 +141,7 @@ export const createInvoice = async (req: Request, res: Response) => {
     });
     res.status(201).json(invoice);
   } catch (err: any) {
-    console.error('Error in createInvoice:', err);
+    console.error("Error in createInvoice:", err);
     res.status(400).json({
       error: "Failed to create invoice",
       details: err && err.message ? err.message : err,
@@ -155,20 +155,32 @@ export const updateInvoice = async (req: Request, res: Response) => {
     - invoiceDate
     - invoiceNumber
     - billedTo
-    - billedEmail
+    - billedEmailz
     - dispatchPercent (optional)
-    - jobIds: string[]
+    - jobIds: string[] (optional)
+    - status (optional)
   */
   try {
     const { id } = req.params;
-    const {
-      invoiceDate,
-      invoiceNumber,
-      billedTo,
-      billedEmail,
-      dispatchPercent,
-      jobIds,
-    } = req.body;
+    // Fetch current invoice and jobs
+    const currentInvoice = await prisma.invoice.findUnique({
+      where: { invoiceId: id },
+      include: { jobs: true },
+    });
+    if (!currentInvoice) {
+      res.status(404).json({ error: "Invoice not found" });
+      return;
+    }
+    // Use existing values if not provided
+    const invoiceDate = req.body.invoiceDate ?? currentInvoice.invoiceDate;
+    const invoiceNumber =
+      req.body.invoiceNumber ?? currentInvoice.invoiceNumber;
+    const billedTo = req.body.billedTo ?? currentInvoice.billedTo;
+    const billedEmail = req.body.billedEmail ?? currentInvoice.billedEmail;
+    const dispatchPercent =
+      req.body.dispatchPercent ?? currentInvoice.dispatchPercent;
+    const status = req.body.status ?? currentInvoice.status;
+    const jobIds = req.body.jobIds ?? currentInvoice.jobs.map((j) => j.jobId);
     if (!jobIds || !Array.isArray(jobIds) || jobIds.length === 0) {
       res.status(400).json({ error: "No jobs provided for invoice" });
       return;
@@ -201,13 +213,12 @@ export const updateInvoice = async (req: Request, res: Response) => {
       (sum, job) => sum + (job.jobGrossAmount || 0),
       0
     );
-    // Use dispatchPercent from body or dispatcher
     const percent =
       dispatchPercent !== undefined
         ? Number(dispatchPercent)
         : dispatcher.commissionPercent;
     const commission = subTotal * (percent / 100);
-    const hst = (subTotal + commission) * 0.13; // 13% HST
+    const hst = (subTotal + commission) * 0.13;
     const total = subTotal + commission + hst;
     // Update invoice
     const invoice = await prisma.invoice.update({
@@ -216,7 +227,7 @@ export const updateInvoice = async (req: Request, res: Response) => {
         invoiceNumber,
         invoiceDate: new Date(invoiceDate),
         dispatcherId,
-        status: "Pending",
+        status,
         subTotal,
         dispatchPercent: percent,
         commission,
@@ -224,7 +235,6 @@ export const updateInvoice = async (req: Request, res: Response) => {
         total,
         billedTo,
         billedEmail,
-        // Remove all previous invoiceLines and jobs, then add new ones
         invoiceLines: {
           deleteMany: {},
           create: jobs.map((job) => ({
@@ -232,20 +242,25 @@ export const updateInvoice = async (req: Request, res: Response) => {
             lineAmount: job.jobGrossAmount || 0,
           })),
         },
-        jobs: {
-          set: jobs.map((job) => ({ jobId: job.jobId })),
-        },
+        jobs: { set: jobs.map((job) => ({ jobId: job.jobId })) },
       },
       include: { dispatcher: true, invoiceLines: true, jobs: true },
     });
-    // Update jobs to reference invoiceId
-    await prisma.job.updateMany({
-      where: { jobId: { in: jobIds } },
-      data: { invoiceId: invoice.invoiceId, invoiceStatus: "Invoiced" },
-    });
+    // Only update jobs' invoiceStatus if status was provided
+    if (req.body.status !== undefined) {
+      await prisma.job.updateMany({
+        where: { jobId: { in: jobIds } },
+        data: { invoiceId: invoice.invoiceId, invoiceStatus: status },
+      });
+    } else {
+      await prisma.job.updateMany({
+        where: { jobId: { in: jobIds } },
+        data: { invoiceId: invoice.invoiceId },
+      });
+    }
     res.json(invoice);
   } catch (err: any) {
-    console.error('Error in updateInvoice:', err);
+    console.error("Error in updateInvoice:", err);
     res.status(400).json({
       error: "Failed to update invoice",
       details: err && err.message ? err.message : err,
@@ -256,11 +271,30 @@ export const updateInvoice = async (req: Request, res: Response) => {
 export const deleteInvoice = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    // Remove invoiceId from jobs and set status to Pending
+    await prisma.job.updateMany({
+      where: { invoiceId: id },
+      data: { invoiceId: null, invoiceStatus: "Pending" },
+    });
+    // Delete invoice lines
+    await prisma.invoiceLine.deleteMany({ where: { invoiceId: id } });
+    // Double-check: Are there any invoice lines left?
+    const remainingLines = await prisma.invoiceLine.count({
+      where: { invoiceId: id },
+    });
+    if (remainingLines > 0) {
+      throw new Error(
+        "Could not delete all invoice lines. Aborting invoice delete."
+      );
+    }
+    // Delete invoice
     await prisma.invoice.delete({ where: { invoiceId: id } });
     res.json({ message: "Invoice deleted" });
-  } catch (error) {
-    console.error('Error in deleteInvoice:', error);
-    res.status(400).json({ error: "Failed to delete invoice" });
+  } catch (error: any) {
+    console.error("Error in deleteInvoice:", error);
+    res
+      .status(400)
+      .json({ error: "Failed to delete invoice", details: error.message });
   }
 };
 
@@ -299,7 +333,8 @@ export const downloadInvoicePdf = async (req: Request, res: Response) => {
     // Table rows
     const tableRows = invoice.jobs.map((job: any) => {
       let value = "";
-      const dispatchType = job.jobType?.dispatchType || job.jobType?.type || job.jobType?.title;
+      const dispatchType =
+        job.jobType?.dispatchType || job.jobType?.type || job.jobType?.title;
       if (dispatchType && typeof dispatchType === "string") {
         if (dispatchType.toLowerCase() === "hourly") {
           let hours = 0;
@@ -340,15 +375,30 @@ export const downloadInvoicePdf = async (req: Request, res: Response) => {
         }
       }
       return [
-        { text: job.jobDate ? new Date(job.jobDate).toLocaleDateString() : "", style: "tableCell" },
+        {
+          text: job.jobDate ? new Date(job.jobDate).toLocaleDateString() : "",
+          style: "tableCell",
+        },
         { text: job.unit?.name || "", style: "tableCell" },
         { text: job.driver?.name || "", style: "tableCell" },
         { text: job.customer || "", style: "tableCell" },
         { text: job.jobType?.title || "", style: "tableCell" },
-        { text: job.jobType?.startLocation && job.jobType?.endLocation ? `${job.jobType.startLocation} to ${job.jobType.endLocation}` : "", style: "tableCell" },
-        { text: job.ticketIds ? job.ticketIds.toString() : "", style: "tableCell" },
+        {
+          text:
+            job.jobType?.startLocation && job.jobType?.endLocation
+              ? `${job.jobType.startLocation} to ${job.jobType.endLocation}`
+              : "",
+          style: "tableCell",
+        },
+        {
+          text: job.ticketIds ? job.ticketIds.toString() : "",
+          style: "tableCell",
+        },
         { text: value, style: "tableCell" },
-        { text: job.jobType?.rateOfJob ? `$${job.jobType.rateOfJob}` : "", style: "tableCell" },
+        {
+          text: job.jobType?.rateOfJob ? `$${job.jobType.rateOfJob}` : "",
+          style: "tableCell",
+        },
         { text: job.jobGrossAmount?.toFixed(2) || "", style: "tableCell" },
       ];
     });
@@ -362,64 +412,190 @@ export const downloadInvoicePdf = async (req: Request, res: Response) => {
           columns: [
             [
               { text: "5 Rivers Trucking Inc.", style: "companyName" },
-              { text: "140 Cherryhill Place\nLondon, Ontario\nN6H4M5\n+1 (437) 679 9350\ninfo@5riverstruckinginc.ca\nHST #760059956", style: "companyInfo", margin: [0, 0, 0, 20] },
+              {
+                text: "140 Cherryhill Place\nLondon, Ontario\nN6H4M5\n+1 (437) 679 9350\ninfo@5riverstruckinginc.ca\nHST #760059956",
+                style: "companyInfo",
+                margin: [0, 0, 0, 20],
+              },
             ],
             [
               { text: "INVOICE", style: "invoiceTitle", alignment: "right" },
-              { text: `${invoice.invoiceNumber}\nInvoice Date: ${invoice.invoiceDate.toLocaleDateString()}\nBilled To: ${invoice.billedTo}\n${invoice.billedEmail}`,
-                alignment: "right", style: "invoiceInfo", margin: [0, 10, 0, 0] },
-            ]
+              {
+                text: `${
+                  invoice.invoiceNumber
+                }\nInvoice Date: ${invoice.invoiceDate.toLocaleDateString()}\nBilled To: ${
+                  invoice.billedTo
+                }\n${invoice.billedEmail}`,
+                alignment: "right",
+                style: "invoiceInfo",
+                margin: [0, 10, 0, 0],
+              },
+            ],
           ],
           columnGap: 40,
-          margin: [0, 0, 0, 30]
+          margin: [0, 0, 0, 30],
         },
         {
           style: "mainTable",
           table: {
             headerRows: 1,
-            widths: ['auto', 'auto', 'auto', 'auto', 'auto', '*', 'auto', 'auto', 'auto', 'auto'],
+            widths: [
+              "auto",
+              "auto",
+              "auto",
+              "auto",
+              "auto",
+              "*",
+              "auto",
+              "auto",
+              "auto",
+              "auto",
+            ],
             body: [
               tableHeader,
               ...tableRows,
               [
-                { text: '', colSpan: 8, border: [false, false, false, false] }, {}, {}, {}, {}, {}, {}, {},
-                { text: 'SUBTOTAL', style: 'totalsLabel', alignment: 'right', border: [false, true, false, false] },
-                { text: `$${Number(invoice.subTotal).toFixed(2)}`, style: 'totalsValue', alignment: 'right', border: [false, true, false, false] }
+                { text: "", colSpan: 8, border: [false, false, false, false] },
+                {},
+                {},
+                {},
+                {},
+                {},
+                {},
+                {},
+                {
+                  text: "SUBTOTAL",
+                  style: "totalsLabel",
+                  alignment: "right",
+                  border: [false, true, false, false],
+                },
+                {
+                  text: `$${Number(invoice.subTotal).toFixed(2)}`,
+                  style: "totalsValue",
+                  alignment: "right",
+                  border: [false, true, false, false],
+                },
               ],
               [
-                { text: '', colSpan: 8, border: [false, false, false, false] }, {}, {}, {}, {}, {}, {}, {},
-                { text: `DISPATCH ${invoice.dispatchPercent?.toFixed(2) || ''}%`, style: 'totalsLabel', alignment: 'right', border: [false, false, false, false] },
-                { text: `$${Number(invoice.commission).toFixed(2)}`, style: 'totalsValue', alignment: 'right', border: [false, false, false, false] }
+                { text: "", colSpan: 8, border: [false, false, false, false] },
+                {},
+                {},
+                {},
+                {},
+                {},
+                {},
+                {},
+                {
+                  text: `DISPATCH ${
+                    invoice.dispatchPercent?.toFixed(2) || ""
+                  }%`,
+                  style: "totalsLabel",
+                  alignment: "right",
+                  border: [false, false, false, false],
+                },
+                {
+                  text: `$${Number(invoice.commission).toFixed(2)}`,
+                  style: "totalsValue",
+                  alignment: "right",
+                  border: [false, false, false, false],
+                },
               ],
               [
-                { text: '', colSpan: 8, border: [false, false, false, false] }, {}, {}, {}, {}, {}, {}, {},
-                { text: 'COMM.', style: 'totalsLabel', alignment: 'right', border: [false, false, false, false] },
-                { text: `$${Number(invoice.commission).toFixed(2)}`, style: 'totalsValue', alignment: 'right', border: [false, false, false, false] }
+                { text: "", colSpan: 8, border: [false, false, false, false] },
+                {},
+                {},
+                {},
+                {},
+                {},
+                {},
+                {},
+                {
+                  text: "COMM.",
+                  style: "totalsLabel",
+                  alignment: "right",
+                  border: [false, false, false, false],
+                },
+                {
+                  text: `$${Number(invoice.commission).toFixed(2)}`,
+                  style: "totalsValue",
+                  alignment: "right",
+                  border: [false, false, false, false],
+                },
               ],
               [
-                { text: '', colSpan: 8, border: [false, false, false, false] }, {}, {}, {}, {}, {}, {}, {},
-                { text: 'HST', style: 'totalsLabel', alignment: 'right', border: [false, false, false, false] },
-                { text: `$${Number(invoice.hst).toFixed(2)}`, style: 'totalsValue', alignment: 'right', border: [false, false, false, false] }
+                { text: "", colSpan: 8, border: [false, false, false, false] },
+                {},
+                {},
+                {},
+                {},
+                {},
+                {},
+                {},
+                {
+                  text: "HST",
+                  style: "totalsLabel",
+                  alignment: "right",
+                  border: [false, false, false, false],
+                },
+                {
+                  text: `$${Number(invoice.hst).toFixed(2)}`,
+                  style: "totalsValue",
+                  alignment: "right",
+                  border: [false, false, false, false],
+                },
               ],
               [
-                { text: '', colSpan: 8, border: [false, false, false, false] }, {}, {}, {}, {}, {}, {}, {},
-                { text: 'TOTAL', style: 'totalsLabelBold', alignment: 'right', border: [false, true, false, false] },
-                { text: `$${Number(invoice.total).toFixed(2)}`, style: 'totalsValueBold', alignment: 'right', border: [false, true, false, false] }
-              ]
+                { text: "", colSpan: 8, border: [false, false, false, false] },
+                {},
+                {},
+                {},
+                {},
+                {},
+                {},
+                {},
+                {
+                  text: "TOTAL",
+                  style: "totalsLabelBold",
+                  alignment: "right",
+                  border: [false, true, false, false],
+                },
+                {
+                  text: `$${Number(invoice.total).toFixed(2)}`,
+                  style: "totalsValueBold",
+                  alignment: "right",
+                  border: [false, true, false, false],
+                },
+              ],
             ],
           },
           layout: {
             fillColor: function (rowIndex: number) {
-              return rowIndex === 0 ? '#f2f2f2' : null;
+              return rowIndex === 0 ? "#f2f2f2" : null;
             },
-            hLineWidth: function(i: number, node: any) { return i === 1 ? 2 : 0.5; },
-            vLineWidth: function() { return 0.5; },
-            hLineColor: function(i: number, node: any) { return i === 1 ? '#222' : '#aaa'; },
-            vLineColor: function() { return '#aaa'; },
-            paddingLeft: function() { return 6; },
-            paddingRight: function() { return 6; },
-            paddingTop: function() { return 4; },
-            paddingBottom: function() { return 4; },
+            hLineWidth: function (i: number, node: any) {
+              return i === 1 ? 2 : 0.5;
+            },
+            vLineWidth: function () {
+              return 0.5;
+            },
+            hLineColor: function (i: number, node: any) {
+              return i === 1 ? "#222" : "#aaa";
+            },
+            vLineColor: function () {
+              return "#aaa";
+            },
+            paddingLeft: function () {
+              return 6;
+            },
+            paddingRight: function () {
+              return 6;
+            },
+            paddingTop: function () {
+              return 4;
+            },
+            paddingBottom: function () {
+              return 4;
+            },
           },
           margin: [0, 0, 0, 30],
         },
@@ -427,25 +603,52 @@ export const downloadInvoicePdf = async (req: Request, res: Response) => {
       styles: {
         companyName: { fontSize: 20, bold: true, margin: [0, 0, 0, 6] },
         companyInfo: { fontSize: 10, margin: [0, 0, 0, 10] },
-        invoiceTitle: { fontSize: 18, bold: true, color: '#222', margin: [0, 0, 0, 10] },
+        invoiceTitle: {
+          fontSize: 18,
+          bold: true,
+          color: "#222",
+          margin: [0, 0, 0, 10],
+        },
         invoiceInfo: { fontSize: 11, margin: [0, 0, 0, 10] },
         mainTable: { margin: [0, 5, 0, 15] },
-        tableHeaderCell: { bold: true, fontSize: 11, color: 'black', fillColor: '#f2f2f2', alignment: 'center' },
-        tableCell: { fontSize: 10, color: '#222', alignment: 'left', margin: [0, 2, 0, 2], noWrap: false },
-        totalsLabel: { fontSize: 11, alignment: 'right', color: '#222' },
-        totalsValue: { fontSize: 11, alignment: 'right', color: '#222' },
-        totalsLabelBold: { fontSize: 12, bold: true, alignment: 'right', color: '#222' },
-        totalsValueBold: { fontSize: 12, bold: true, alignment: 'right', color: '#222' },
+        tableHeaderCell: {
+          bold: true,
+          fontSize: 11,
+          color: "black",
+          fillColor: "#f2f2f2",
+          alignment: "center",
+        },
+        tableCell: {
+          fontSize: 10,
+          color: "#222",
+          alignment: "left",
+          margin: [0, 2, 0, 2],
+          noWrap: false,
+        },
+        totalsLabel: { fontSize: 11, alignment: "right", color: "#222" },
+        totalsValue: { fontSize: 11, alignment: "right", color: "#222" },
+        totalsLabelBold: {
+          fontSize: 12,
+          bold: true,
+          alignment: "right",
+          color: "#222",
+        },
+        totalsValueBold: {
+          fontSize: 12,
+          bold: true,
+          alignment: "right",
+          color: "#222",
+        },
       },
       defaultStyle: {
-        font: 'Roboto',
+        font: "Roboto",
       },
       fonts: {
         Roboto: {
-          normal: 'Roboto-Regular.ttf',
-          bold: 'Roboto-Medium.ttf',
-          italics: 'Roboto-Italic.ttf',
-          bolditalics: 'Roboto-MediumItalic.ttf',
+          normal: "Roboto-Regular.ttf",
+          bold: "Roboto-Medium.ttf",
+          italics: "Roboto-Italic.ttf",
+          bolditalics: "Roboto-MediumItalic.ttf",
         },
       },
     };
@@ -465,4 +668,3 @@ export const downloadInvoicePdf = async (req: Request, res: Response) => {
     res.status(500).json({ error: "Failed to generate PDF" });
   }
 };
-

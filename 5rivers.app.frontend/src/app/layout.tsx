@@ -12,22 +12,22 @@ function Header() {
         </Link>
         <nav className="flex gap-2">
           <Button asChild variant="ghost">
-            <Link href="/features/units">Units</Link>
+            <Link href="/units">Units</Link>
           </Button>
           <Button asChild variant="ghost">
-            <Link href="/features/jobs">Jobs</Link>
+            <Link href="/jobs">Jobs</Link>
           </Button>
           <Button asChild variant="ghost">
-            <Link href="/features/companies">Companies</Link>
+            <Link href="/companies">Companies</Link>
           </Button>
           <Button asChild variant="ghost">
-            <Link href="/features/drivers">Drivers</Link>
+            <Link href="/drivers">Drivers</Link>
           </Button>
           <Button asChild variant="ghost">
-            <Link href="/features/dispatchers">Dispatchers</Link>
+            <Link href="/dispatchers">Dispatchers</Link>
           </Button>
           <Button asChild variant="ghost">
-            <Link href="/features/invoices">Invoices</Link>
+            <Link href="/invoices">Invoices</Link>
           </Button>
         </nav>
       </div>

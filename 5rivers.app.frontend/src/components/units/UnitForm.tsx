@@ -129,15 +129,23 @@ export function UnitForm({ unit, onSuccess, onCancel }: UnitFormProps) {
       />
 
       <div className="flex gap-2 justify-end">
-        <button
+        <Button
           type="button"
-          className="btn btn-secondary"
+          variant="outline"
           onClick={onCancel}
           disabled={loading}
         >
           Cancel
-        </button>
-        <button type="submit" className="btn btn-primary" disabled={loading}>
+        </Button>
+        <Button
+          type="submit"
+          disabled={loading}
+          className={
+            unit
+              ? "bg-orange-500 hover:bg-orange-600 text-white"
+              : "bg-blue-600 hover:bg-blue-700 text-white"
+          }
+        >
           {loading
             ? unit
               ? "Updating..."
@@ -145,7 +153,7 @@ export function UnitForm({ unit, onSuccess, onCancel }: UnitFormProps) {
             : unit
             ? "Update Unit"
             : "Create Unit"}
-        </button>
+        </Button>
       </div>
     </form>
   );

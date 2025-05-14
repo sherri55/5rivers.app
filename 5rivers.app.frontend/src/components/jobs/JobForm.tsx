@@ -1,9 +1,21 @@
 import { useState, useEffect } from "react";
-import { jobApi, jobTypeApi, driverApi, unitApi, dispatcherApi } from "@/src/lib/api";
+import {
+  jobApi,
+  jobTypeApi,
+  driverApi,
+  unitApi,
+  dispatcherApi,
+} from "@/src/lib/api";
 import { Button } from "../ui/button";
 import { FormField } from "../common/FormField";
 import { toast } from "sonner";
-import type { Job, JobType, Driver, Unit, Dispatcher } from "@/src/types/entities";
+import type {
+  Job,
+  JobType,
+  Driver,
+  Unit,
+  Dispatcher,
+} from "@/src/types/entities";
 
 interface JobFormProps {
   job?: Job;
@@ -18,7 +30,9 @@ export function JobForm({ job, onSuccess, onCancel }: JobFormProps) {
   const [unitId, setUnitId] = useState(job?.unitId || "");
   const [dispatcherId, setDispatcherId] = useState(job?.dispatcherId || "");
   const [status, setStatus] = useState(job?.status || "");
-  const [jobGrossAmount, setJobGrossAmount] = useState(job?.jobGrossAmount || "");
+  const [jobGrossAmount, setJobGrossAmount] = useState(
+    job?.jobGrossAmount || ""
+  );
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
   const [tonnageTags, setTonnageTags] = useState<Array<string>>([]);
@@ -59,10 +73,16 @@ export function JobForm({ job, onSuccess, onCancel }: JobFormProps) {
       setUnitId(job.unitId || "");
       setDispatcherId(job.dispatcherId || "");
       setStatus(job.status || job.invoiceStatus || "");
-      setJobGrossAmount(job.jobGrossAmount ? job.jobGrossAmount.toString() : "");
+      setJobGrossAmount(
+        job.jobGrossAmount ? job.jobGrossAmount.toString() : ""
+      );
       setStartTime(job.startTime || "");
       setEndTime(job.endTime || "");
-      setLoads(job.loads !== undefined && job.loads !== null ? job.loads.toString() : "");
+      setLoads(
+        job.loads !== undefined && job.loads !== null
+          ? job.loads.toString()
+          : ""
+      );
       // Handle weight/tonnageTags (array or JSON string)
       if (job.weight) {
         if (Array.isArray(job.weight)) {
@@ -204,8 +224,13 @@ export function JobForm({ job, onSuccess, onCancel }: JobFormProps) {
         type="select"
         value={jobTypeId}
         onChange={setJobTypeId}
-        options={jobTypes.map((jt) => ({ value: jt.jobTypeId || "", label: jt.title }))}
-        placeholder={dropdownLoading ? "Loading job types..." : "Select job type"}
+        options={jobTypes.map((jt) => ({
+          value: jt.jobTypeId || "",
+          label: jt.title,
+        }))}
+        placeholder={
+          dropdownLoading ? "Loading job types..." : "Select job type"
+        }
         required
         error={errors.jobTypeId}
       />
@@ -215,7 +240,10 @@ export function JobForm({ job, onSuccess, onCancel }: JobFormProps) {
         type="select"
         value={driverId}
         onChange={setDriverId}
-        options={drivers.map((d) => ({ value: d.driverId || "", label: d.name }))}
+        options={drivers.map((d) => ({
+          value: d.driverId || "",
+          label: d.name,
+        }))}
         placeholder={dropdownLoading ? "Loading drivers..." : "Select driver"}
         required
         error={errors.driverId}
@@ -237,8 +265,13 @@ export function JobForm({ job, onSuccess, onCancel }: JobFormProps) {
         type="select"
         value={dispatcherId}
         onChange={setDispatcherId}
-        options={dispatchers.map((d) => ({ value: d.dispatcherId || "", label: d.name }))}
-        placeholder={dropdownLoading ? "Loading dispatchers..." : "Select dispatcher"}
+        options={dispatchers.map((d) => ({
+          value: d.dispatcherId || "",
+          label: d.name,
+        }))}
+        placeholder={
+          dropdownLoading ? "Loading dispatchers..." : "Select dispatcher"
+        }
         required
         error={errors.dispatcherId}
       />
@@ -246,28 +279,44 @@ export function JobForm({ job, onSuccess, onCancel }: JobFormProps) {
       {dispatchType === "Hourly" && (
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1">
-            <label htmlFor="startTime" className="font-medium after:content-['*'] after:text-red-500 after:ml-0.5">Start Time</label>
+            <label
+              htmlFor="startTime"
+              className="font-medium after:content-['*'] after:text-red-500 after:ml-0.5"
+            >
+              Start Time
+            </label>
             <input
               id="startTime"
               type="time"
               value={startTime}
-              onChange={e => setStartTime(e.target.value)}
+              onChange={(e) => setStartTime(e.target.value)}
               required
               className="mt-1 border rounded px-2 py-1 w-full"
             />
-            {errors.startTime && <p className="text-destructive text-sm mt-1">{errors.startTime}</p>}
+            {errors.startTime && (
+              <p className="text-destructive text-sm mt-1">
+                {errors.startTime}
+              </p>
+            )}
           </div>
           <div className="space-y-1">
-            <label htmlFor="endTime" className="font-medium after:content-['*'] after:text-red-500 after:ml-0.5">End Time</label>
+            <label
+              htmlFor="endTime"
+              className="font-medium after:content-['*'] after:text-red-500 after:ml-0.5"
+            >
+              End Time
+            </label>
             <input
               id="endTime"
               type="time"
               value={endTime}
-              onChange={e => setEndTime(e.target.value)}
+              onChange={(e) => setEndTime(e.target.value)}
               required
               className="mt-1 border rounded px-2 py-1 w-full"
             />
-            {errors.endTime && <p className="text-destructive text-sm mt-1">{errors.endTime}</p>}
+            {errors.endTime && (
+              <p className="text-destructive text-sm mt-1">{errors.endTime}</p>
+            )}
           </div>
         </div>
       )}
@@ -284,19 +333,34 @@ export function JobForm({ job, onSuccess, onCancel }: JobFormProps) {
               className="border rounded px-2 py-1 w-32"
               placeholder="Enter tonnage"
             />
-            <Button type="button" onClick={handleAddTonnage} disabled={!tonnageInput || isNaN(Number(tonnageInput))}>
+            <Button
+              type="button"
+              onClick={handleAddTonnage}
+              disabled={!tonnageInput || isNaN(Number(tonnageInput))}
+            >
               Add
             </Button>
           </div>
           <div className="flex flex-wrap gap-2">
             {tonnageTags.map((tag, idx) => (
-              <span key={idx} className="bg-gray-200 px-2 py-1 rounded flex items-center gap-1">
+              <span
+                key={idx}
+                className="bg-gray-200 px-2 py-1 rounded flex items-center gap-1"
+              >
                 {tag}
-                <button type="button" className="ml-1 text-red-500" onClick={() => handleRemoveTonnage(idx)}>&times;</button>
+                <button
+                  type="button"
+                  className="ml-1 text-red-500"
+                  onClick={() => handleRemoveTonnage(idx)}
+                >
+                  &times;
+                </button>
               </span>
             ))}
           </div>
-          {errors.tonnage && <p className="text-destructive text-sm mt-1">{errors.tonnage}</p>}
+          {errors.tonnage && (
+            <p className="text-destructive text-sm mt-1">{errors.tonnage}</p>
+          )}
         </div>
       )}
       {dispatchType === "Load" && (
@@ -316,7 +380,9 @@ export function JobForm({ job, onSuccess, onCancel }: JobFormProps) {
         type="number"
         value={jobGrossAmount}
         onChange={dispatchType === "Fixed" ? setJobGrossAmount : () => {}}
-        placeholder={dispatchType === "Fixed" ? "Enter amount" : "Auto-calculated"}
+        placeholder={
+          dispatchType === "Fixed" ? "Enter amount" : "Auto-calculated"
+        }
         required
         error={errors.jobGrossAmount}
         min={0}
@@ -324,8 +390,31 @@ export function JobForm({ job, onSuccess, onCancel }: JobFormProps) {
         readOnly={dispatchType !== "Fixed"}
       />
       <div className="flex gap-2 justify-end">
-        <Button type="button" variant="outline" onClick={onCancel} disabled={loading}>Cancel</Button>
-        <Button type="submit" disabled={loading}>{loading ? (job ? "Updating..." : "Creating...") : job ? "Update Job" : "Create Job"}</Button>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onCancel}
+          disabled={loading}
+        >
+          Cancel
+        </Button>
+        <Button
+          type="submit"
+          disabled={loading}
+          className={
+            job
+              ? "bg-orange-500 hover:bg-orange-600 text-white"
+              : "bg-blue-600 hover:bg-blue-700 text-white"
+          }
+        >
+          {loading
+            ? job
+              ? "Updating..."
+              : "Creating..."
+            : job
+            ? "Update Job"
+            : "Create Job"}
+        </Button>
       </div>
     </form>
   );

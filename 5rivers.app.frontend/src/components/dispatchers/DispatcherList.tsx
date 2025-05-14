@@ -41,7 +41,9 @@ export function DispatcherList({
     dispatcherApi
       .fetchAll()
       .then((data) => {
-        setDispatchers(data);
+        setDispatchers(
+          data.slice().sort((a, b) => a.name.localeCompare(b.name))
+        );
         setLoading(false);
       })
       .catch(() => {

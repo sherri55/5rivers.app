@@ -41,15 +41,14 @@ export default function InvoicesPage() {
     setIsFormOpen(true);
   };
 
-  const handleDelete = async () => {
-    if (!selectedInvoice) return;
+  const handleDelete = async (invoiceId: string) => {
     try {
-      await invoiceApi.delete(selectedInvoice.invoiceId);
+      await invoiceApi.delete(invoiceId);
       toast.success("Invoice deleted successfully");
       setSelectedInvoice(null);
       refresh();
-    } catch (error) {
-      toast.error("Failed to delete invoice" + error.message);
+    } catch (error: any) {
+      toast.error("Failed to delete invoice: " + (error?.message || error));
     }
     setConfirmDelete(false);
   };
@@ -68,6 +67,7 @@ export default function InvoicesPage() {
             onSelect={setSelectedInvoice}
             onEdit={handleEdit}
             onCreate={handleCreate}
+            onDelete={handleDelete}
             refresh={refreshTrigger}
           />
         </div>
@@ -102,7 +102,9 @@ export default function InvoicesPage() {
         title="Delete Invoice"
         message="Are you sure you want to delete this invoice? This action cannot be undone."
         isOpen={confirmDelete}
-        onConfirm={handleDelete}
+        onConfirm={() =>
+          selectedInvoice && handleDelete(selectedInvoice.invoiceId)
+        }
         onCancel={() => setConfirmDelete(false)}
         confirmText="Delete"
         variant="destructive"

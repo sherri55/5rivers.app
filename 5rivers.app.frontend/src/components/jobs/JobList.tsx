@@ -1,11 +1,26 @@
 import { useEffect, useState } from "react";
 import { jobApi, dispatcherApi, unitApi, jobTypeApi } from "@/src/lib/api";
 import { Button } from "../ui/button";
-import { Eye, Pencil, Trash2, Plus, CheckCircle2, Clock3, MinusCircle } from "lucide-react";
+import {
+  Eye,
+  Pencil,
+  Trash2,
+  Plus,
+  CheckCircle2,
+  Clock3,
+  MinusCircle,
+} from "lucide-react";
 import { ConfirmDialog } from "../common/Modal";
 import { toast } from "sonner";
+import { DateRangePicker } from "../common/DateRangePicker";
 
-export function JobList({ onSelect, onEdit, onCreate, onDelete, refresh }: any) {
+export function JobList({
+  onSelect,
+  onEdit,
+  onCreate,
+  onDelete,
+  refresh,
+}: any) {
   const [jobs, setJobs] = useState([]);
   const [dispatchers, setDispatchers] = useState([]);
   const [units, setUnits] = useState([]);
@@ -15,8 +30,10 @@ export function JobList({ onSelect, onEdit, onCreate, onDelete, refresh }: any) 
   // Filter state
   const [dispatcherId, setDispatcherId] = useState("");
   const [unitId, setUnitId] = useState("");
-  const [startLocation, setStartLocation] = useState("");
-  const [endLocation, setEndLocation] = useState("");
+  const [dateRange, setDateRange] = useState<{
+    startDate: Date | null;
+    endDate: Date | null;
+  }>({ startDate: null, endDate: null });
 
   useEffect(() => {
     jobApi.fetchAll().then(setJobs);
@@ -38,10 +55,13 @@ export function JobList({ onSelect, onEdit, onCreate, onDelete, refresh }: any) 
 
   // Filtering logic
   const filteredJobs = jobs.filter((job: any) => {
-    if (dispatcherId && job.dispatcher?.dispatcherId !== dispatcherId) return false;
+    if (dispatcherId && job.dispatcher?.dispatcherId !== dispatcherId)
+      return false;
     if (unitId && job.unit?.unitId !== unitId) return false;
-    if (startLocation && job.jobType?.startLocation !== startLocation) return false;
-    if (endLocation && job.jobType?.endLocation !== endLocation) return false;
+    if (dateRange.startDate && new Date(job.jobDate) < dateRange.startDate)
+      return false;
+    if (dateRange.endDate && new Date(job.jobDate) > dateRange.endDate)
+      return false;
     return true;
   });
 
@@ -49,20 +69,25 @@ export function JobList({ onSelect, onEdit, onCreate, onDelete, refresh }: any) 
   function groupJobs(jobs: any[]) {
     // Group by year-month
     const monthGroups: Record<string, any[]> = {};
-    jobs.forEach(job => {
+    jobs.forEach((job) => {
       const date = job.jobDate ? new Date(job.jobDate) : null;
       if (!date) return;
-      const ym = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+      const ym = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
+        2,
+        "0"
+      )}`;
       if (!monthGroups[ym]) monthGroups[ym] = [];
       monthGroups[ym].push(job);
     });
     // Sort months descending
-    const sortedMonths = Object.keys(monthGroups).sort((a, b) => b.localeCompare(a));
+    const sortedMonths = Object.keys(monthGroups).sort((a, b) =>
+      b.localeCompare(a)
+    );
     // For each month, group by unit type
-    return sortedMonths.map(month => {
+    return sortedMonths.map((month) => {
       const jobsInMonth = monthGroups[month];
       const unitTypeGroups: Record<string, any[]> = {};
-      jobsInMonth.forEach(job => {
+      jobsInMonth.forEach((job) => {
         const unitType = job.unit?.name || "Unknown Unit";
         if (!unitTypeGroups[unitType]) unitTypeGroups[unitType] = [];
         unitTypeGroups[unitType].push(job);
@@ -70,7 +95,7 @@ export function JobList({ onSelect, onEdit, onCreate, onDelete, refresh }: any) 
       const sortedUnitTypes = Object.keys(unitTypeGroups).sort();
       return {
         month,
-        unitTypes: sortedUnitTypes.map(unitType => ({
+        unitTypes: sortedUnitTypes.map((unitType) => ({
           unitType,
           jobs: unitTypeGroups[unitType],
         })),
@@ -80,51 +105,59 @@ export function JobList({ onSelect, onEdit, onCreate, onDelete, refresh }: any) 
 
   const grouped = groupJobs(filteredJobs);
 
-  // For start/end location filter options
-  const startLocations = Array.from(new Set(jobTypes.map((jt: any) => jt.startLocation).filter(Boolean)));
-  const endLocations = Array.from(new Set(jobTypes.map((jt: any) => jt.endLocation).filter(Boolean)));
-
   return (
     <div>
-      <div className="flex flex-wrap gap-4 justify-between mb-4 items-end">
-        <h2 className="text-lg font-medium">Jobs</h2>
-        <div className="flex gap-2 flex-wrap">
-          <select className="border rounded px-2 py-1" value={dispatcherId} onChange={e => setDispatcherId(e.target.value)}>
+      <div className="flex flex-col gap-2 mb-4">
+        <div className="flex flex-wrap gap-2 items-end">
+          <select
+            className="border rounded px-2 py-1 min-w-[160px]"
+            value={dispatcherId}
+            onChange={(e) => setDispatcherId(e.target.value)}
+          >
             <option value="">All Dispatchers</option>
             {dispatchers.map((d: any) => (
-              <option key={d.dispatcherId} value={d.dispatcherId}>{d.name}</option>
+              <option key={d.dispatcherId} value={d.dispatcherId}>
+                {d.name}
+              </option>
             ))}
           </select>
-          <select className="border rounded px-2 py-1" value={unitId} onChange={e => setUnitId(e.target.value)}>
+          <select
+            className="border rounded px-2 py-1 min-w-[120px]"
+            value={unitId}
+            onChange={(e) => setUnitId(e.target.value)}
+          >
             <option value="">All Units</option>
             {units.map((u: any) => (
-              <option key={u.unitId} value={u.unitId}>{u.name}</option>
+              <option key={u.unitId} value={u.unitId}>
+                {u.name}
+              </option>
             ))}
           </select>
-          <select className="border rounded px-2 py-1" value={startLocation} onChange={e => setStartLocation(e.target.value)}>
-            <option value="">All Start Locations</option>
-            {startLocations.map((loc: string) => (
-              <option key={loc} value={loc}>{loc}</option>
-            ))}
-          </select>
-          <select className="border rounded px-2 py-1" value={endLocation} onChange={e => setEndLocation(e.target.value)}>
-            <option value="">All End Locations</option>
-            {endLocations.map((loc: string) => (
-              <option key={loc} value={loc}>{loc}</option>
-            ))}
-          </select>
-          <Button onClick={onCreate} className="gap-1">
+          <DateRangePicker value={dateRange} onChange={setDateRange} />
+          <div className="flex-1" />
+          <Button
+            onClick={onCreate}
+            className="gap-1 whitespace-nowrap self-stretch"
+          >
             <Plus className="h-4 w-4" /> Add Job
           </Button>
         </div>
       </div>
-      {grouped.length === 0 && <div className="text-muted-foreground py-8 text-center">No jobs found.</div>}
+      {grouped.length === 0 && (
+        <div className="text-muted-foreground py-8 text-center">
+          No jobs found.
+        </div>
+      )}
       {grouped.map(({ month, unitTypes }) => (
         <div key={month} className="mb-6">
-          <div className="font-semibold text-base mb-2">{month.replace("-", ".")}</div>
+          <div className="font-semibold text-base mb-2">
+            {month.replace("-", ".")}
+          </div>
           {unitTypes.map(({ unitType, jobs }) => (
             <div key={unitType} className="mb-2">
-              <div className="text-sm text-muted-foreground mb-1">{unitType}</div>
+              <div className="text-sm text-muted-foreground mb-1">
+                {unitType}
+              </div>
               <ul className="divide-y">
                 {jobs.map((job: any) => (
                   <li
@@ -133,25 +166,62 @@ export function JobList({ onSelect, onEdit, onCreate, onDelete, refresh }: any) 
                   >
                     {/* Status indicator */}
                     <span className="mr-2 flex items-center">
-                      {job.status === "Complete" ? (
-                        <CheckCircle2 className="h-5 w-5 text-green-500" title="Complete" />
-                      ) : job.status === "Pending" ? (
-                        <Clock3 className="h-5 w-5 text-yellow-500" title="Pending" />
+                      {job.invoiceStatus === "received" ? (
+                        <CheckCircle2
+                          className="h-5 w-5 text-green-500"
+                          title="Paid"
+                        />
+                      ) : job.invoiceStatus === "raised" ? (
+                        <Clock3
+                          className="h-5 w-5 text-blue-500"
+                          title="Pending"
+                        />
                       ) : (
-                        <MinusCircle className="h-5 w-5 text-gray-400" title={job.status || "Unknown"} />
+                        <MinusCircle
+                          className="h-5 w-5 text-gray-400"
+                          title={job.invoiceStatus || "Unknown"}
+                        />
                       )}
                     </span>
-                    <span className="flex-1 cursor-pointer" onClick={() => onSelect(job)}>
-                      {job.jobDate ? new Date(job.jobDate).toISOString().slice(0, 10).replace(/-/g, ".") : ""} - {job.dispatcher?.name || "No Dispatcher"}
+                    <span
+                      className="flex-1 cursor-pointer"
+                      onClick={() => onSelect(job)}
+                    >
+                      {job.jobDate
+                        ? new Date(job.jobDate)
+                            .toISOString()
+                            .slice(0, 10)
+                            .replace(/-/g, ".")
+                        : ""}{" "}
+                      - {job.dispatcher?.name || "No Dispatcher"}
                     </span>
                     <div className="flex gap-2">
-                      <Button size="icon" variant="ghost" onClick={() => onSelect(job)} title="View Details">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => onSelect(job)}
+                        title="View Details"
+                      >
                         <Eye className="h-4 w-4" />
                       </Button>
-                      <Button size="icon" variant="ghost" onClick={e => { e.stopPropagation(); onEdit(job); }} title="Edit">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onEdit(job);
+                        }}
+                        title="Edit"
+                      >
                         <Pencil className="h-4 w-4" />
                       </Button>
-                      <Button size="icon" variant="ghost" onClick={() => setConfirmDelete(job.jobId)} className="text-destructive hover:text-destructive" title="Delete">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => setConfirmDelete(job.jobId)}
+                        className="text-destructive hover:text-destructive"
+                        title="Delete"
+                      >
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>

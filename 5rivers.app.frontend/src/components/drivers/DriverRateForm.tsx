@@ -198,7 +198,15 @@ export function DriverRateForm({
         >
           Cancel
         </Button>
-        <Button type="submit" disabled={loading || loadingJobTypes}>
+        <Button
+          type="submit"
+          disabled={loading || loadingJobTypes}
+          className={
+            driverRate
+              ? "bg-orange-500 hover:bg-orange-600 text-white"
+              : "bg-blue-600 hover:bg-blue-700 text-white"
+          }
+        >
           {loading ? "Saving..." : driverRate ? "Update Rate" : "Add Rate"}
         </Button>
       </div>

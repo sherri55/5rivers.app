@@ -32,7 +32,9 @@ export function CompanyList({
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   useEffect(() => {
-    companyApi.fetchAll().then(setCompanies);
+    companyApi.fetchAll().then((data) => {
+      setCompanies(data.slice().sort((a, b) => a.name.localeCompare(b.name)));
+    });
   }, [refresh]);
 
   const handleDelete = async (id: string) => {
