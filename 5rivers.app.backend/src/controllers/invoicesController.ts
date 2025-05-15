@@ -2,12 +2,13 @@
 import { Request, Response } from "express";
 import { PrismaClient } from "@prisma/client";
 import pdfMake from "pdfmake/build/pdfmake";
+
 import pdfFonts from "pdfmake/build/vfs_fonts";
 import sharp from "sharp";
 import fs from "fs";
 import path from "path";
-(pdfMake as any).vfs = pdfFonts.vfs;
 
+(pdfMake as any).vfs = pdfFonts.vfs;
 // Helper to parse a YYYY-MM-DD string as a local date (no time zone shift)
 function parseLocalDate(dateStr: string): Date {
   if (!dateStr) return new Date("Invalid Date");
@@ -481,125 +482,17 @@ export const downloadInvoicePdf = async (req: Request, res: Response) => {
         table: {
           headerRows: 1,
           widths: [
-            "auto",
-            "auto",
-            "auto",
-            "auto",
-            "*",
-            "auto",
-            "auto",
-            "auto",
-            "auto",
+            "auto", // Date
+            "auto", // Unit
+            "auto", // Driver
+            "auto", // Customer
+            "*", // Job Description (flex)
+            "auto", // Tickets
+            "auto", // HRS/TON/LOADS
+            "auto", // Rate
+            "auto", // Amount (wider for totals)
           ],
-          body: [
-            tableHeader,
-            ...tableRows,
-            [
-              { text: "", colSpan: 8, border: [false, false, false, false] },
-              {},
-              {},
-              {},
-              {},
-              {},
-              {},
-              {
-                text: "SUBTOTAL",
-                style: "totalsLabel",
-                alignment: "right",
-                border: [false, true, false, false],
-              },
-              {
-                text: `$${Number(invoice.subTotal).toFixed(2)}`,
-                style: "totalsValue",
-                alignment: "right",
-                border: [false, true, false, false],
-              },
-            ],
-            [
-              { text: "", colSpan: 8, border: [false, false, false, false] },
-              {},
-              {},
-              {},
-              {},
-              {},
-              {},
-              {
-                text: `DISPATCH ${invoice.dispatchPercent?.toFixed(2) || ""}%`,
-                style: "totalsLabel",
-                alignment: "right",
-                border: [false, false, false, false],
-              },
-              {
-                text: `$${Number(invoice.commission).toFixed(2)}`,
-                style: "totalsValue",
-                alignment: "right",
-                border: [false, false, false, false],
-              },
-            ],
-            [
-              { text: "", colSpan: 8, border: [false, false, false, false] },
-              {},
-              {},
-              {},
-              {},
-              {},
-              {},
-              {
-                text: "COMM.",
-                style: "totalsLabel",
-                alignment: "right",
-                border: [false, false, false, false],
-              },
-              {
-                text: `$${Number(invoice.commission).toFixed(2)}`,
-                style: "totalsValue",
-                alignment: "right",
-                border: [false, false, false, false],
-              },
-            ],
-            [
-              { text: "", colSpan: 8, border: [false, false, false, false] },
-              {},
-              {},
-              {},
-              {},
-              {},
-              {},
-              {
-                text: "HST",
-                style: "totalsLabel",
-                alignment: "right",
-                border: [false, false, false, false],
-              },
-              {
-                text: `$${Number(invoice.hst).toFixed(2)}`,
-                style: "totalsValue",
-                alignment: "right",
-                border: [false, false, false, false],
-              },
-            ],
-            [
-              { text: "", colSpan: 8, border: [false, false, false, false] },
-              {},
-              {},
-              {},
-              {},
-              {},
-              {},
-              {
-                text: "TOTAL",
-                style: "totalsLabelBold",
-                alignment: "right",
-                border: [false, true, false, false],
-              },
-              {
-                text: `$${Number(invoice.total).toFixed(2)}`,
-                style: "totalsValueBold",
-                alignment: "right",
-                border: [false, true, false, false],
-              },
-            ],
-          ],
+          body: [tableHeader, ...tableRows],
         },
         layout: {
           fillColor: function (rowIndex: number) {
@@ -630,7 +523,82 @@ export const downloadInvoicePdf = async (req: Request, res: Response) => {
             return 4;
           },
         },
-        margin: [0, 0, 0, 30],
+        margin: [0, 0, 0, 10],
+      },
+      {
+        columns: [
+          { width: "*", text: "" },
+          {
+            width: "auto",
+            table: {
+              body: [
+                [
+                  {
+                    text: "Subtotal:",
+                    style: "totalsLabel",
+                    alignment: "right",
+                    border: [false, false, false, false],
+                  },
+                  {
+                    text: `$${Number(invoice.subTotal).toFixed(2)}`,
+                    style: "totalsValue",
+                    alignment: "right",
+                    border: [false, false, false, false],
+                  },
+                ],
+                [
+                  {
+                    text: `Commission (${
+                      invoice.dispatchPercent?.toFixed(2) || ""
+                    }%):`,
+                    style: "totalsLabel",
+                    alignment: "right",
+                    border: [false, false, false, false],
+                  },
+                  {
+                    text: `$${Number(invoice.commission).toFixed(2)}`,
+                    style: "totalsValue",
+                    alignment: "right",
+                    border: [false, false, false, false],
+                  },
+                ],
+                [
+                  {
+                    text: "HST (13%):",
+                    style: "totalsLabel",
+                    alignment: "right",
+                    border: [false, false, false, false],
+                  },
+                  {
+                    text: `$${Number(invoice.hst).toFixed(2)}`,
+                    style: "totalsValue",
+                    alignment: "right",
+                    border: [false, false, false, false],
+                  },
+                ],
+                [
+                  {
+                    text: "Total:",
+                    style: "totalsLabelBold",
+                    alignment: "right",
+                    border: [false, true, false, false],
+                  },
+                  {
+                    text: `$${Number(invoice.total).toFixed(2)}`,
+                    style: "totalsValueBold",
+                    alignment: "right",
+                    border: [false, true, false, false],
+                  },
+                ],
+              ],
+              widths: ["*", "auto"],
+            },
+            layout: "noBorders",
+            margin: [0, 0, 0, 20],
+          },
+        ],
+        columnGap: 10,
+        margin: [0, 0, 0, 20],
       },
     ];
 
@@ -662,13 +630,6 @@ export const downloadInvoicePdf = async (req: Request, res: Response) => {
     }
     if (allImageEntries.length > 0) {
       // Add 'Tickets' page only if not already at top (pdfmake will handle this)
-      content.push({
-        text: "Tickets",
-        fontSize: 60,
-        bold: true,
-        alignment: "center",
-        margin: [0, 200, 0, 0],
-      });
       for (let i = 0; i < allImageEntries.length; i++) {
         const { absPath } = allImageEntries[i];
         try {
