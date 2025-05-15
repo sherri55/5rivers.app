@@ -10,8 +10,8 @@ import path from "path";
 
 // Helper to parse a YYYY-MM-DD string as a local date (no time zone shift)
 function parseLocalDate(dateStr: string): Date {
-  if (!dateStr) return new Date('Invalid Date');
-  const [year, month, day] = dateStr.split('-').map(Number);
+  if (!dateStr) return new Date("Invalid Date");
+  const [year, month, day] = dateStr.split("-").map(Number);
   return new Date(year, month - 1, day);
 }
 
@@ -88,16 +88,24 @@ export const createInvoice = async (req: Request, res: Response) => {
     if (!invoiceNumber) {
       // Dispatcher initials
       const nameParts = dispatcher.name.split(/\s+/).filter(Boolean);
-      const initials = nameParts.map((n: string) => n[0].toUpperCase()).join("");
+      const initials = nameParts
+        .map((n: string) => n[0].toUpperCase())
+        .join("");
       // Get all unique truck/unit numbers from jobs
-      const unitNumbers = Array.from(new Set(jobs.map((job) => job.unit?.name || job.unitId || job.unit || "")));
+      const unitNumbers = Array.from(
+        new Set(
+          jobs.map((job) => job.unit?.name || job.unitId || job.unit || "")
+        )
+      );
       let truckPart = "MUL";
       if (unitNumbers.length === 1 && unitNumbers[0]) {
         const match = unitNumbers[0].toString().match(/\d+/);
         truckPart = match ? match[0] : "MUL";
       }
       // Get all job dates, sort ascending
-      const jobDates = jobs.map((job) => parseLocalDate(job.jobDate)).filter((d) => !isNaN(d.getTime()));
+      const jobDates = jobs
+        .map((job) => parseLocalDate(job.jobDate))
+        .filter((d) => !isNaN(d.getTime()));
       jobDates.sort((a, b) => a.getTime() - b.getTime());
       const formatYYMMDD = (date: Date) => {
         const y = String(date.getFullYear()).slice(-2);
@@ -106,7 +114,9 @@ export const createInvoice = async (req: Request, res: Response) => {
         return `${y}${m}${d}`;
       };
       const firstDate = jobDates[0] ? formatYYMMDD(jobDates[0]) : "";
-      const lastDate = jobDates[jobDates.length - 1] ? formatYYMMDD(jobDates[jobDates.length - 1]) : "";
+      const lastDate = jobDates[jobDates.length - 1]
+        ? formatYYMMDD(jobDates[jobDates.length - 1])
+        : "";
       invoiceNumber = `INV-${initials}-${truckPart}-${firstDate}-${lastDate}`;
     }
     // Fill billedTo and billedEmail from dispatcher if not provided
@@ -392,7 +402,9 @@ export const downloadInvoicePdf = async (req: Request, res: Response) => {
       }
       return [
         {
-          text: job.jobDate ? parseLocalDate(job.jobDate).toLocaleDateString() : "",
+          text: job.jobDate
+            ? parseLocalDate(job.jobDate).toLocaleDateString()
+            : "",
           style: "tableCell",
         },
         { text: job.unit?.name || "", style: "tableCell" },
@@ -410,7 +422,11 @@ export const downloadInvoicePdf = async (req: Request, res: Response) => {
             if (!job.ticketIds) return "";
             let arr = job.ticketIds;
             if (typeof arr === "string") {
-              try { arr = JSON.parse(arr); } catch { /* ignore */ }
+              try {
+                arr = JSON.parse(arr);
+              } catch {
+                /* ignore */
+              }
             }
             return Array.isArray(arr) ? arr.join(", ") : arr;
           })(),
@@ -421,7 +437,13 @@ export const downloadInvoicePdf = async (req: Request, res: Response) => {
           text: job.jobType?.rateOfJob ? `$${job.jobType.rateOfJob}` : "",
           style: "tableCell",
         },
-        { text: job.jobGrossAmount?.toFixed(2) || "", style: "tableCell" },
+        {
+          text:
+            job.jobGrossAmount != null
+              ? `$${Number(job.jobGrossAmount).toFixed(2)}`
+              : "",
+          style: "tableCell",
+        },
       ];
     });
 
@@ -502,9 +524,7 @@ export const downloadInvoicePdf = async (req: Request, res: Response) => {
               {},
               {},
               {
-                text: `DISPATCH ${
-                  invoice.dispatchPercent?.toFixed(2) || ""
-                }%`,
+                text: `DISPATCH ${invoice.dispatchPercent?.toFixed(2) || ""}%`,
                 style: "totalsLabel",
                 alignment: "right",
                 border: [false, false, false, false],
@@ -644,10 +664,9 @@ export const downloadInvoicePdf = async (req: Request, res: Response) => {
       // Add 'Tickets' page only if not already at top (pdfmake will handle this)
       content.push({
         text: "Tickets",
-        fontSize: 40,
+        fontSize: 60,
         bold: true,
         alignment: "center",
-        pageBreak: "before",
         margin: [0, 200, 0, 0],
       });
       for (let i = 0; i < allImageEntries.length; i++) {
@@ -669,7 +688,7 @@ export const downloadInvoicePdf = async (req: Request, res: Response) => {
           }
           const resized = await sharp(absPath)
             .resize(resizeOptions)
-            .jpeg({ quality: 80 })
+            .jpeg({ quality: 100 })
             .toBuffer();
           const base64 = resized.toString("base64");
           content.push({
@@ -677,14 +696,18 @@ export const downloadInvoicePdf = async (req: Request, res: Response) => {
             width: resizeOptions.width || undefined,
             height: resizeOptions.height || undefined,
             alignment: "center",
-            margin: [0, 20, 0, 20],
+            margin: [0, 10, 0, 10],
           });
         } catch {
           continue;
         }
       }
       // Remove any trailing empty content (pdfmake bug workaround)
-      while (content.length > 0 && content[content.length - 1] && content[content.length - 1].text === "") {
+      while (
+        content.length > 0 &&
+        content[content.length - 1] &&
+        content[content.length - 1].text === ""
+      ) {
         content.pop();
       }
     }
@@ -751,7 +774,7 @@ export const downloadInvoicePdf = async (req: Request, res: Response) => {
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader(
         "Content-Disposition",
-        `attachment; filename=invoice-${invoice.invoiceNumber || id}.pdf`
+        `attachment; filename=${invoice.invoiceNumber || id}.pdf`
       );
       res.end(buffer);
     });
@@ -775,8 +798,12 @@ export const getInvoiceJobs = async (req: Request, res: Response) => {
     const page = parseInt(req.query.page as string) || 1;
     const pageSize = parseInt(req.query.pageSize as string) || 20;
     const dispatcherId = req.query.dispatcherId as string | undefined;
-    const month = req.query.month ? parseInt(req.query.month as string) : undefined;
-    const year = req.query.year ? parseInt(req.query.year as string) : undefined;
+    const month = req.query.month
+      ? parseInt(req.query.month as string)
+      : undefined;
+    const year = req.query.year
+      ? parseInt(req.query.year as string)
+      : undefined;
 
     // Build filter
     const where: any = { invoiceId: id };
@@ -784,8 +811,8 @@ export const getInvoiceJobs = async (req: Request, res: Response) => {
     if (month && year) {
       // Filter jobs by month/year
       where.jobDate = {
-        gte: parseLocalDate(`${year}-${String(month).padStart(2, '0')}-01`),
-        lt: parseLocalDate(`${year}-${String(month + 1).padStart(2, '0')}-01`),
+        gte: parseLocalDate(`${year}-${String(month).padStart(2, "0")}-01`),
+        lt: parseLocalDate(`${year}-${String(month + 1).padStart(2, "0")}-01`),
       };
     } else if (year) {
       where.jobDate = {
@@ -800,7 +827,7 @@ export const getInvoiceJobs = async (req: Request, res: Response) => {
     // Fetch jobs, sorted reverse chronologically
     const jobs = await prisma.job.findMany({
       where,
-      orderBy: { jobDate: 'desc' },
+      orderBy: { jobDate: "desc" },
       skip: (page - 1) * pageSize,
       take: pageSize,
       include: { driver: true, unit: true, jobType: true },
@@ -810,7 +837,10 @@ export const getInvoiceJobs = async (req: Request, res: Response) => {
     const grouped: Record<string, any[]> = {};
     jobs.forEach((job) => {
       const date = parseLocalDate(job.jobDate);
-      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
+        2,
+        "0"
+      )}`;
       if (!grouped[key]) grouped[key] = [];
       grouped[key].push(job);
     });
@@ -822,7 +852,7 @@ export const getInvoiceJobs = async (req: Request, res: Response) => {
       groups: grouped,
     });
   } catch (err) {
-    console.error('Error in getInvoiceJobs:', err);
-    res.status(500).json({ error: 'Failed to fetch jobs for invoice' });
+    console.error("Error in getInvoiceJobs:", err);
+    res.status(500).json({ error: "Failed to fetch jobs for invoice" });
   }
 };

@@ -202,7 +202,10 @@ export const invoiceApi = {
  * @param invoiceId The ID of the invoice
  * @param invoiceNumber The invoice number (for filename)
  */
-export async function downloadInvoicePdf(invoiceId: string, invoiceNumber?: string) {
+export async function downloadInvoicePdf(
+  invoiceId: string,
+  invoiceNumber?: string
+) {
   try {
     const response = await fetch(`${API_URL}/invoices/${invoiceId}/pdf`, {
       method: "GET",
@@ -212,7 +215,7 @@ export async function downloadInvoicePdf(invoiceId: string, invoiceNumber?: stri
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = invoiceNumber ? `invoice-${invoiceNumber}.pdf` : `invoice-${invoiceId}.pdf`;
+    a.download = invoiceNumber ? `${invoiceNumber}.pdf` : `${invoiceId}.pdf`;
     document.body.appendChild(a);
     a.click();
     a.remove();
