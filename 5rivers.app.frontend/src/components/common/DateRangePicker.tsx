@@ -3,6 +3,7 @@ import { DateRange, RangeKeyDict } from "react-date-range";
 import { addDays } from "date-fns";
 import "react-date-range/dist/styles.css";
 import "react-date-range/dist/theme/default.css";
+import { parseLocalDate } from "@/src/lib/utils";
 
 interface Props {
   value: { startDate: Date | null; endDate: Date | null };
@@ -35,8 +36,12 @@ export function DateRangePicker({ value, onChange }: Props) {
             onChange={(ranges: RangeKeyDict) => {
               const range = ranges.selection;
               onChange({
-                startDate: range.startDate,
-                endDate: range.endDate,
+                startDate: range.startDate
+                  ? parseLocalDate(range.startDate.toISOString().slice(0, 10))
+                  : null,
+                endDate: range.endDate
+                  ? parseLocalDate(range.endDate.toISOString().slice(0, 10))
+                  : null,
               });
             }}
             maxDate={addDays(new Date(), 0)}

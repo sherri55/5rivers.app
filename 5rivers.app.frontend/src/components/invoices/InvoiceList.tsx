@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { invoiceApi, downloadInvoicePdf, dispatcherApi } from "@/src/lib/api";
+import { parseLocalDate } from "@/src/lib/utils";
 import { Button } from "../ui/button";
 import {
   Eye,
@@ -64,16 +65,16 @@ export function InvoiceList({
   const filteredInvoices = invoices.filter((inv) => {
     if (status && inv.status !== status) return false;
     if (dispatcherId && inv.dispatcherId !== dispatcherId) return false;
-    if (dateRange.startDate && new Date(inv.invoiceDate) < dateRange.startDate)
+    if (dateRange.startDate && parseLocalDate(inv.invoiceDate) < dateRange.startDate)
       return false;
-    if (dateRange.endDate && new Date(inv.invoiceDate) > dateRange.endDate)
+    if (dateRange.endDate && parseLocalDate(inv.invoiceDate) > dateRange.endDate)
       return false;
     return true;
   });
 
   // Download PDF handler
-  const handleDownloadPdf = async (invoiceId: string) => {
-    await downloadInvoicePdf(invoiceId);
+  const handleDownloadPdf = async (invoiceId: string, invoiceNumber?: string) => {
+    await downloadInvoicePdf(invoiceId, invoiceNumber);
   };
 
   return (
@@ -165,7 +166,7 @@ export function InvoiceList({
               <Button
                 size="icon"
                 variant="ghost"
-                onClick={() => handleDownloadPdf(inv.invoiceId!)}
+                onClick={() => handleDownloadPdf(inv.invoiceId!, inv.invoiceNumber)}
                 title="Download PDF"
               >
                 <Download className="h-4 w-4" />

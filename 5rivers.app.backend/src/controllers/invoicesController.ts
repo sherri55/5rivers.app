@@ -3,7 +3,17 @@ import { Request, Response } from "express";
 import { PrismaClient } from "@prisma/client";
 import pdfMake from "pdfmake/build/pdfmake";
 import pdfFonts from "pdfmake/build/vfs_fonts";
+import sharp from "sharp";
+import fs from "fs";
+import path from "path";
 (pdfMake as any).vfs = pdfFonts.vfs;
+
+// Helper to parse a YYYY-MM-DD string as a local date (no time zone shift)
+function parseLocalDate(dateStr: string): Date {
+  if (!dateStr) return new Date('Invalid Date');
+  const [year, month, day] = dateStr.split('-').map(Number);
+  return new Date(year, month - 1, day);
+}
 
 const prisma = new PrismaClient();
 
@@ -83,10 +93,11 @@ export const createInvoice = async (req: Request, res: Response) => {
       const unitNumbers = Array.from(new Set(jobs.map((job) => job.unit?.name || job.unitId || job.unit || "")));
       let truckPart = "MUL";
       if (unitNumbers.length === 1 && unitNumbers[0]) {
-        truckPart = unitNumbers[0].toString();
+        const match = unitNumbers[0].toString().match(/\d+/);
+        truckPart = match ? match[0] : "MUL";
       }
       // Get all job dates, sort ascending
-      const jobDates = jobs.map((job) => new Date(job.jobDate)).filter((d) => !isNaN(d.getTime()));
+      const jobDates = jobs.map((job) => parseLocalDate(job.jobDate)).filter((d) => !isNaN(d.getTime()));
       jobDates.sort((a, b) => a.getTime() - b.getTime());
       const formatYYMMDD = (date: Date) => {
         const y = String(date.getFullYear()).slice(-2);
@@ -118,7 +129,7 @@ export const createInvoice = async (req: Request, res: Response) => {
     const invoice = await prisma.invoice.create({
       data: {
         invoiceNumber,
-        invoiceDate: new Date(invoiceDate),
+        invoiceDate: parseLocalDate(invoiceDate),
         dispatcherId,
         status: "Pending",
         subTotal,
@@ -231,7 +242,7 @@ export const updateInvoice = async (req: Request, res: Response) => {
       where: { invoiceId: id },
       data: {
         invoiceNumber,
-        invoiceDate: new Date(invoiceDate),
+        invoiceDate: parseLocalDate(invoiceDate),
         dispatcherId,
         status,
         subTotal,
@@ -315,7 +326,7 @@ export const downloadInvoicePdf = async (req: Request, res: Response) => {
           include: {
             driver: true,
             unit: true,
-            jobType: true,
+            jobType: { include: { company: true } },
           },
         },
       },
@@ -328,7 +339,6 @@ export const downloadInvoicePdf = async (req: Request, res: Response) => {
       { text: "Unit", style: "tableHeaderCell" },
       { text: "Driver", style: "tableHeaderCell" },
       { text: "Customer", style: "tableHeaderCell" },
-      { text: "Type", style: "tableHeaderCell" },
       { text: "Job Description", style: "tableHeaderCell" },
       { text: "Tickets", style: "tableHeaderCell" },
       { text: "HRS/TON/LOADS", style: "tableHeaderCell" },
@@ -336,7 +346,7 @@ export const downloadInvoicePdf = async (req: Request, res: Response) => {
       { text: "Amount", style: "tableHeaderCell" },
     ];
 
-    // Table rows
+    // Table rows (NO images in table)
     const tableRows = invoice.jobs.map((job: any) => {
       let value = "";
       const dispatchType =
@@ -382,13 +392,12 @@ export const downloadInvoicePdf = async (req: Request, res: Response) => {
       }
       return [
         {
-          text: job.jobDate ? new Date(job.jobDate).toLocaleDateString() : "",
+          text: job.jobDate ? parseLocalDate(job.jobDate).toLocaleDateString() : "",
           style: "tableCell",
         },
         { text: job.unit?.name || "", style: "tableCell" },
         { text: job.driver?.name || "", style: "tableCell" },
-        { text: job.customer || "", style: "tableCell" },
-        { text: job.jobType?.title || "", style: "tableCell" },
+        { text: job.jobType?.company?.name || "", style: "tableCell" },
         {
           text:
             job.jobType?.startLocation && job.jobType?.endLocation
@@ -397,7 +406,14 @@ export const downloadInvoicePdf = async (req: Request, res: Response) => {
           style: "tableCell",
         },
         {
-          text: job.ticketIds ? job.ticketIds.toString() : "",
+          text: (() => {
+            if (!job.ticketIds) return "";
+            let arr = job.ticketIds;
+            if (typeof arr === "string") {
+              try { arr = JSON.parse(arr); } catch { /* ignore */ }
+            }
+            return Array.isArray(arr) ? arr.join(", ") : arr;
+          })(),
           style: "tableCell",
         },
         { text: value, style: "tableCell" },
@@ -409,203 +425,274 @@ export const downloadInvoicePdf = async (req: Request, res: Response) => {
       ];
     });
 
-    // Document definition
-    const docDefinition = {
-      pageOrientation: "landscape",
-      pageMargins: [30, 60, 30, 60],
-      content: [
-        {
-          columns: [
+    // --- Build PDF content ---
+    const content: any[] = [
+      {
+        columns: [
+          [
+            { text: "5 Rivers Trucking Inc.", style: "companyName" },
+            {
+              text: "140 Cherryhill Place\nLondon, Ontario\nN6H4M5\n+1 (437) 679 9350\ninfo@5riverstruckinginc.ca\nHST #760059956",
+              style: "companyInfo",
+              margin: [0, 0, 0, 20],
+            },
+          ],
+          [
+            { text: "INVOICE", style: "invoiceTitle", alignment: "right" },
+            {
+              text: `${
+                invoice.invoiceNumber
+              }\nInvoice Date: ${invoice.invoiceDate.toLocaleDateString()}\nBilled To: ${
+                invoice.billedTo
+              }\n${invoice.billedEmail}`,
+              alignment: "right",
+              style: "invoiceInfo",
+              margin: [0, 10, 0, 0],
+            },
+          ],
+        ],
+        columnGap: 40,
+        margin: [0, 0, 0, 30],
+      },
+      {
+        style: "mainTable",
+        table: {
+          headerRows: 1,
+          widths: [
+            "auto",
+            "auto",
+            "auto",
+            "auto",
+            "*",
+            "auto",
+            "auto",
+            "auto",
+            "auto",
+          ],
+          body: [
+            tableHeader,
+            ...tableRows,
             [
-              { text: "5 Rivers Trucking Inc.", style: "companyName" },
+              { text: "", colSpan: 8, border: [false, false, false, false] },
+              {},
+              {},
+              {},
+              {},
+              {},
+              {},
               {
-                text: "140 Cherryhill Place\nLondon, Ontario\nN6H4M5\n+1 (437) 679 9350\ninfo@5riverstruckinginc.ca\nHST #760059956",
-                style: "companyInfo",
-                margin: [0, 0, 0, 20],
+                text: "SUBTOTAL",
+                style: "totalsLabel",
+                alignment: "right",
+                border: [false, true, false, false],
+              },
+              {
+                text: `$${Number(invoice.subTotal).toFixed(2)}`,
+                style: "totalsValue",
+                alignment: "right",
+                border: [false, true, false, false],
               },
             ],
             [
-              { text: "INVOICE", style: "invoiceTitle", alignment: "right" },
+              { text: "", colSpan: 8, border: [false, false, false, false] },
+              {},
+              {},
+              {},
+              {},
+              {},
+              {},
               {
-                text: `${
-                  invoice.invoiceNumber
-                }\nInvoice Date: ${invoice.invoiceDate.toLocaleDateString()}\nBilled To: ${
-                  invoice.billedTo
-                }\n${invoice.billedEmail}`,
+                text: `DISPATCH ${
+                  invoice.dispatchPercent?.toFixed(2) || ""
+                }%`,
+                style: "totalsLabel",
                 alignment: "right",
-                style: "invoiceInfo",
-                margin: [0, 10, 0, 0],
+                border: [false, false, false, false],
+              },
+              {
+                text: `$${Number(invoice.commission).toFixed(2)}`,
+                style: "totalsValue",
+                alignment: "right",
+                border: [false, false, false, false],
+              },
+            ],
+            [
+              { text: "", colSpan: 8, border: [false, false, false, false] },
+              {},
+              {},
+              {},
+              {},
+              {},
+              {},
+              {
+                text: "COMM.",
+                style: "totalsLabel",
+                alignment: "right",
+                border: [false, false, false, false],
+              },
+              {
+                text: `$${Number(invoice.commission).toFixed(2)}`,
+                style: "totalsValue",
+                alignment: "right",
+                border: [false, false, false, false],
+              },
+            ],
+            [
+              { text: "", colSpan: 8, border: [false, false, false, false] },
+              {},
+              {},
+              {},
+              {},
+              {},
+              {},
+              {
+                text: "HST",
+                style: "totalsLabel",
+                alignment: "right",
+                border: [false, false, false, false],
+              },
+              {
+                text: `$${Number(invoice.hst).toFixed(2)}`,
+                style: "totalsValue",
+                alignment: "right",
+                border: [false, false, false, false],
+              },
+            ],
+            [
+              { text: "", colSpan: 8, border: [false, false, false, false] },
+              {},
+              {},
+              {},
+              {},
+              {},
+              {},
+              {
+                text: "TOTAL",
+                style: "totalsLabelBold",
+                alignment: "right",
+                border: [false, true, false, false],
+              },
+              {
+                text: `$${Number(invoice.total).toFixed(2)}`,
+                style: "totalsValueBold",
+                alignment: "right",
+                border: [false, true, false, false],
               },
             ],
           ],
-          columnGap: 40,
-          margin: [0, 0, 0, 30],
         },
-        {
-          style: "mainTable",
-          table: {
-            headerRows: 1,
-            widths: [
-              "auto",
-              "auto",
-              "auto",
-              "auto",
-              "auto",
-              "*",
-              "auto",
-              "auto",
-              "auto",
-              "auto",
-            ],
-            body: [
-              tableHeader,
-              ...tableRows,
-              [
-                { text: "", colSpan: 8, border: [false, false, false, false] },
-                {},
-                {},
-                {},
-                {},
-                {},
-                {},
-                {},
-                {
-                  text: "SUBTOTAL",
-                  style: "totalsLabel",
-                  alignment: "right",
-                  border: [false, true, false, false],
-                },
-                {
-                  text: `$${Number(invoice.subTotal).toFixed(2)}`,
-                  style: "totalsValue",
-                  alignment: "right",
-                  border: [false, true, false, false],
-                },
-              ],
-              [
-                { text: "", colSpan: 8, border: [false, false, false, false] },
-                {},
-                {},
-                {},
-                {},
-                {},
-                {},
-                {},
-                {
-                  text: `DISPATCH ${
-                    invoice.dispatchPercent?.toFixed(2) || ""
-                  }%`,
-                  style: "totalsLabel",
-                  alignment: "right",
-                  border: [false, false, false, false],
-                },
-                {
-                  text: `$${Number(invoice.commission).toFixed(2)}`,
-                  style: "totalsValue",
-                  alignment: "right",
-                  border: [false, false, false, false],
-                },
-              ],
-              [
-                { text: "", colSpan: 8, border: [false, false, false, false] },
-                {},
-                {},
-                {},
-                {},
-                {},
-                {},
-                {},
-                {
-                  text: "COMM.",
-                  style: "totalsLabel",
-                  alignment: "right",
-                  border: [false, false, false, false],
-                },
-                {
-                  text: `$${Number(invoice.commission).toFixed(2)}`,
-                  style: "totalsValue",
-                  alignment: "right",
-                  border: [false, false, false, false],
-                },
-              ],
-              [
-                { text: "", colSpan: 8, border: [false, false, false, false] },
-                {},
-                {},
-                {},
-                {},
-                {},
-                {},
-                {},
-                {
-                  text: "HST",
-                  style: "totalsLabel",
-                  alignment: "right",
-                  border: [false, false, false, false],
-                },
-                {
-                  text: `$${Number(invoice.hst).toFixed(2)}`,
-                  style: "totalsValue",
-                  alignment: "right",
-                  border: [false, false, false, false],
-                },
-              ],
-              [
-                { text: "", colSpan: 8, border: [false, false, false, false] },
-                {},
-                {},
-                {},
-                {},
-                {},
-                {},
-                {},
-                {
-                  text: "TOTAL",
-                  style: "totalsLabelBold",
-                  alignment: "right",
-                  border: [false, true, false, false],
-                },
-                {
-                  text: `$${Number(invoice.total).toFixed(2)}`,
-                  style: "totalsValueBold",
-                  alignment: "right",
-                  border: [false, true, false, false],
-                },
-              ],
-            ],
+        layout: {
+          fillColor: function (rowIndex: number) {
+            return rowIndex === 0 ? "#f2f2f2" : null;
           },
-          layout: {
-            fillColor: function (rowIndex: number) {
-              return rowIndex === 0 ? "#f2f2f2" : null;
-            },
-            hLineWidth: function (i: number) {
-              return i === 1 ? 2 : 0.5;
-            },
-            vLineWidth: function () {
-              return 0.5;
-            },
-            hLineColor: function (i: number) {
-              return i === 1 ? "#222" : "#aaa";
-            },
-            vLineColor: function () {
-              return "#aaa";
-            },
-            paddingLeft: function () {
-              return 6;
-            },
-            paddingRight: function () {
-              return 6;
-            },
-            paddingTop: function () {
-              return 4;
-            },
-            paddingBottom: function () {
-              return 4;
-            },
+          hLineWidth: function (i: number) {
+            return i === 1 ? 2 : 0.5;
           },
-          margin: [0, 0, 0, 30],
+          vLineWidth: function () {
+            return 0.5;
+          },
+          hLineColor: function (i: number) {
+            return i === 1 ? "#222" : "#aaa";
+          },
+          vLineColor: function () {
+            return "#aaa";
+          },
+          paddingLeft: function () {
+            return 6;
+          },
+          paddingRight: function () {
+            return 6;
+          },
+          paddingTop: function () {
+            return 4;
+          },
+          paddingBottom: function () {
+            return 4;
+          },
         },
-      ],
+        margin: [0, 0, 0, 30],
+      },
+    ];
+
+    // --- Add a single 'Tickets' page after the table, then all job images (no page breaks) ---
+    let allImageEntries: { absPath: string }[] = [];
+    for (const job of invoice.jobs) {
+      let imageUrls: string[] = [];
+      if (job.imageUrls) {
+        if (typeof job.imageUrls === "string") {
+          try {
+            imageUrls = JSON.parse(job.imageUrls);
+          } catch {
+            imageUrls = [];
+          }
+        } else if (Array.isArray(job.imageUrls)) {
+          imageUrls = job.imageUrls;
+        }
+      }
+      for (const imgRelPath of imageUrls) {
+        const absPath = path.join(
+          __dirname,
+          "../../../5rivers.app.frontend/public",
+          imgRelPath.replace(/^\/+/, "")
+        );
+        if (fs.existsSync(absPath)) {
+          allImageEntries.push({ absPath });
+        }
+      }
+    }
+    if (allImageEntries.length > 0) {
+      // Add 'Tickets' page only if not already at top (pdfmake will handle this)
+      content.push({
+        text: "Tickets",
+        fontSize: 40,
+        bold: true,
+        alignment: "center",
+        pageBreak: "before",
+        margin: [0, 200, 0, 0],
+      });
+      for (let i = 0; i < allImageEntries.length; i++) {
+        const { absPath } = allImageEntries[i];
+        try {
+          const metadata = await sharp(absPath).metadata();
+          let resizeOptions;
+          if (metadata.width && metadata.height) {
+            if (metadata.height > metadata.width) {
+              // Portrait: fit height
+              resizeOptions = { height: 500 };
+            } else {
+              // Landscape: fit width
+              resizeOptions = { width: 700 };
+            }
+          } else {
+            // Fallback
+            resizeOptions = { width: 700 };
+          }
+          const resized = await sharp(absPath)
+            .resize(resizeOptions)
+            .jpeg({ quality: 80 })
+            .toBuffer();
+          const base64 = resized.toString("base64");
+          content.push({
+            image: `data:image/jpeg;base64,${base64}`,
+            width: resizeOptions.width || undefined,
+            height: resizeOptions.height || undefined,
+            alignment: "center",
+            margin: [0, 20, 0, 20],
+          });
+        } catch {
+          continue;
+        }
+      }
+      // Remove any trailing empty content (pdfmake bug workaround)
+      while (content.length > 0 && content[content.length - 1] && content[content.length - 1].text === "") {
+        content.pop();
+      }
+    }
+
+    const docDefinition = {
+      pageOrientation: "landscape",
+      pageMargins: [30, 60, 30, 60],
+      content,
       styles: {
         companyName: { fontSize: 20, bold: true, margin: [0, 0, 0, 6] },
         companyInfo: { fontSize: 10, margin: [0, 0, 0, 10] },
@@ -659,7 +746,6 @@ export const downloadInvoicePdf = async (req: Request, res: Response) => {
       },
     };
 
-    // Cast docDefinition as any to satisfy TypeScript
     const pdfDocGenerator = pdfMake.createPdf(docDefinition as any);
     pdfDocGenerator.getBuffer((buffer: Buffer) => {
       res.setHeader("Content-Type", "application/pdf");
@@ -698,13 +784,13 @@ export const getInvoiceJobs = async (req: Request, res: Response) => {
     if (month && year) {
       // Filter jobs by month/year
       where.jobDate = {
-        gte: new Date(year, month - 1, 1),
-        lt: new Date(year, month, 1),
+        gte: parseLocalDate(`${year}-${String(month).padStart(2, '0')}-01`),
+        lt: parseLocalDate(`${year}-${String(month + 1).padStart(2, '0')}-01`),
       };
     } else if (year) {
       where.jobDate = {
-        gte: new Date(year, 0, 1),
-        lt: new Date(year + 1, 0, 1),
+        gte: parseLocalDate(`${year}-01-01`),
+        lt: parseLocalDate(`${year + 1}-01-01`),
       };
     }
 
@@ -723,7 +809,7 @@ export const getInvoiceJobs = async (req: Request, res: Response) => {
     // Group jobs by month/year
     const grouped: Record<string, any[]> = {};
     jobs.forEach((job) => {
-      const date = new Date(job.jobDate);
+      const date = parseLocalDate(job.jobDate);
       const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
       if (!grouped[key]) grouped[key] = [];
       grouped[key].push(job);

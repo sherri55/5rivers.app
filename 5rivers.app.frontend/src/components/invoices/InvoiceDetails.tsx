@@ -80,6 +80,8 @@ export function InvoiceDetails({ invoice, onDelete, onEdit }: any) {
                   <th>Date</th>
                   <th>Unit</th>
                   <th>Driver</th>
+                  <th>Customer</th>
+                  <th>Tickets</th>
                   <th>Type</th>
                   <th>Gross</th>
                 </tr>
@@ -90,7 +92,9 @@ export function InvoiceDetails({ invoice, onDelete, onEdit }: any) {
                     <td>{job.jobDate}</td>
                     <td>{job.unit?.name}</td>
                     <td>{job.driver?.name}</td>
-                    <td>{job.jobType?.title}</td>
+                    <td>{job.company?.name || job.customer?.name || "-"}</td>
+                    <td>{Array.isArray(job.tickets) ? job.tickets.join(", ") : job.tickets || "-"}</td>
+                    <td>{job.startLocation && job.endLocation ? `${job.startLocation} to ${job.endLocation}` : "-"}</td>
                     <td>{job.jobGrossAmount}</td>
                   </tr>
                 ))}

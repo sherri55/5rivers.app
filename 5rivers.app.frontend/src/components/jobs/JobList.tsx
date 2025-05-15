@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { jobApi, dispatcherApi, unitApi, jobTypeApi } from "@/src/lib/api";
+import { parseLocalDate } from "@/src/lib/utils";
 import { Button } from "../ui/button";
 import {
   Eye,
@@ -77,9 +78,9 @@ export function JobList({
     if (dispatcherId && job.dispatcher?.dispatcherId !== dispatcherId)
       return false;
     if (unitId && job.unit?.unitId !== unitId) return false;
-    if (dateRange.startDate && new Date(job.jobDate) < dateRange.startDate)
+    if (dateRange.startDate && parseLocalDate(job.jobDate) < dateRange.startDate)
       return false;
-    if (dateRange.endDate && new Date(job.jobDate) > dateRange.endDate)
+    if (dateRange.endDate && parseLocalDate(job.jobDate) > dateRange.endDate)
       return false;
     return true;
   });
@@ -89,7 +90,7 @@ export function JobList({
     // Group by year-month
     const monthGroups: Record<string, any[]> = {};
     jobs.forEach((job) => {
-      const date = job.jobDate ? new Date(job.jobDate) : null;
+      const date = job.jobDate ? parseLocalDate(job.jobDate) : null;
       if (!date) return;
       const ym = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
         2,
@@ -202,7 +203,7 @@ export function JobList({
                       onClick={() => onSelect(job)}
                     >
                       {job.jobDate
-                        ? new Date(job.jobDate)
+                        ? parseLocalDate(job.jobDate)
                             .toISOString()
                             .slice(0, 10)
                             .replace(/-/g, ".")
