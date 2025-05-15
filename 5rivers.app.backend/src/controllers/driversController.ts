@@ -8,9 +8,27 @@ export const getDrivers = async (req: Request, res: Response) => {
     const drivers = await prisma.driver.findMany({
       include: { jobs: true },
     });
-    res.json(drivers);
+    // For each driver, count active jobs (invoiceStatus Pending or not Invoiced)
+    const result = await Promise.all(
+      drivers.map(async (driver) => {
+        const activeJobsCount = await prisma.job.count({
+          where: {
+            driverId: driver.driverId,
+            OR: [
+              { invoiceStatus: { equals: "Pending" } },
+              { invoiceStatus: { not: "Invoiced" } },
+            ],
+          },
+        });
+        return {
+          ...driver,
+          activeJobsCount,
+        };
+      })
+    );
+    res.json(result);
   } catch (error) {
-    console.error('Error in getDrivers:', error);
+    console.error("Error in getDrivers:", error);
     res.status(500).json({ error: "Failed to fetch drivers" });
   }
 };
@@ -23,7 +41,7 @@ export const getDriverById = async (req: Request, res: Response) => {
     });
     res.json(driver);
   } catch (error) {
-    console.error('Error in getDriverById:', error);
+    console.error("Error in getDriverById:", error);
     res.status(500).json({ error: "Failed to fetch driver" });
   }
 };
@@ -36,7 +54,7 @@ export const createDriver = async (req: Request, res: Response) => {
     });
     res.status(201).json(driver);
   } catch (error) {
-    console.error('Error in createDriver:', error);
+    console.error("Error in createDriver:", error);
     res.status(400).json({ error: "Failed to create driver" });
   }
 };
@@ -50,7 +68,7 @@ export const updateDriver = async (req: Request, res: Response) => {
     });
     res.json(driver);
   } catch (error) {
-    console.error('Error in updateDriver:', error);
+    console.error("Error in updateDriver:", error);
     res.status(400).json({ error: "Failed to update driver" });
   }
 };
@@ -61,7 +79,7 @@ export const deleteDriver = async (req: Request, res: Response) => {
     await prisma.driver.delete({ where: { driverId: id } });
     res.json({ message: "Driver deleted" });
   } catch (error) {
-    console.error('Error in deleteDriver:', error);
+    console.error("Error in deleteDriver:", error);
     res.status(400).json({ error: "Failed to delete driver" });
   }
 };

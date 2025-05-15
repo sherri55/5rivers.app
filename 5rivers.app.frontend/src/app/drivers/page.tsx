@@ -80,8 +80,9 @@ export default function DriversPage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="md:col-span-1">
+      <div className="flex flex-col min-h-[80vh] w-full max-w-screen-2xl mx-auto px-4 md:flex-row md:gap-8">
+        {/* Sidebar/List */}
+        <div className="lg:w-full md:w-2/5 md:pr-6">
           <DriverList
             onSelect={setSelectedDriver}
             onEdit={handleEdit}
@@ -89,8 +90,8 @@ export default function DriversPage() {
             refresh={refreshTrigger}
           />
         </div>
-
-        <div className="md:col-span-1">
+        {/* Details Panel */}
+        <div className="flex-1">
           {selectedDriver && (
             <>
               <DriverDetails
@@ -113,6 +114,7 @@ export default function DriversPage() {
         title={editingDriver ? "Edit Driver" : "Create Driver"}
         isOpen={isFormOpen}
         onClose={() => setIsFormOpen(false)}
+        size="fit"
       >
         <DriverForm
           driver={editingDriver || undefined}
@@ -143,6 +145,7 @@ export default function DriversPage() {
         title={editingRate ? "Edit Job Type Rate" : "Add Job Type Rate"}
         isOpen={isRateFormOpen && !!selectedDriver}
         onClose={() => setIsRateFormOpen(false)}
+        size="fit"
       >
         {selectedDriver && (
           <DriverRateForm

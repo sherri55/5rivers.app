@@ -66,8 +66,9 @@ export default function DispatchersPage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="md:col-span-1">
+      <div className="flex flex-col min-h-[80vh] w-full max-w-screen-2xl mx-auto px-4 md:flex-row md:gap-8">
+        {/* Sidebar/List */}
+        <div className="lg:w-full md:w-2/5 md:pr-6">
           <DispatcherList
             onSelect={setSelectedDispatcher}
             onEdit={handleEdit}
@@ -75,8 +76,8 @@ export default function DispatchersPage() {
             refresh={refreshTrigger}
           />
         </div>
-
-        <div className="md:col-span-1">
+        {/* Details Panel */}
+        <div className="flex-1">
           {selectedDispatcher && (
             <DispatcherDetails
               dispatcher={selectedDispatcher}
@@ -94,6 +95,7 @@ export default function DispatchersPage() {
         title={editingDispatcher ? "Edit Dispatcher" : "Create Dispatcher"}
         isOpen={isFormOpen}
         onClose={() => setIsFormOpen(false)}
+        size="fit"
       >
         <DispatcherForm
           dispatcher={editingDispatcher || undefined}
@@ -117,6 +119,7 @@ export default function DispatchersPage() {
         onCancel={() => setConfirmDelete(false)}
         confirmText="Delete"
         variant="destructive"
+        size="fit"
       />
     </div>
   );

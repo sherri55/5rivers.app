@@ -9,6 +9,10 @@ import {
   CheckCircle2,
   Clock3,
   MinusCircle,
+  DollarSign,
+  CheckCircle,
+  BookOpen,
+  Book,
 } from "lucide-react";
 import { ConfirmDialog } from "../common/Modal";
 import { toast } from "sonner";
@@ -50,6 +54,21 @@ export function JobList({
       if (onDelete) onDelete(id);
     } catch (error: any) {
       toast.error("Failed to delete job" + (error?.message || ""));
+    }
+  };
+
+  // Add handler for toggling paymentReceived
+  const handleTogglePayment = async (job: any) => {
+    try {
+      const updated = await jobApi.togglePaymentReceived(job.jobId);
+      setJobs((prev: any[]) =>
+        prev.map((j) => (j.jobId === job.jobId ? { ...j, ...updated } : j))
+      );
+      toast.success(
+        updated.paymentReceived ? "Marked as paid" : "Marked as unpaid"
+      );
+    } catch (e) {
+      toast.error("Failed to toggle payment status");
     }
   };
 
@@ -165,21 +184,16 @@ export function JobList({
                     className="py-2 px-2 rounded flex items-center justify-between hover:bg-muted"
                   >
                     {/* Status indicator */}
-                    <span className="mr-2 flex items-center">
-                      {job.invoiceStatus === "received" ? (
-                        <CheckCircle2
+                    <span className="mr-2 flex items-center gap-1">
+                      {job.invoiceId ? (
+                        <Book
                           className="h-5 w-5 text-green-500"
-                          title="Paid"
-                        />
-                      ) : job.invoiceStatus === "raised" ? (
-                        <Clock3
-                          className="h-5 w-5 text-blue-500"
-                          title="Pending"
+                          title="Invoiced"
                         />
                       ) : (
-                        <MinusCircle
+                        <Book
                           className="h-5 w-5 text-gray-400"
-                          title={job.invoiceStatus || "Unknown"}
+                          title="Not Invoiced"
                         />
                       )}
                     </span>
@@ -214,6 +228,19 @@ export function JobList({
                         title="Edit"
                       >
                         <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant={job.paymentReceived ? "success" : "ghost"}
+                        onClick={() => handleTogglePayment(job)}
+                        title={
+                          job.paymentReceived
+                            ? "Payment received"
+                            : "Mark as paid"
+                        }
+                        className={job.paymentReceived ? "text-teal-600" : ""}
+                      >
+                        <CheckCircle className="h-4 w-4" />
                       </Button>
                       <Button
                         size="icon"

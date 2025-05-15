@@ -89,41 +89,31 @@ model DriverRate {
 }
 
 model Job {
-  jobId          String   @id @default(uuid())
-  jobDate        String
-  jobGrossAmount Float?
-  jobTypeId      String?
-  driverId       String?
-  dispatcherId   String?
-  unitId         String?
-  invoiceId      String?
-  invoiceStatus  String   @default("Pending")
-  weight         String?
-  loads          Int?
-  startTime      String? // NEW: Start time for job
-  endTime        String? // NEW: End time for job
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  jobId           String   @id @default(uuid())
+  jobDate         String
+  jobGrossAmount  Float?
+  jobTypeId       String?
+  driverId        String?
+  dispatcherId    String?
+  unitId          String?
+  invoiceId       String?
+  invoiceStatus   String   @default("Pending")
+  weight          String?
+  loads           Int?
+  startTime       String? // NEW: Start time for job
+  endTime         String? // NEW: End time for job
+  ticketIds       String? // Stores ticket numbers as JSON string in TEXT column
+  imageUrls       String? // Stores image URLs as JSON string in TEXT column
+  paymentReceived Boolean  @default(false) // NEW: Payment received status
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   jobType      JobType?      @relation(fields: [jobTypeId], references: [jobTypeId])
   driver       Driver?       @relation(fields: [driverId], references: [driverId])
   dispatcher   Dispatcher?   @relation(fields: [dispatcherId], references: [dispatcherId])
   unit         Unit?         @relation(fields: [unitId], references: [unitId])
   invoice      Invoice?      @relation(fields: [invoiceId], references: [invoiceId])
-  tickets      JobTicket[]
   invoiceLines InvoiceLine[]
-}
-
-model JobTicket {
-  ticketId     String   @id @default(uuid())
-  jobId        String
-  ticketNumber String
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  job Job @relation(fields: [jobId], references: [jobId])
-
-  @@unique([jobId, ticketNumber])
 }
 
 model Invoice {

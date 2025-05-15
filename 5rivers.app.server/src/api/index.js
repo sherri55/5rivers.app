@@ -6,14 +6,24 @@ const cors = require("cors");
 const { Sequelize } = require("sequelize");
 const path = require("path");
 const multer = require("multer");
+const fs = require("fs");
 
-// Multer: write to /tmp/uploads (only writable in Vercel)
+// Multer: write to /public/uploads/jobs
+const uploadsDir = path.join(__dirname, "../../public/uploads/jobs");
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, "/tmp/uploads/");
+    cb(null, uploadsDir);
   },
   filename: (req, file, cb) => {
-    cb(null, Date.now() + path.extname(file.originalname));
+    let jobId = req.params.id || (req.body && req.body.jobId);
+    let index = (req.fileIndex = (req.fileIndex || 0) + 1);
+    const ext = path.extname(file.originalname);
+    if (jobId) {
+      cb(null, `job-${jobId}-${Date.now()}-${index}${ext}`);
+    } else {
+      cb(null, `${Date.now()}-${index}${ext}`);
+    }
   },
 });
 const upload = multer({ storage });
@@ -22,8 +32,8 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-// Serve uploads from /tmp/uploads
-app.use("/uploads", express.static("/tmp/uploads/"));
+// Serve uploads from /public/uploads/jobs
+app.use("/uploads/jobs", express.static(uploadsDir));
 
 const DB_STORAGE = process.env.DB_STORAGE || "/tmp/db.sqlite";
 const sequelize = new Sequelize({
@@ -53,31 +63,25 @@ function computeHours(start, end) {
   const startTotal = startHour * 60 + startMin;
   let endTotal = endHour * 60 + endMin;
   if (endTotal < startTotal) {
-    // Treat as next day by adding 24 hours in minutes
     endTotal += 24 * 60;
   }
   return (endTotal - startTotal) / 60;
 }
 
 function roundUpToNext15Minutes(hours) {
-  // hours is a decimal (e.g., 1.08 for 1 hour 5 minutes)
   const totalMinutes = Math.ceil(hours * 60);
   const roundedMinutes = Math.ceil(totalMinutes / 15) * 15;
   return roundedMinutes / 60;
 }
-
-// index.js
 
 function computeJobGrossAmount(job, jobType) {
   const { hoursOfJob, weight, loads } = job;
   const { rateOfJob, dispatchType } = jobType;
   const parsedRate = parseFloat(rateOfJob) || 0;
 
-  // Helper to pull out a total weight from job.weight
   let totalWeight = 0;
   if (dispatchType === "Tonnage") {
     try {
-      // job.weight may be a JSON string or an array
       const weights = Array.isArray(weight) ? weight : JSON.parse(weight);
       if (Array.isArray(weights)) {
         totalWeight = weights
@@ -93,7 +97,6 @@ function computeJobGrossAmount(job, jobType) {
 
   switch (dispatchType) {
     case "Hourly": {
-      // Round up to next 15-minute increment
       const hoursRounded = roundUpToNext15Minutes(parseFloat(hoursOfJob) || 0);
       return hoursRounded * parsedRate;
     }
@@ -128,7 +131,6 @@ function computeDriverPay(job, jobType, driver) {
       );
 
     case "Fixed":
-      // Assuming driver gets a percentage (hourlyRate) of the fixed rate
       return parsedRateOfJob * (parsedHourlyRate / 100);
 
     default:
@@ -236,7 +238,22 @@ app.delete("/companies/:id", async (req, res) => {
 app.get("/dispatchers", async (req, res) => {
   try {
     const dispatchers = await Dispatcher.findAll();
-    res.json(dispatchers);
+    const result = await Promise.all(
+      dispatchers.map(async (dispatcher) => {
+        const jobsCount = await Job.count({
+          where: { dispatcherId: dispatcher.dispatcherId },
+        });
+        const invoicesCount = await Invoice.count({
+          where: { dispatcherId: dispatcher.dispatcherId },
+        });
+        return {
+          ...dispatcher.toJSON(),
+          jobsCount,
+          invoicesCount,
+        };
+      })
+    );
+    res.json(result);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -253,9 +270,7 @@ app.post("/dispatchers", async (req, res) => {
 
 app.post("/invoices", async (req, res) => {
   try {
-    // Destructure to remove subItems from the invoice data
     const { subItems } = req.body;
-    // Now, invoiceData should only include fields defined in your Invoice model
     const invoice = await Invoice.create(req.body);
     if (req.body.subItems?.length) {
       await Promise.all(
@@ -273,20 +288,16 @@ app.post("/invoices", async (req, res) => {
   }
 });
 
-// Add this code after the existing POST /invoices route in index.js
-
 app.get("/invoices", async (req, res) => {
   try {
     const invoices = await Invoice.findAll({
-      order: [["createdAt", "DESC"]], // Sort by newest first
+      order: [["createdAt", "DESC"]],
     });
 
-    // For each invoice, find the associated jobs
     const invoicesWithJobs = await Promise.all(
       invoices.map(async (invoice) => {
         const invoiceData = invoice.toJSON();
 
-        // Find all jobs associated with this invoice
         const associatedJobs = await Job.findAll({
           where: { invoiceId: invoice.invoiceId },
           include: [
@@ -311,7 +322,6 @@ app.get("/invoices", async (req, res) => {
   }
 });
 
-// Add a route to get a single invoice by ID
 app.get("/invoices/:id", async (req, res) => {
   try {
     const invoice = await Invoice.findByPk(req.params.id);
@@ -320,7 +330,6 @@ app.get("/invoices/:id", async (req, res) => {
       return res.status(404).json({ error: "Invoice not found" });
     }
 
-    // Find all jobs associated with this invoice
     const associatedJobs = await Job.findAll({
       where: { invoiceId: invoice.invoiceId },
       include: [
@@ -343,7 +352,6 @@ app.get("/invoices/:id", async (req, res) => {
   }
 });
 
-// Add a route to delete an invoice by ID
 app.delete("/invoices/:id", async (req, res) => {
   try {
     const invoice = await Invoice.findByPk(req.params.id);
@@ -352,13 +360,11 @@ app.delete("/invoices/:id", async (req, res) => {
       return res.status(404).json({ error: "Invoice not found" });
     }
 
-    // Update associated jobs to remove the invoiceId
     await Job.update(
       { invoiceId: null },
       { where: { invoiceId: invoice.invoiceId } }
     );
 
-    // Delete the invoice
     await invoice.destroy();
 
     res.json({ success: true, message: "Invoice deleted successfully" });
@@ -475,15 +481,71 @@ app.delete("/drivers/:id", async (req, res) => {
 });
 
 // Job Routes
+app.post("/jobs", upload.array("images", 10), (req, res) => {
+  const jobData = {
+    ...req.body,
+    invoiceStatus: req.body.invoiceStatus || "Pending",
+  };
+  if (req.files) {
+    jobData.imageUrls = req.files.map(
+      (f) => `/uploads/jobs/${path.basename(f.path)}`
+    );
+  }
+
+  JobType.findByPk(jobData.jobTypeId)
+    .then((jobTypeData) => {
+      if (!jobTypeData) {
+        return res.status(404).json({ error: "Job Type not found" });
+      }
+
+      Driver.findByPk(jobData.driverId)
+        .then((driverData) => {
+          if (!driverData) {
+            return res.status(404).json({ error: "Driver not found" });
+          }
+
+          jobData.dayOfJob = computeDayOfJob(jobData.dateOfJob);
+          jobData.hoursOfDriver = computeHours(
+            jobData.startTimeForDriver,
+            jobData.endTimeForDriver
+          );
+          jobData.hoursOfJob = computeHours(
+            jobData.startTimeForJob,
+            jobData.endTimeForJob
+          );
+          jobData.jobGrossAmount = computeJobGrossAmount(jobData, jobTypeData);
+          jobData.driverPay = computeDriverPay(
+            jobData,
+            jobTypeData,
+            driverData
+          );
+          jobData.estimatedFuel = computeEstimatedFuel(jobData);
+          jobData.estimatedRevenue = computeEstimatedRevenue(jobData);
+
+          Job.create(jobData)
+            .then((job) => {
+              res.status(201).json(job);
+            })
+            .catch((error) => {
+              res.status(500).json({ error: error.message });
+            });
+        })
+        .catch((error) => {
+          res.status(500).json({ error: error.message });
+        });
+    })
+    .catch((error) => {
+      res.status(500).json({ error: error.message });
+    });
+});
+
 app.put("/jobs/:id", upload.array("images", 10), async (req, res) => {
   try {
     const jobId = req.params.id;
     const jobData = {
       ...req.body,
-      // if client omitted invoiceStatus, keep existing or fallback to Pending
       invoiceStatus: req.body.invoiceStatus ?? job.invoiceStatus ?? "Pending",
     };
-    // Find the job by ID
     const job = await Job.findByPk(jobId);
     if (!job) {
       return res.status(404).json({ error: "Job not found" });
@@ -499,7 +561,6 @@ app.put("/jobs/:id", upload.array("images", 10), async (req, res) => {
       return res.status(404).json({ error: "Driver not found" });
     }
 
-    // Compute fields before updating
     jobData.dayOfJob = computeDayOfJob(jobData.dateOfJob);
     jobData.hoursOfDriver = computeHours(
       jobData.startTimeForDriver,
@@ -517,14 +578,17 @@ app.put("/jobs/:id", upload.array("images", 10), async (req, res) => {
     );
     jobData.estimatedRevenue = computeEstimatedRevenue(jobData);
 
-    // Handle image uploads
+    let imageUrls = Array.isArray(job.imageUrls) ? job.imageUrls : [];
     if (req.files && req.files.length > 0) {
-      jobData.imageUrls = req.files.map((file) => `/uploads/${file.filename}`);
+      const newUrls = req.files.map(
+        (file) => `/uploads/jobs/${path.basename(file.path)}`
+      );
+      imageUrls = [...imageUrls, ...newUrls];
     }
+    jobData.imageUrls = imageUrls;
 
     const updates = { ...jobData };
 
-    // Update the job
     await job.update(updates);
     res.status(200).json(job);
   } catch (error) {
@@ -554,14 +618,22 @@ app.get("/jobs/:id", async (req, res) => {
 
 app.delete("/jobs/:id", async (req, res) => {
   try {
-    try {
-      const job = await Job.findByPk(req.params.id);
-      if (!job) return res.status(404).json({ error: "Job not found" });
-      await job.destroy();
-      res.json({ message: "Job deleted" });
-    } catch (error) {
-      res.status(500).json({ error: error.message });
+    const job = await Job.findByPk(req.params.id);
+    if (!job) return res.status(404).json({ error: "Job not found" });
+
+    if (job.imageUrls && Array.isArray(job.imageUrls)) {
+      for (const imgPath of job.imageUrls) {
+        const absPath = path.join(__dirname, "../../public", imgPath);
+        if (fs.existsSync(absPath)) {
+          try {
+            fs.unlinkSync(absPath);
+          } catch {}
+        }
+      }
     }
+
+    await job.destroy();
+    res.json({ message: "Job deleted" });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -599,67 +671,6 @@ app.get("/jobs", async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
-});
-
-app.post("/jobs", (req, res) => {
-  const jobData = {
-    ...req.body,
-    invoiceStatus: req.body.invoiceStatus || "Pending",
-  };
-  if (req.files) {
-    jobData.imageUrls = req.files.map((f) => `/uploads/${f.filename}`);
-  }
-
-  JobType.findByPk(jobData.jobTypeId)
-    .then((jobTypeData) => {
-      if (!jobTypeData) {
-        return res.status(404).json({ error: "Job Type not found" });
-      }
-
-      Driver.findByPk(jobData.driverId)
-        .then((driverData) => {
-          if (!driverData) {
-            return res.status(404).json({ error: "Driver not found" });
-          }
-
-          (jobData.dayOfJob = computeDayOfJob(jobData.dateOfJob)),
-            (jobData.hoursOfDriver = computeHours(
-              jobData.startTimeForDriver,
-              jobData.endTimeForDriver
-            )),
-            (jobData.hoursOfJob = computeHours(
-              jobData.startTimeForJob,
-              jobData.endTimeForJob
-            )),
-            (jobData.jobGrossAmount = computeJobGrossAmount(
-              jobData,
-              jobTypeData
-            )),
-            (jobData.driverPay = computeDriverPay(
-              jobData,
-              jobTypeData,
-              driverData
-            )),
-            (jobData.estimatedFuel = computeEstimatedFuel(jobData)),
-            (jobData.estimatedRevenue = computeEstimatedRevenue(jobData)),
-            (jobData.imageUrls = req.files
-              ? req.files.map((file) => `/uploads/${file.filename}`)
-              : []),
-            Job.create(jobData)
-              .then((job) => {
-                res.status(201).json(job);
-              })
-              .catch((error) => {
-                res.status(500).json({ error: error.message });
-              });
-        })
-        .catch((error) => {
-          res.status(500).json({ error: error.message });
-        });
-    })
-    .catch((error) => {
-      res.status(500).json({ error: error.message });
-    });
 });
 
 module.exports = app;

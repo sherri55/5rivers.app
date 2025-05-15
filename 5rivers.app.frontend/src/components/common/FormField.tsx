@@ -3,7 +3,7 @@
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { Textarea } from "../../components/ui/textarea";
-import { 
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -19,7 +19,7 @@ interface Option {
 interface FormFieldProps {
   id: string;
   label: string;
-  type?: 'text' | 'email' | 'tel' | 'number' | 'textarea' | 'select' | 'date';
+  type?: "text" | "email" | "tel" | "number" | "textarea" | "select" | "date";
   value: string | number;
   onChange: (value: unknown) => void;
   placeholder?: string;
@@ -34,7 +34,7 @@ interface FormFieldProps {
 export function FormField({
   id,
   label,
-  type = 'text',
+  type = "text",
   value,
   onChange,
   placeholder,
@@ -47,25 +47,30 @@ export function FormField({
 }: FormFieldProps) {
   return (
     <div className="space-y-1">
-      <Label htmlFor={id} className={required ? "after:content-['*'] after:text-red-500 after:ml-0.5" : ""}>
+      <Label
+        htmlFor={id}
+        className={
+          required ? "after:content-['*'] after:text-red-500 after:ml-0.5" : ""
+        }
+      >
         {label}
       </Label>
-      
-      {type === 'textarea' ? (
+
+      {type === "textarea" ? (
         <Textarea
           id={id}
-          value={value?.toString() ?? ''}
+          value={value?.toString() ?? ""}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
           required={required}
           className="mt-1"
         />
-      ) : type === 'select' ? (
+      ) : type === "select" ? (
         <Select value={value?.toString()} onValueChange={onChange}>
           <SelectTrigger className="mt-1">
             <SelectValue placeholder={placeholder} />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="max-h-60 overflow-y-auto">
             {options.map((option) => (
               <SelectItem key={option.value} value={option.value}>
                 {option.label}
@@ -76,14 +81,14 @@ export function FormField({
       ) : (
         <Input
           id={id}
-          type={type === 'date' ? 'date' : type}
-          value={value === undefined || value === null ? '' : value.toString()}
+          type={type === "date" ? "date" : type}
+          value={value === undefined || value === null ? "" : value.toString()}
           onChange={(e) => {
             let newValue: string | number = e.target.value;
-            if (type === 'number') {
-              newValue = e.target.value === '' ? '' : Number(e.target.value);
+            if (type === "number") {
+              newValue = e.target.value === "" ? "" : Number(e.target.value);
               // If the input is not a valid number, fallback to empty string
-              if (isNaN(newValue as number)) newValue = '';
+              if (isNaN(newValue as number)) newValue = "";
             }
             onChange(newValue);
           }}
@@ -95,7 +100,7 @@ export function FormField({
           className="mt-1"
         />
       )}
-      
+
       {error && <p className="text-destructive text-sm mt-1">{error}</p>}
     </div>
   );

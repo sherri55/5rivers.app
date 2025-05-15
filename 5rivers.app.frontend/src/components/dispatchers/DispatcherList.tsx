@@ -13,7 +13,7 @@ interface Dispatcher {
   name: string;
   email: string;
   phone?: string;
-  commissionPercentage?: number;
+  commissionPercent?: number;
   jobsCount?: number;
   invoicesCount?: number;
 }
@@ -79,8 +79,8 @@ export function DispatcherList({
     },
     {
       header: "Commission %",
-      accessorKey: "commissionPercentage",
-      cell: (row) => formatCommission(row.commissionPercentage),
+      accessorKey: "commissionPercent",
+      cell: (row) => formatCommission(row.commissionPercent),
     },
     {
       header: "Jobs Count",

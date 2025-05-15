@@ -58,8 +58,9 @@ export default function JobTypesPage() {
           Manage job types and their information.
         </p>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="md:col-span-1">
+      <div className="flex flex-col min-h-[80vh] w-full max-w-screen-2xl mx-auto px-4 md:flex-row md:gap-8">
+        {/* Sidebar/List */}
+        <div className="lg:lg:w-full md:w-2/5 md:pr-6">
           <JobTypeList
             onSelect={setSelectedJobType}
             onEdit={handleEdit}
@@ -67,7 +68,8 @@ export default function JobTypesPage() {
             refresh={refreshTrigger}
           />
         </div>
-        <div className="md:col-span-1">
+        {/* Details Panel */}
+        <div className="flex-1">
           {selectedJobType && (
             <JobTypeDetails
               jobType={selectedJobType}

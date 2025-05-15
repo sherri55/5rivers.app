@@ -29,21 +29,16 @@ interface Job {
   dispatcherId: string;
   invoiceId?: string | null;
   jobType?: JobType;
+  unit?: { name: string };
+  unitId?: string;
+  driver?: { name: string };
+  driverId?: string;
 }
 
 interface InvoiceFormProps {
   invoice?: Invoice;
   onSuccess: () => void;
   onCancel: () => void;
-}
-
-function generateInvoiceNumber(date: Date, sequence: number = 1) {
-  // Format: INV-YYYYMMDD-XXXX
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  const seq = String(sequence).padStart(4, "0");
-  return `INV-${y}${m}${d}-${seq}`;
 }
 
 export function InvoiceForm({
@@ -53,7 +48,6 @@ export function InvoiceForm({
 }: InvoiceFormProps) {
   const [dispatchers, setDispatchers] = useState<Dispatcher[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
-  const [invoiceNumber, setInvoiceNumber] = useState("");
   const [invoiceDate, setInvoiceDate] = useState("");
   const [dispatcherId, setDispatcherId] = useState("");
   const [billedTo, setBilledTo] = useState("");
@@ -69,9 +63,11 @@ export function InvoiceForm({
   // Helper for react-select options
   const jobOptions = jobs.map((j) => ({
     value: j.jobId,
-    label: `${j.jobDate ? j.jobDate.slice(0, 10) : ""} | ${
-      j.jobType?.startLocation || "?"
-    } → ${j.jobType?.endLocation || "?"} | $${j.jobGrossAmount?.toFixed(2)}`,
+    label: `${j.jobDate ? j.jobDate.slice(0, 10) : ""} - ${
+      j.unit?.name || j.unitId || "?"
+    } - ${j.driver?.name || j.driverId || "?"} - ${
+      j.jobType?.dispatchType || "?"
+    } - ${j.jobType?.startLocation || "?"} to ${j.jobType?.endLocation || "?"}`,
   }));
 
   // Fetch dispatchers on mount
@@ -87,10 +83,8 @@ export function InvoiceForm({
     if (!invoice) {
       const today = new Date();
       setInvoiceDate(today.toISOString().slice(0, 10));
-      setInvoiceNumber(generateInvoiceNumber(today));
       setStatus("pending");
     } else {
-      setInvoiceNumber(invoice.invoiceNumber || "");
       setInvoiceDate(
         invoice.invoiceDate ? invoice.invoiceDate.slice(0, 10) : ""
       );
@@ -165,8 +159,6 @@ export function InvoiceForm({
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
-    if (!invoiceNumber.trim())
-      newErrors.invoiceNumber = "Invoice number is required";
     if (!invoiceDate) newErrors.invoiceDate = "Date is required";
     if (!dispatcherId) newErrors.dispatcherId = "Dispatcher is required";
     if (!billedTo.trim()) newErrors.billedTo = "Billed To is required";
@@ -183,7 +175,6 @@ export function InvoiceForm({
     setLoading(true);
     try {
       const form = {
-        invoiceNumber,
         invoiceDate,
         dispatcherId,
         billedTo,
@@ -209,16 +200,6 @@ export function InvoiceForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <FormField
-        id="invoiceNumber"
-        label="Invoice Number"
-        value={invoiceNumber}
-        onChange={setInvoiceNumber}
-        placeholder="Auto-generated if left blank"
-        required
-        error={errors.invoiceNumber}
-        disabled
-      />
       <FormField
         id="invoiceDate"
         label="Date"

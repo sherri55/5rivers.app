@@ -50,8 +50,9 @@ export default function UnitsPage() {
           Manage units, view details, and add or edit unit information.
         </p>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="md:col-span-1">
+      <div className="flex flex-col min-h-[80vh] w-full max-w-screen-2xl mx-auto px-4 md:flex-row md:gap-8">
+        {/* Sidebar/List */}
+        <div className="lg:w-full md:w-2/5 md:pr-6">
           <UnitList
             onSelect={setSelectedUnit}
             onEdit={handleEdit}
@@ -59,19 +60,14 @@ export default function UnitsPage() {
             refresh={refreshTrigger}
           />
         </div>
-        <div className="md:col-span-1">
+        {/* Details Panel */}
+        <div className="flex-1">
           {selectedUnit && (
-            <>
-              <div className="flex justify-end mb-4">
-                <Button onClick={handleCreate} className="gap-1">
-                  <Plus className="h-4 w-4" /> Add Unit
-                </Button>
-              </div>
-              <UnitDetails
-                unit={selectedUnit}
-                onDelete={() => setConfirmDelete(true)}
-              />
-            </>
+            <UnitDetails
+              unit={selectedUnit}
+              onDelete={() => setConfirmDelete(true)}
+              onEdit={() => selectedUnit && handleEdit(selectedUnit)}
+            />
           )}
         </div>
       </div>
@@ -80,6 +76,7 @@ export default function UnitsPage() {
         title={editingUnit ? "Edit Unit" : "Create Unit"}
         isOpen={isFormOpen}
         onClose={() => setIsFormOpen(false)}
+        size="fit"
       >
         <UnitForm
           unit={editingUnit || undefined}
@@ -102,6 +99,7 @@ export default function UnitsPage() {
         onCancel={() => setConfirmDelete(false)}
         confirmText="Delete"
         variant="destructive"
+        size="fit"
       />
     </div>
   );

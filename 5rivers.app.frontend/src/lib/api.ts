@@ -101,9 +101,41 @@ export const driverRateApi = {
 export const jobApi = {
   fetchAll: () => fetchData("jobs"),
   getById: (id: string) => fetchData(`jobs/${id}`),
-  create: (data: any) => createData("jobs", data),
-  update: (id: string, data: any) => updateData("jobs", id, data),
+  create: (data: any, isFormData = false) => {
+    if (isFormData) {
+      return fetch(`${API_URL}/jobs`, {
+        method: "POST",
+        body: data,
+      }).then((res) => {
+        if (!res.ok) throw new Error("Failed to create job");
+        return res.json();
+      });
+    } else {
+      return createData("jobs", data);
+    }
+  },
+  update: (id: string, data: any, isFormData = false) => {
+    debugger;
+    if (isFormData) {
+      return fetch(`${API_URL}/jobs/${id}`, {
+        method: "PUT",
+        body: data,
+      }).then((res) => {
+        if (!res.ok) throw new Error("Failed to update job");
+        return res.json();
+      });
+    } else {
+      return updateData("jobs", id, data);
+    }
+  },
   delete: (id: string) => deleteData("jobs", id),
+  togglePaymentReceived: async (id: string) => {
+    const res = await fetch(`${API_URL}/jobs/${id}/toggle-payment`, {
+      method: "PUT",
+    });
+    if (!res.ok) throw new Error("Failed to toggle paymentReceived");
+    return res.json();
+  },
 };
 
 // JobTicket API
@@ -130,7 +162,7 @@ export const invoiceApi = {
    * @returns Promise<Blob>
    */
   fetchPdf: async (invoiceId: string): Promise<Blob> => {
-    const res = await fetch(`${API_URL}/api/invoices/${invoiceId}/pdf`, {
+    const res = await fetch(`${API_URL}/invoices/${invoiceId}/pdf`, {
       method: "GET",
     });
     if (!res.ok) throw new Error("Failed to fetch invoice PDF");
@@ -143,7 +175,13 @@ export const invoiceApi = {
    */
   fetchJobs: async (
     invoiceId: string,
-    params: { page?: number; pageSize?: number; dispatcherId?: string; month?: number; year?: number } = {}
+    params: {
+      page?: number;
+      pageSize?: number;
+      dispatcherId?: string;
+      month?: number;
+      year?: number;
+    } = {}
   ) => {
     const query = new URLSearchParams();
     if (params.page) query.append("page", String(params.page));
@@ -151,7 +189,9 @@ export const invoiceApi = {
     if (params.dispatcherId) query.append("dispatcherId", params.dispatcherId);
     if (params.month) query.append("month", String(params.month));
     if (params.year) query.append("year", String(params.year));
-    const res = await fetch(`${API_URL}/api/invoices/${invoiceId}/jobs?${query.toString()}`);
+    const res = await fetch(
+      `${API_URL}/invoices/${invoiceId}/jobs?${query.toString()}`
+    );
     if (!res.ok) throw new Error("Failed to fetch invoice jobs");
     return res.json();
   },
@@ -164,12 +204,12 @@ export const invoiceApi = {
 export async function downloadInvoicePdf(invoiceId: string) {
   try {
     const response = await fetch(`${API_URL}/invoices/${invoiceId}/pdf`, {
-      method: 'GET',
+      method: "GET",
     });
-    if (!response.ok) throw new Error('Failed to download PDF');
+    if (!response.ok) throw new Error("Failed to download PDF");
     const blob = await response.blob();
     const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
+    const a = document.createElement("a");
     a.href = url;
     a.download = `invoice-${invoiceId}.pdf`;
     document.body.appendChild(a);
@@ -177,7 +217,7 @@ export async function downloadInvoicePdf(invoiceId: string) {
     a.remove();
     window.URL.revokeObjectURL(url);
   } catch {
-    alert('Could not download PDF.');
+    alert("Could not download PDF.");
   }
 }
 

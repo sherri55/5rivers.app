@@ -26,7 +26,11 @@ interface MainLayoutProps {
   breadcrumbs?: BreadcrumbItem[];
 }
 
-export function MainLayout({ children, title, breadcrumbs = [] }: MainLayoutProps) {
+export function MainLayout({
+  children,
+  title,
+  breadcrumbs = [],
+}: MainLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
 
@@ -39,6 +43,7 @@ export function MainLayout({ children, title, breadcrumbs = [] }: MainLayoutProp
     { icon: <Briefcase size={18} />, label: "Job Types", href: "/jobtypes" },
     { icon: <Briefcase size={18} />, label: "Jobs", href: "/jobs" },
     { icon: <FileText size={18} />, label: "Invoices", href: "/invoices" },
+    { icon: <Briefcase size={18} />, label: "Job Types", href: "/jobtypes" }, // Added Job Types link
   ];
 
   return (

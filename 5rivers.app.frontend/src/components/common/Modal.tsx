@@ -18,7 +18,7 @@ interface ModalProps {
   onClose: () => void;
   children?: React.ReactNode;
   footer?: React.ReactNode;
-  size?: "sm" | "md" | "lg" | "xl";
+  size?: "sm" | "md" | "lg" | "xl" | "full" | "fit";
 }
 
 export function Modal({
@@ -28,25 +28,32 @@ export function Modal({
   onClose,
   children,
   footer,
-  size = "md",
+  size = "xl",
 }: ModalProps) {
   const sizeClasses = {
     sm: "max-w-sm",
     md: "max-w-md",
     lg: "max-w-lg",
     xl: "max-w-xl",
+    full: "max-w-4xl w-full",
+    fit: "w-auto max-w-full", // Add fit option for content-based width
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent 
-        className={`${sizeClasses[size]} overflow-y-auto max-h-[90vh]`}
+      <DialogContent
+        className={`${
+          size === "fit"
+            ? `${sizeClasses[size]} whitespace-normal`
+            : `${sizeClasses[size] || sizeClasses.xl} overflow-x-auto`
+        } overflow-y-auto max-h-[90vh]`}
+        style={{ width: size === "fit" ? "auto" : undefined }}
       >
         <DialogHeader>
           <div className="flex items-center justify-between">
             <DialogTitle>{title}</DialogTitle>
             <Button
-              variant="ghost" 
+              variant="ghost"
               size="icon"
               onClick={onClose}
               className="h-6 w-6 rounded-full"
@@ -54,9 +61,7 @@ export function Modal({
               <X className="h-4 w-4" />
             </Button>
           </div>
-          {description && (
-            <DialogDescription>{description}</DialogDescription>
-          )}
+          {description && <DialogDescription>{description}</DialogDescription>}
         </DialogHeader>
 
         <div className="py-2">{children}</div>
@@ -94,7 +99,7 @@ export function ConfirmDialog({
       title={title}
       isOpen={isOpen}
       onClose={onCancel}
-      size="sm"
+      size="xl"
       footer={
         <div className="flex justify-end gap-2 w-full">
           <Button variant="outline" onClick={onCancel}>

@@ -33,7 +33,10 @@ export function JobTypeForm({
   useEffect(() => {
     companyApi.fetchAll().then((companies: Company[]) => {
       setCompanyOptions(
-        companies.map((c) => ({ value: c.companyId || "", label: c.name }))
+        companies
+          .slice()
+          .sort((a, b) => a.name.localeCompare(b.name))
+          .map((c) => ({ value: c.companyId || "", label: c.name }))
       );
     });
   }, []);

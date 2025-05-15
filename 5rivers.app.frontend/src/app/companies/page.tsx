@@ -61,8 +61,9 @@ export default function CompaniesPage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="md:col-span-1">
+      <div className="flex flex-col min-h-[80vh] w-full max-w-screen-2xl mx-auto px-4 md:flex-row md:gap-8">
+        {/* Sidebar/List */}
+        <div className="lg:w-full md:w-2/5 md:pr-6">
           <CompanyList
             onSelect={setSelectedCompany}
             onEdit={handleEdit}
@@ -70,8 +71,8 @@ export default function CompaniesPage() {
             refresh={refreshTrigger}
           />
         </div>
-
-        <div className="md:col-span-1">
+        {/* Details Panel */}
+        <div className="flex-1">
           {selectedCompany && (
             <CompanyDetails
               company={selectedCompany}
@@ -87,6 +88,7 @@ export default function CompaniesPage() {
         title={editingCompany ? "Edit Company" : "Create Company"}
         isOpen={isFormOpen}
         onClose={() => setIsFormOpen(false)}
+        size="fit"
       >
         <CompanyForm
           company={editingCompany || undefined}
@@ -110,6 +112,7 @@ export default function CompaniesPage() {
         onCancel={() => setConfirmDelete(false)}
         confirmText="Delete"
         variant="destructive"
+        size="fit"
       />
     </div>
   );

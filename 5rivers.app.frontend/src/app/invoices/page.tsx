@@ -61,17 +61,18 @@ export default function InvoicesPage() {
           Manage invoices and their information.
         </p>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="md:col-span-1">
+      <div className="flex flex-col min-h-[80vh] w-full max-w-screen-2xl mx-auto px-4 md:flex-row md:gap-8">
+        {/* Sidebar/List */}
+        <div className="lg:w-full md:w-2/5 md:pr-6">
           <InvoiceList
             onSelect={setSelectedInvoice}
             onEdit={handleEdit}
             onCreate={handleCreate}
-            onDelete={handleDelete}
             refresh={refreshTrigger}
           />
         </div>
-        <div className="md:col-span-1">
+        {/* Details Panel */}
+        <div className="flex-1">
           {selectedInvoice && (
             <InvoiceDetails
               invoice={selectedInvoice}

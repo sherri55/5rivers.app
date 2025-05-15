@@ -38,6 +38,10 @@ export function JobForm({ job, onSuccess, onCancel }: JobFormProps) {
   const [tonnageTags, setTonnageTags] = useState<Array<string>>([]);
   const [tonnageInput, setTonnageInput] = useState("");
   const [loads, setLoads] = useState("");
+  const [tickets, setTickets] = useState<Array<string>>([]);
+  const [ticketInput, setTicketInput] = useState("");
+  const [images, setImages] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [jobTypes, setJobTypes] = useState<JobType[]>([]);
@@ -63,6 +67,22 @@ export function JobForm({ job, onSuccess, onCancel }: JobFormProps) {
       })
       .catch(() => setDropdownLoading(false));
   }, []);
+
+  // Parse existing images for edit mode
+  const existingImageUrls =
+    job && job.imageUrls
+      ? typeof job.imageUrls === "string"
+        ? (() => {
+            try {
+              return JSON.parse(job.imageUrls);
+            } catch {
+              return [];
+            }
+          })()
+        : Array.isArray(job.imageUrls)
+        ? job.imageUrls
+        : []
+      : [];
 
   // Populate all fields from job when editing
   useEffect(() => {
@@ -99,6 +119,23 @@ export function JobForm({ job, onSuccess, onCancel }: JobFormProps) {
         }
       } else {
         setTonnageTags([]);
+      }
+      // Handle tickets (array or JSON string)
+      if (job.ticketIds) {
+        if (Array.isArray(job.ticketIds)) {
+          setTickets(job.ticketIds.map(String));
+        } else {
+          try {
+            const parsed = JSON.parse(job.ticketIds);
+            if (Array.isArray(parsed)) setTickets(parsed.map(String));
+            else if (typeof parsed === "string") setTickets([parsed]);
+            else setTickets([]);
+          } catch {
+            setTickets([String(job.ticketIds)]);
+          }
+        }
+      } else {
+        setTickets([]);
       }
     }
   }, [job]);
@@ -168,6 +205,20 @@ export function JobForm({ job, onSuccess, onCancel }: JobFormProps) {
     setTonnageTags(tonnageTags.filter((_, i) => i !== idx));
   };
 
+  const handleRemoveTicket = (idx: number) => {
+    setTickets(tickets.filter((_, i) => i !== idx));
+  };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const files = Array.from(e.target.files);
+      setImages(files);
+      // Generate previews
+      const previews = files.map((file) => URL.createObjectURL(file));
+      setImagePreviews(previews);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!validate()) return;
@@ -181,22 +232,30 @@ export function JobForm({ job, onSuccess, onCancel }: JobFormProps) {
         dispatcherId,
         status,
         jobGrossAmount,
+        startTime: dispatchType === "Hourly" ? startTime : undefined,
+        endTime: dispatchType === "Hourly" ? endTime : undefined,
+        weight: dispatchType === "Tonnage" ? tonnageTags : undefined,
+        loads: dispatchType === "Load" ? loads : undefined,
+        ticketIds: tickets.length > 0 ? tickets : undefined,
       };
-      if (dispatchType === "Hourly") {
-        form.startTime = startTime;
-        form.endTime = endTime;
-      }
-      if (dispatchType === "Tonnage") {
-        form.weight = tonnageTags;
-      }
-      if (dispatchType === "Load") {
-        form.loads = loads;
-      }
+      Object.keys(form).forEach(
+        (key) => form[key] === undefined && delete form[key]
+      );
+      // Build FormData
+      const formData = new FormData();
+      Object.entries(form).forEach(([key, value]) => {
+        if (Array.isArray(value)) {
+          value.forEach((v) => formData.append(key, v));
+        } else if (value !== undefined && value !== null) {
+          formData.append(key, value as string);
+        }
+      });
+      images.forEach((file) => formData.append("images", file));
       if (job && job.jobId) {
-        await jobApi.update(job.jobId, form);
+        await jobApi.update(job.jobId, formData, true);
         toast.success("Job updated successfully");
       } else {
-        await jobApi.create(form);
+        await jobApi.create(formData, true);
         toast.success("Job created successfully");
       }
       onSuccess();
@@ -224,10 +283,13 @@ export function JobForm({ job, onSuccess, onCancel }: JobFormProps) {
         type="select"
         value={jobTypeId}
         onChange={setJobTypeId}
-        options={jobTypes.map((jt) => ({
-          value: jt.jobTypeId || "",
-          label: jt.title,
-        }))}
+        options={jobTypes
+          .slice()
+          .sort((a, b) => a.title.localeCompare(b.title))
+          .map((jt) => ({
+            value: jt.jobTypeId || "",
+            label: jt.title,
+          }))}
         placeholder={
           dropdownLoading ? "Loading job types..." : "Select job type"
         }
@@ -374,6 +436,50 @@ export function JobForm({ job, onSuccess, onCancel }: JobFormProps) {
           error={errors.loads}
         />
       )}
+      {/* Tickets field - render inline to control Enter behavior */}
+      <div className="space-y-1">
+        <label htmlFor="ticketIds" className="font-medium">
+          Tickets
+        </label>
+        <input
+          id="ticketIds"
+          type="text"
+          value={ticketInput}
+          onChange={(e) => setTicketInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (
+              e.key === "Enter" &&
+              ticketInput &&
+              !tickets.includes(ticketInput)
+            ) {
+              e.preventDefault();
+              e.stopPropagation();
+              setTickets([...tickets, ticketInput]);
+              setTicketInput("");
+            }
+          }}
+          className="border rounded px-2 py-1 w-full"
+          placeholder="Enter ticket number and press Enter"
+          autoComplete="off"
+        />
+        <div className="flex flex-wrap gap-2 mt-2">
+          {tickets.map((ticket, idx) => (
+            <span
+              key={idx}
+              className="bg-gray-200 px-2 py-1 rounded flex items-center gap-1"
+            >
+              {ticket}
+              <button
+                type="button"
+                className="ml-1 text-red-500"
+                onClick={() => handleRemoveTicket(idx)}
+              >
+                &times;
+              </button>
+            </span>
+          ))}
+        </div>
+      </div>
       <FormField
         id="jobGrossAmount"
         label="Gross Amount"
@@ -389,6 +495,52 @@ export function JobForm({ job, onSuccess, onCancel }: JobFormProps) {
         step={0.01}
         readOnly={dispatchType !== "Fixed"}
       />
+      {/* Image upload field */}
+      <div>
+        <label className="block font-medium mb-1">Job Images</label>
+        {/* Show existing images if editing */}
+        {existingImageUrls.length > 0 && (
+          <div className="mb-2">
+            <div className="text-xs text-muted-foreground mb-1">
+              Existing Images
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {existingImageUrls.map((src: string, idx: number) => (
+                <a
+                  key={idx}
+                  href={src}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <img
+                    src={src}
+                    alt={`existing-job-img-${idx}`}
+                    className="w-20 h-20 object-cover rounded border"
+                  />
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+        <input
+          type="file"
+          accept="image/*"
+          multiple
+          onChange={handleImageChange}
+        />
+        {imagePreviews.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-2">
+            {imagePreviews.map((src, idx) => (
+              <img
+                key={idx}
+                src={src}
+                alt={`preview-${idx}`}
+                className="w-20 h-20 object-cover rounded border"
+              />
+            ))}
+          </div>
+        )}
+      </div>
       <div className="flex gap-2 justify-end">
         <Button
           type="button"
