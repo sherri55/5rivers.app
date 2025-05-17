@@ -236,3 +236,21 @@ export const invoiceLineApi = {
   delete: (invoiceId: string, lineId: string) =>
     deleteData(`invoices/${invoiceId}/lines`, lineId),
 };
+
+/**
+ * Auth API
+ */
+export async function loginUser(
+  loginId: string,
+  password: string
+): Promise<string> {
+  const res = await fetch(`${API_URL}/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ loginId, password }),
+  });
+  if (!res.ok) throw new Error("Invalid credentials");
+  const { token } = await res.json();
+  localStorage.setItem("token", token);
+  return token;
+}

@@ -1,15 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { DriverList } from "../../components/drivers/DriverList";
-import { DriverDetails } from "../../components/drivers/DriverDetails";
-import { DriverForm } from "../../components/drivers/DriverForm";
-import { DriverRateForm } from "../../components/drivers/DriverRateForm";
-import { Modal } from "../../components/common/Modal";
-import { ConfirmDialog } from "../../components/common/Modal";
+import { DriverList } from "@/src/components/drivers/DriverList";
+import { DriverDetails } from "@/src/components/drivers/DriverDetails";
+import { DriverForm } from "@/src/components/drivers/DriverForm";
+import { DriverRateForm } from "@/src/components/drivers/DriverRateForm";
+import { Modal } from "@/src/components/common/Modal";
+import { ConfirmDialog } from "@/src/components/common/Modal";
 import { driverApi } from "@/src/lib/api";
 import { toast } from "sonner";
-import { Button } from "../../components/ui/button";
+import { Button } from "@/src/components/ui/button";
 import { Plus } from "lucide-react";
 
 interface Driver {

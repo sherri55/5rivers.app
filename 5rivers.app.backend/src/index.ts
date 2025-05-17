@@ -7,6 +7,7 @@ import invoiceRoutes from "./routes/invoices";
 import unitRoutes from "./routes/units";
 import dispatcherRoutes from "./routes/dispatchers";
 import jobTypeRoutes from "./routes/jobtypes";
+import authRoutes from "./routes/auth";
 
 const app: Application = express();
 
@@ -20,6 +21,7 @@ app.use("/invoices", invoiceRoutes);
 app.use("/units", unitRoutes);
 app.use("/dispatchers", dispatcherRoutes);
 app.use("/jobtypes", jobTypeRoutes);
+app.use("/auth", authRoutes);
 
 app.listen(9999, () => console.log("Server running at http://localhost:9999"));
 

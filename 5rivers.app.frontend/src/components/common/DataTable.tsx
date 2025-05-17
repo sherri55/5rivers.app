@@ -8,9 +8,9 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "../../components/ui/table";
-import { Input } from "../../components/ui/input";
-import { Alert, AlertTitle, AlertDescription } from "../../components/ui/alert";
+} from "@/src/components/ui/table";
+import { Input } from "@/src/components/ui/input";
+import { Alert, AlertTitle, AlertDescription } from "@/src/components/ui/alert";
 import { Search } from "lucide-react";
 
 export interface Column<T> {
@@ -55,11 +55,11 @@ export function DataTable<T>({
       return column.cell(row);
     }
 
-    const accessValue = 
-      typeof column.accessorKey === "function" 
-        ? column.accessorKey(row) 
+    const accessValue =
+      typeof column.accessorKey === "function"
+        ? column.accessorKey(row)
         : row[column.accessorKey as keyof T];
-    
+
     return accessValue ?? "—";
   };
 
@@ -109,7 +109,9 @@ export function DataTable<T>({
             {filteredData.map((row, rowIndex) => (
               <TableRow key={rowIndex}>
                 {columns.map((column, colIndex) => (
-                  <TableCell key={colIndex}>{renderCell(row, column)}</TableCell>
+                  <TableCell key={colIndex}>
+                    {renderCell(row, column)}
+                  </TableCell>
                 ))}
               </TableRow>
             ))}

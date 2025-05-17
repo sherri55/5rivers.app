@@ -5,9 +5,9 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-} from "../../components/ui/card";
-import { Alert, AlertTitle, AlertDescription } from "../../components/ui/alert";
-import { Button } from "../../components/ui/button";
+} from "@/src/components/ui/card";
+import { Alert, AlertTitle, AlertDescription } from "@/src/components/ui/alert";
+import { Button } from "@/src/components/ui/button";
 
 interface Company {
   companyId: string;
@@ -96,11 +96,7 @@ export function CompanyDetails({
         </div>
         {onDelete && (
           <div className="flex justify-end mt-6">
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={onDelete}
-            >
+            <Button type="button" variant="destructive" onClick={onDelete}>
               Delete Company
             </Button>
           </div>

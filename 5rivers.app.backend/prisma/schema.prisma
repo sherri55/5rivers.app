@@ -148,3 +148,12 @@ model InvoiceLine {
   invoice Invoice @relation(fields: [invoiceId], references: [invoiceId])
   job     Job     @relation(fields: [jobId], references: [jobId])
 }
+
+model User {
+  id        String   @id @default(uuid())
+  userId    String   @unique // <-- Add this line for user-facing login ID
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

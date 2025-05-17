@@ -1,14 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { UnitList } from "../../components/units/UnitList";
-import { UnitForm } from "../../components/units/UnitForm";
-import { UnitDetails } from "../../components/units/UnitDetails";
-import { Modal, ConfirmDialog } from "../../components/common/Modal";
-import { unitApi } from "../../lib/api";
+import { UnitList } from "@/src/components/units/UnitList";
+import { UnitForm } from "@/src/components/units/UnitForm";
+import { UnitDetails } from "@/src/components/units/UnitDetails";
+import { Modal, ConfirmDialog } from "@/src/components/common/Modal";
+import { unitApi } from "@/src/lib/api";
 import { toast } from "sonner";
-import { Button } from "../../components/ui/button";
-import { Plus } from "lucide-react";
 
 export default function UnitsPage() {
   const [selectedUnit, setSelectedUnit] = useState(null);

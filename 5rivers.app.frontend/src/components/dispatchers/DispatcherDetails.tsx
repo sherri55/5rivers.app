@@ -5,9 +5,9 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-} from "../../components/ui/card";
-import { Alert, AlertTitle, AlertDescription } from "../../components/ui/alert";
-import { Button } from "../../components/ui/button";
+} from "@/src/components/ui/card";
+import { Alert, AlertTitle, AlertDescription } from "@/src/components/ui/alert";
+import { Button } from "@/src/components/ui/button";
 
 interface Dispatcher {
   dispatcherId: string;
@@ -90,7 +90,9 @@ export function DispatcherDetails({
             <div className="text-xs text-muted-foreground uppercase mb-1">
               Commission Rate
             </div>
-            <div className="text-base">{formatCommission(dispatcher.commissionPercentage)}</div>
+            <div className="text-base">
+              {formatCommission(dispatcher.commissionPercentage)}
+            </div>
           </div>
           <div>
             <div className="text-xs text-muted-foreground uppercase mb-1">
@@ -115,11 +117,7 @@ export function DispatcherDetails({
         </div>
         {onDelete && (
           <div className="flex justify-end mt-6">
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={onDelete}
-            >
+            <Button type="button" variant="destructive" onClick={onDelete}>
               Delete Dispatcher
             </Button>
           </div>

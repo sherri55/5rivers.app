@@ -1,11 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { CompanyList } from "../../components/companies/CompanyList";
-import { CompanyDetails } from "../../components/companies/CompanyDetails";
-import { CompanyForm } from "../../components/companies/CompanyForm";
-import { Modal } from "../../components/common/Modal";
-import { ConfirmDialog } from "../../components/common/Modal";
+import { CompanyList } from "@/src/components/companies/CompanyList";
+import { CompanyDetails } from "@/src/components/companies/CompanyDetails";
+import { CompanyForm } from "@/src/components/companies/CompanyForm";
+import { Modal, ConfirmDialog } from "@/src/components/common/Modal";
 import { companyApi } from "@/src/lib/api";
 import { toast } from "sonner";
 

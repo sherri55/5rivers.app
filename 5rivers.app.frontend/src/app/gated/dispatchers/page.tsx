@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { DispatcherList } from "../../components/dispatchers/DispatcherList";
-import { DispatcherDetails } from "../../components/dispatchers/DispatcherDetails";
-import { DispatcherForm } from "../../components/dispatchers/DispatcherForm";
-import { Modal } from "../../components/common/Modal";
-import { ConfirmDialog } from "../../components/common/Modal";
+import { DispatcherList } from "@/src/components/dispatchers/DispatcherList";
+import { DispatcherDetails } from "@/src/components/dispatchers/DispatcherDetails";
+import { DispatcherForm } from "@/src/components/dispatchers/DispatcherForm";
+import { Modal } from "@/src/components/common/Modal";
+import { ConfirmDialog } from "@/src/components/common/Modal";
 import { dispatcherApi } from "@/src/lib/api";
 import { toast } from "sonner";
 

@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { JobList } from "../../components/jobs/JobList";
-import { JobDetails } from "../../components/jobs/JobDetails";
-import { JobForm } from "../../components/jobs/JobForm";
-import { Modal, ConfirmDialog } from "../../components/common/Modal";
+import { JobList } from "@/src/components/jobs/JobList";
+import { JobDetails } from "@/src/components/jobs/JobDetails";
+import { JobForm } from "@/src/components/jobs/JobForm";
+import { Modal, ConfirmDialog } from "@/src/components/common/Modal";
 import { jobApi } from "@/src/lib/api";
 import { toast } from "sonner";
 

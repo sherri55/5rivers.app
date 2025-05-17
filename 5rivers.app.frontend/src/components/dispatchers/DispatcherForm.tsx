@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Button } from "../../components/ui/button";
-import { FormField } from "../../components/common/FormField";
+import { Button } from "@/src/components/ui/button";
+import { FormField } from "@/src/components/common/FormField";
 import { dispatcherApi } from "@/src/lib/api";
 import { toast } from "sonner";
 

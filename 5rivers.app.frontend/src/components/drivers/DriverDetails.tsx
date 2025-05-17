@@ -6,10 +6,10 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-} from "../../components/ui/card";
-import { Alert, AlertTitle, AlertDescription } from "../../components/ui/alert";
-import { Button } from "../../components/ui/button";
-import { DataTable, Column } from "../../components/common/DataTable";
+} from "@/src/components/ui/card";
+import { Alert, AlertTitle, AlertDescription } from "@/src/components/ui/alert";
+import { Button } from "@/src/components/ui/button";
+import { DataTable, Column } from "@/src/components/common/DataTable";
 import { driverRateApi } from "@/src/lib/api";
 
 interface Driver {

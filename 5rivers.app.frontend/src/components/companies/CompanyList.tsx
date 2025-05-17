@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Button } from "../../components/ui/button";
+import { Button } from "@/src/components/ui/button";
 import { Eye, Pencil, Trash2, Plus } from "lucide-react";
 import { companyApi } from "@/src/lib/api";
 import { toast } from "sonner";
-import { ConfirmDialog } from "../../components/common/Modal";
+import { ConfirmDialog } from "@/src/components/common/Modal";
 
 interface Company {
   companyId: string;

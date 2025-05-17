@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { InvoiceList } from "../../components/invoices/InvoiceList";
-import { InvoiceDetails } from "../../components/invoices/InvoiceDetails";
-import { InvoiceForm } from "../../components/invoices/InvoiceForm";
-import { Modal, ConfirmDialog } from "../../components/common/Modal";
+import { InvoiceList } from "@/src/components/invoices/InvoiceList";
+import { InvoiceDetails } from "@/src/components/invoices/InvoiceDetails";
+import { InvoiceForm } from "@/src/components/invoices/InvoiceForm";
+import { Modal, ConfirmDialog } from "@/src/components/common/Modal";
 import { invoiceApi } from "@/src/lib/api";
 import { toast } from "sonner";
 
