@@ -1,0 +1,4 @@
+5riverstruckinginc.ca {
+    reverse_proxy /jobs* localhost:3000
+    reverse_proxy /api/* localhost:9999
+}
