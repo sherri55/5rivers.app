@@ -2,17 +2,16 @@
 import { Request, Response } from "express";
 import { PrismaClient } from "@prisma/client";
 import pdfMake from "pdfmake/build/pdfmake";
-
 import pdfFonts from "pdfmake/build/vfs_fonts";
 import sharp from "sharp";
 import fs from "fs";
 import path from "path";
-
 (pdfMake as any).vfs = pdfFonts.vfs;
+
 // Helper to parse a YYYY-MM-DD string as a local date (no time zone shift)
 function parseLocalDate(dateStr: string): Date {
-  if (!dateStr) return new Date("Invalid Date");
-  const [year, month, day] = dateStr.split("-").map(Number);
+  if (!dateStr) return new Date('Invalid Date');
+  const [year, month, day] = dateStr.split('-').map(Number);
   return new Date(year, month - 1, day);
 }
 
@@ -89,24 +88,16 @@ export const createInvoice = async (req: Request, res: Response) => {
     if (!invoiceNumber) {
       // Dispatcher initials
       const nameParts = dispatcher.name.split(/\s+/).filter(Boolean);
-      const initials = nameParts
-        .map((n: string) => n[0].toUpperCase())
-        .join("");
+      const initials = nameParts.map((n: string) => n[0].toUpperCase()).join("");
       // Get all unique truck/unit numbers from jobs
-      const unitNumbers = Array.from(
-        new Set(
-          jobs.map((job) => job.unit?.name || job.unitId || job.unit || "")
-        )
-      );
+      const unitNumbers = Array.from(new Set(jobs.map((job) => job.unit?.name || job.unitId || job.unit || "")));
       let truckPart = "MUL";
       if (unitNumbers.length === 1 && unitNumbers[0]) {
         const match = unitNumbers[0].toString().match(/\d+/);
         truckPart = match ? match[0] : "MUL";
       }
       // Get all job dates, sort ascending
-      const jobDates = jobs
-        .map((job) => parseLocalDate(job.jobDate))
-        .filter((d) => !isNaN(d.getTime()));
+      const jobDates = jobs.map((job) => parseLocalDate(job.jobDate)).filter((d) => !isNaN(d.getTime()));
       jobDates.sort((a, b) => a.getTime() - b.getTime());
       const formatYYMMDD = (date: Date) => {
         const y = String(date.getFullYear()).slice(-2);
@@ -115,9 +106,7 @@ export const createInvoice = async (req: Request, res: Response) => {
         return `${y}${m}${d}`;
       };
       const firstDate = jobDates[0] ? formatYYMMDD(jobDates[0]) : "";
-      const lastDate = jobDates[jobDates.length - 1]
-        ? formatYYMMDD(jobDates[jobDates.length - 1])
-        : "";
+      const lastDate = jobDates[jobDates.length - 1] ? formatYYMMDD(jobDates[jobDates.length - 1]) : "";
       invoiceNumber = `INV-${initials}-${truckPart}-${firstDate}-${lastDate}`;
     }
     // Fill billedTo and billedEmail from dispatcher if not provided
@@ -403,9 +392,7 @@ export const downloadInvoicePdf = async (req: Request, res: Response) => {
       }
       return [
         {
-          text: job.jobDate
-            ? parseLocalDate(job.jobDate).toLocaleDateString()
-            : "",
+          text: job.jobDate ? parseLocalDate(job.jobDate).toLocaleDateString() : "",
           style: "tableCell",
         },
         { text: job.unit?.name || "", style: "tableCell" },
@@ -423,11 +410,7 @@ export const downloadInvoicePdf = async (req: Request, res: Response) => {
             if (!job.ticketIds) return "";
             let arr = job.ticketIds;
             if (typeof arr === "string") {
-              try {
-                arr = JSON.parse(arr);
-              } catch {
-                /* ignore */
-              }
+              try { arr = JSON.parse(arr); } catch { /* ignore */ }
             }
             return Array.isArray(arr) ? arr.join(", ") : arr;
           })(),
@@ -438,13 +421,7 @@ export const downloadInvoicePdf = async (req: Request, res: Response) => {
           text: job.jobType?.rateOfJob ? `$${job.jobType.rateOfJob}` : "",
           style: "tableCell",
         },
-        {
-          text:
-            job.jobGrossAmount != null
-              ? `$${Number(job.jobGrossAmount).toFixed(2)}`
-              : "",
-          style: "tableCell",
-        },
+        { text: job.jobGrossAmount?.toFixed(2) || "", style: "tableCell" },
       ];
     });
 
@@ -482,17 +459,127 @@ export const downloadInvoicePdf = async (req: Request, res: Response) => {
         table: {
           headerRows: 1,
           widths: [
-            "auto", // Date
-            "auto", // Unit
-            "auto", // Driver
-            "auto", // Customer
-            "*", // Job Description (flex)
-            "auto", // Tickets
-            "auto", // HRS/TON/LOADS
-            "auto", // Rate
-            "auto", // Amount (wider for totals)
+            "auto",
+            "auto",
+            "auto",
+            "auto",
+            "*",
+            "auto",
+            "auto",
+            "auto",
+            "auto",
           ],
-          body: [tableHeader, ...tableRows],
+          body: [
+            tableHeader,
+            ...tableRows,
+            [
+              { text: "", colSpan: 8, border: [false, false, false, false] },
+              {},
+              {},
+              {},
+              {},
+              {},
+              {},
+              {
+                text: "SUBTOTAL",
+                style: "totalsLabel",
+                alignment: "right",
+                border: [false, true, false, false],
+              },
+              {
+                text: `$${Number(invoice.subTotal).toFixed(2)}`,
+                style: "totalsValue",
+                alignment: "right",
+                border: [false, true, false, false],
+              },
+            ],
+            [
+              { text: "", colSpan: 8, border: [false, false, false, false] },
+              {},
+              {},
+              {},
+              {},
+              {},
+              {},
+              {
+                text: `DISPATCH ${
+                  invoice.dispatchPercent?.toFixed(2) || ""
+                }%`,
+                style: "totalsLabel",
+                alignment: "right",
+                border: [false, false, false, false],
+              },
+              {
+                text: `$${Number(invoice.commission).toFixed(2)}`,
+                style: "totalsValue",
+                alignment: "right",
+                border: [false, false, false, false],
+              },
+            ],
+            [
+              { text: "", colSpan: 8, border: [false, false, false, false] },
+              {},
+              {},
+              {},
+              {},
+              {},
+              {},
+              {
+                text: "COMM.",
+                style: "totalsLabel",
+                alignment: "right",
+                border: [false, false, false, false],
+              },
+              {
+                text: `$${Number(invoice.commission).toFixed(2)}`,
+                style: "totalsValue",
+                alignment: "right",
+                border: [false, false, false, false],
+              },
+            ],
+            [
+              { text: "", colSpan: 8, border: [false, false, false, false] },
+              {},
+              {},
+              {},
+              {},
+              {},
+              {},
+              {
+                text: "HST",
+                style: "totalsLabel",
+                alignment: "right",
+                border: [false, false, false, false],
+              },
+              {
+                text: `$${Number(invoice.hst).toFixed(2)}`,
+                style: "totalsValue",
+                alignment: "right",
+                border: [false, false, false, false],
+              },
+            ],
+            [
+              { text: "", colSpan: 8, border: [false, false, false, false] },
+              {},
+              {},
+              {},
+              {},
+              {},
+              {},
+              {
+                text: "TOTAL",
+                style: "totalsLabelBold",
+                alignment: "right",
+                border: [false, true, false, false],
+              },
+              {
+                text: `$${Number(invoice.total).toFixed(2)}`,
+                style: "totalsValueBold",
+                alignment: "right",
+                border: [false, true, false, false],
+              },
+            ],
+          ],
         },
         layout: {
           fillColor: function (rowIndex: number) {
@@ -523,82 +610,7 @@ export const downloadInvoicePdf = async (req: Request, res: Response) => {
             return 4;
           },
         },
-        margin: [0, 0, 0, 10],
-      },
-      {
-        columns: [
-          { width: "*", text: "" },
-          {
-            width: "auto",
-            table: {
-              body: [
-                [
-                  {
-                    text: "Subtotal:",
-                    style: "totalsLabel",
-                    alignment: "right",
-                    border: [false, false, false, false],
-                  },
-                  {
-                    text: `$${Number(invoice.subTotal).toFixed(2)}`,
-                    style: "totalsValue",
-                    alignment: "right",
-                    border: [false, false, false, false],
-                  },
-                ],
-                [
-                  {
-                    text: `Commission (${
-                      invoice.dispatchPercent?.toFixed(2) || ""
-                    }%):`,
-                    style: "totalsLabel",
-                    alignment: "right",
-                    border: [false, false, false, false],
-                  },
-                  {
-                    text: `$${Number(invoice.commission).toFixed(2)}`,
-                    style: "totalsValue",
-                    alignment: "right",
-                    border: [false, false, false, false],
-                  },
-                ],
-                [
-                  {
-                    text: "HST (13%):",
-                    style: "totalsLabel",
-                    alignment: "right",
-                    border: [false, false, false, false],
-                  },
-                  {
-                    text: `$${Number(invoice.hst).toFixed(2)}`,
-                    style: "totalsValue",
-                    alignment: "right",
-                    border: [false, false, false, false],
-                  },
-                ],
-                [
-                  {
-                    text: "Total:",
-                    style: "totalsLabelBold",
-                    alignment: "right",
-                    border: [false, true, false, false],
-                  },
-                  {
-                    text: `$${Number(invoice.total).toFixed(2)}`,
-                    style: "totalsValueBold",
-                    alignment: "right",
-                    border: [false, true, false, false],
-                  },
-                ],
-              ],
-              widths: ["*", "auto"],
-            },
-            layout: "noBorders",
-            margin: [0, 0, 0, 20],
-          },
-        ],
-        columnGap: 10,
-        margin: [0, 0, 0, 20],
+        margin: [0, 0, 0, 30],
       },
     ];
 
@@ -630,6 +642,14 @@ export const downloadInvoicePdf = async (req: Request, res: Response) => {
     }
     if (allImageEntries.length > 0) {
       // Add 'Tickets' page only if not already at top (pdfmake will handle this)
+      content.push({
+        text: "Tickets",
+        fontSize: 40,
+        bold: true,
+        alignment: "center",
+        pageBreak: "before",
+        margin: [0, 200, 0, 0],
+      });
       for (let i = 0; i < allImageEntries.length; i++) {
         const { absPath } = allImageEntries[i];
         try {
@@ -649,7 +669,7 @@ export const downloadInvoicePdf = async (req: Request, res: Response) => {
           }
           const resized = await sharp(absPath)
             .resize(resizeOptions)
-            .jpeg({ quality: 100 })
+            .jpeg({ quality: 80 })
             .toBuffer();
           const base64 = resized.toString("base64");
           content.push({
@@ -657,18 +677,14 @@ export const downloadInvoicePdf = async (req: Request, res: Response) => {
             width: resizeOptions.width || undefined,
             height: resizeOptions.height || undefined,
             alignment: "center",
-            margin: [0, 10, 0, 10],
+            margin: [0, 20, 0, 20],
           });
         } catch {
           continue;
         }
       }
       // Remove any trailing empty content (pdfmake bug workaround)
-      while (
-        content.length > 0 &&
-        content[content.length - 1] &&
-        content[content.length - 1].text === ""
-      ) {
+      while (content.length > 0 && content[content.length - 1] && content[content.length - 1].text === "") {
         content.pop();
       }
     }
@@ -735,7 +751,7 @@ export const downloadInvoicePdf = async (req: Request, res: Response) => {
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader(
         "Content-Disposition",
-        `attachment; filename=${invoice.invoiceNumber || id}.pdf`
+        `attachment; filename=invoice-${invoice.invoiceNumber || id}.pdf`
       );
       res.end(buffer);
     });
@@ -759,12 +775,8 @@ export const getInvoiceJobs = async (req: Request, res: Response) => {
     const page = parseInt(req.query.page as string) || 1;
     const pageSize = parseInt(req.query.pageSize as string) || 20;
     const dispatcherId = req.query.dispatcherId as string | undefined;
-    const month = req.query.month
-      ? parseInt(req.query.month as string)
-      : undefined;
-    const year = req.query.year
-      ? parseInt(req.query.year as string)
-      : undefined;
+    const month = req.query.month ? parseInt(req.query.month as string) : undefined;
+    const year = req.query.year ? parseInt(req.query.year as string) : undefined;
 
     // Build filter
     const where: any = { invoiceId: id };
@@ -772,8 +784,8 @@ export const getInvoiceJobs = async (req: Request, res: Response) => {
     if (month && year) {
       // Filter jobs by month/year
       where.jobDate = {
-        gte: parseLocalDate(`${year}-${String(month).padStart(2, "0")}-01`),
-        lt: parseLocalDate(`${year}-${String(month + 1).padStart(2, "0")}-01`),
+        gte: parseLocalDate(`${year}-${String(month).padStart(2, '0')}-01`),
+        lt: parseLocalDate(`${year}-${String(month + 1).padStart(2, '0')}-01`),
       };
     } else if (year) {
       where.jobDate = {
@@ -788,7 +800,7 @@ export const getInvoiceJobs = async (req: Request, res: Response) => {
     // Fetch jobs, sorted reverse chronologically
     const jobs = await prisma.job.findMany({
       where,
-      orderBy: { jobDate: "desc" },
+      orderBy: { jobDate: 'desc' },
       skip: (page - 1) * pageSize,
       take: pageSize,
       include: { driver: true, unit: true, jobType: true },
@@ -798,10 +810,7 @@ export const getInvoiceJobs = async (req: Request, res: Response) => {
     const grouped: Record<string, any[]> = {};
     jobs.forEach((job) => {
       const date = parseLocalDate(job.jobDate);
-      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
-        2,
-        "0"
-      )}`;
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
       if (!grouped[key]) grouped[key] = [];
       grouped[key].push(job);
     });
@@ -813,7 +822,7 @@ export const getInvoiceJobs = async (req: Request, res: Response) => {
       groups: grouped,
     });
   } catch (err) {
-    console.error("Error in getInvoiceJobs:", err);
-    res.status(500).json({ error: "Failed to fetch jobs for invoice" });
+    console.error('Error in getInvoiceJobs:', err);
+    res.status(500).json({ error: 'Failed to fetch jobs for invoice' });
   }
 };

@@ -1,1 +1,50 @@
+@font-face {
+  font-family: 'Proxima Nova';
+  src: url('/fonts/proxima-nova/proximanova_regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Proxima Nova';
+  src: url('/fonts/proxima-nova/proximanova_bold.otf') format('opentype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Proxima Nova';
+  src: url('/fonts/proxima-nova/proximanova_regular.ttf') format('truetype');
+  ;
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+body {
+  font-family: 'Proxima Nova', Arial, sans-serif;
+  color: white;
+  background-color: #111 !important;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+}
+
+.container {
+  max-width: 1920px;
+  margin: 0 auto;
+}
+
+.spacer {
+  height: 100vh;
+}
+
+header,
+footer {
+  position: static !important;
+  z-index: 2 !important;
+}
+
 @import "tailwindcss";

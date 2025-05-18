@@ -5,8 +5,8 @@ import { Button } from "../ui/button";
 import { Eye, Pencil, Trash2, Plus } from "lucide-react";
 import { unitApi } from "@/src/lib/api";
 import { toast } from "sonner";
-import { DataTable, Column } from "../../components/common/DataTable";
-import { ConfirmDialog } from "../../components/common/Modal";
+import { DataTable, Column } from "@/src/components/common/DataTable";
+import { ConfirmDialog } from "@/src/components/common/Modal";
 
 interface Unit {
   unitId: string;

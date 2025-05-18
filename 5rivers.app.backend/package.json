@@ -14,9 +14,11 @@
   "description": "",
   "dependencies": {
     "@prisma/client": "^6.7.0",
+    "@types/jsonwebtoken": "^9.0.9",
     "cors": "^2.8.5",
     "express": "^5.1.0",
     "force": "^0.0.3",
+    "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.2",
     "pdfkit": "^0.17.1",
     "pdfkit-table": "^0.1.99",
