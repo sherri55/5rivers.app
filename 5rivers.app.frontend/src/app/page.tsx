@@ -57,23 +57,23 @@ export default function HomePage() {
           title="Your Local Dump Trucking Partner"
           description="5 Rivers Trucking Inc. is committed to supporting construction, landscaping, and material delivery projects across London, Ontario and nearby areas with dependable dump truck services."
           imageUrls={{
-            src: "https://images.unsplash.com/photo-1506744038136-46273834b3fb?crop=entropy&cs=srgb&fm=jpg&ixid=MnwxNDU4OXwwfDF8cmFuZG9tfHx8fHx8fHx8MTY0NDMzNTU3OA&ixlib=rb-1.2.1&q=85&w=600",
+            src: "/images/volvo-driver.png",
             srcSetLarge:
-              "https://images.unsplash.com/photo-1506744038136-46273834b3fb?crop=entropy&cs=srgb&fm=jpg&ixid=MnwxNDU4OXwwfDF8cmFuZG9tfHx8fHx8fHx8MTY0NDMzNTU3OA&ixlib=rb-1.2.1&q=85&w=1500",
+              "/images/volvo-driver.png",
             srcSetMedium:
-              "https://images.unsplash.com/photo-1506744038136-46273834b3fb?crop=entropy&cs=srgb&fm=jpg&ixid=MnwxNDU4OXwwfDF8cmFuZG9tfHx8fHx8fHx8MTY0NDMzNTU3OA&ixlib=rb-1.2.1&q=85&w=1000",
+              "/images/volvo-driver.png",
           }}
         />
         <Promo
           title="Serving London & Nearby Areas"
           description="We proudly serve London, Ontario and surrounding communities with prompt, reliable dump trucking for all types of projects. Contact us for a quote or to discuss your hauling needs."
-          imageUrl="https://images.unsplash.com/photo-1532587459811-f057563d1936?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=MnwxNDU4OXwwfDF8cmFuZG9tfHx8fHx8fHx8MTY0NDMzNDg3NQ&ixlib=rb-1.2.1&q=80&w=500"
+          imageUrl="/images/london-area.png"
           variant="ImageOnLeft"
         />
         <Promo
           title="Trusted by Local Contractors"
           description="5 Rivers Trucking Inc. is trusted by contractors and businesses across London for our reliability, professionalism, and commitment to customer satisfaction."
-          imageUrl="https://images.unsplash.com/photo-1569596082827-c5e8990496cb?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=MnwxNDU4OXwwfDF8cmFuZG9tfHx8fHx8fHx8MTY0NDMzNDg3NQ&ixlib=rb-1.2.1&q=80&w=500"
+          imageUrl="/images/volvo-contractors.png"
           variant="ImageOnRight"
         />
         <div className="spacer"></div>
