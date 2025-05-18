@@ -1,7 +1,0 @@
-{
-  "dependencies": {
-    "date-fns": "^4.1.0",
-    "react-date-range": "^2.0.1",
-    "react-select": "^5.10.1"
-  }
-}
