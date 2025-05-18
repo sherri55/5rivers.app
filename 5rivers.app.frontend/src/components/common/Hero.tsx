@@ -1,7 +1,5 @@
-import React, { useRef, useEffect } from "react";
-import gsap from "gsap";
-import ScrollTrigger from "gsap/ScrollTrigger";
-import ScrollSmoother from "gsap/ScrollSmoother";
+import React, { useRef } from "react";
+import Image from "next/image";
 
 interface HeroProps {
   title: string;
@@ -11,55 +9,38 @@ interface HeroProps {
     srcSetLarge: string;
     srcSetMedium: string;
   };
+  imageWidth: number;
+  imageHeight: number;
 }
 
-const Hero: React.FC<HeroProps> = ({ title, description, imageUrls }) => {
+const Hero: React.FC<HeroProps> = ({
+  title,
+  description,
+  imageUrls,
+  imageWidth,
+  imageHeight,
+}) => {
   const imageRef = useRef<HTMLImageElement>(null);
 
-  useEffect(() => {
-    gsap.registerPlugin(ScrollTrigger, ScrollSmoother);
-    if (!ScrollSmoother.get()) {
-      ScrollSmoother.create({
-        content: "#content",
-        smooth: 3,
-        effects: true,
-      });
-    }
-    ScrollSmoother.get().effects("img", { speed: 1 });
-  }, []);
-
-  useEffect(() => {
-    if (imageRef.current) {
-      gsap.to(imageRef.current, {
-        y: "20%",
-        ease: "none",
-        scrollTrigger: {
-          trigger: imageRef.current,
-          start: "top bottom",
-          end: "bottom top",
-          scrub: true,
-        },
-      });
-    }
-    return () => {
-      ScrollTrigger.getAll().forEach((trigger) => trigger.kill());
-    };
-  }, []);
-
   return (
-    <picture className="relative overflow-hidden h-[95vh] w-full flex items-center justify-center bg-black">
+    <picture className="relative overflow-hidden h-[65vh] w-full flex items-center justify-center bg-black">
       <source srcSet={imageUrls.srcSetLarge} media="(min-width: 1500px)" />
       <source srcSet={imageUrls.srcSetMedium} media="(min-width: 700px)" />
-      <img
+      <Image
         ref={imageRef}
         src={imageUrls.src}
         alt="Hero background"
-        loading="eager"
-        className="absolute w-full h-[160%] object-cover bottom-0 left-0"
+        style={{ objectFit: "cover", bottom: 0, left: 0 }}
+        priority
+        sizes="100vw"
+        className="absolute w-full h-full object-cover bottom-0 left-0"
         draggable={false}
+        width={imageWidth}
+        height={imageHeight}
       />
-      <div className="absolute inset-0 flex flex-col items-center justify-center z-10 pointer-events-none">
-        <div className="bg-black/30 text-white text-center p-8 rounded-2xl max-w-xl shadow-lg pointer-events-auto">
+      {/* Full image overlay */}
+      <div className="absolute inset-0 bg-black/30 z-10 flex items-center justify-center">
+        <div className="text-white text-center p-8 rounded-2xl max-w-xl shadow-lg pointer-events-auto">
           <h1 className="text-4xl md:text-5xl font-bold mb-4">{title}</h1>
           <p className="text-lg md:text-xl">{description}</p>
         </div>

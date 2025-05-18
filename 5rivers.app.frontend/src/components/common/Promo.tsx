@@ -1,12 +1,12 @@
-import React, { useRef, useEffect } from "react";
-import gsap from "gsap";
-import ScrollTrigger from "gsap/ScrollTrigger";
-import ScrollSmoother from "gsap/ScrollSmoother";
+import React, { useRef } from "react";
+import Image from "next/image";
 
 interface PromoProps {
   title: string;
   description: string;
   imageUrl: string;
+  imageWidth: number;
+  imageHeight: number;
   variant?: "ImageOnLeft" | "ImageOnRight";
   ctaText?: string;
   ctaHref?: string;
@@ -58,44 +58,15 @@ const Promo: React.FC<PromoProps> = ({
   title,
   description,
   imageUrl,
+  imageWidth,
+  imageHeight,
   variant = "ImageOnLeft",
   ctaText,
   ctaHref,
   ctaOnClick,
 }) => {
   const imageContainerRef = useRef<HTMLDivElement>(null);
-  const imageRef = useRef<HTMLImageElement>(null);
   const isLeft = variant === "ImageOnLeft";
-
-  useEffect(() => {
-    gsap.registerPlugin(ScrollTrigger, ScrollSmoother);
-    if (!ScrollSmoother.get()) {
-      ScrollSmoother.create({
-        content: "#content",
-        smooth: 3,
-        effects: true,
-      });
-    }
-    ScrollSmoother.get().effects("img", { speed: 1 });
-  }, []);
-
-  useEffect(() => {
-    if (imageRef.current && imageContainerRef.current) {
-      gsap.to(imageRef.current, {
-        y: "20%",
-        ease: "none",
-        scrollTrigger: {
-          trigger: imageContainerRef.current,
-          start: "top bottom",
-          end: "bottom top",
-          scrub: true,
-        },
-      });
-    }
-    return () => {
-      ScrollTrigger.getAll().forEach((trigger) => trigger.kill());
-    };
-  }, [isLeft]);
 
   return (
     <section className="w-full grid grid-cols-1 md:grid-cols-12 items-center my-16 md:my-24">
@@ -108,11 +79,15 @@ const Promo: React.FC<PromoProps> = ({
               ref={imageContainerRef}
               className="relative w-full h-[50vh] max-h-[500px] overflow-hidden"
             >
-              <img
-                ref={imageRef}
+              <Image
                 src={imageUrl}
                 alt={title}
+                fill
+                style={{ objectFit: "cover", bottom: 0, left: 0 }}
+                sizes="(max-width: 768px) 100vw, 50vw"
                 className="absolute w-full h-[160%] object-cover bottom-0 left-0"
+                priority={false}
+                draggable={false}
               />
               {/* Mobile: text overlays image */}
               <div className="absolute inset-0 flex items-end md:hidden z-10">
@@ -164,11 +139,15 @@ const Promo: React.FC<PromoProps> = ({
               ref={imageContainerRef}
               className="relative w-full h-[50vh] max-h-[500px] overflow-hidden"
             >
-              <img
-                ref={imageRef}
+              <Image
                 src={imageUrl}
                 alt={title}
+                fill
+                style={{ objectFit: "cover", bottom: 0, left: 0 }}
+                sizes="(max-width: 768px) 100vw, 50vw"
                 className="absolute w-full h-[160%] object-cover bottom-0 left-0"
+                priority={false}
+                draggable={false}
               />
               {/* Promo text overlays image on mobile */}
               <div className="absolute inset-0 flex items-end md:hidden z-10">
