@@ -138,8 +138,8 @@ const Promo: React.FC<PromoProps> = ({
               ctaHref={ctaHref}
               ctaOnClick={ctaOnClick}
               className="text-left w-full max-w-xl"
-              titleClass="text-4xl font-bold mb-4 text-black dark:text-white"
-              descClass="text-xl mb-4 text-black dark:text-white"
+              titleClass="text-4xl font-bold mb-4 "
+              descClass="text-xl mb-4 "
             />
           </div>
           <div className="hidden md:block col-span-12 md:col-span-2" />
@@ -155,8 +155,8 @@ const Promo: React.FC<PromoProps> = ({
               ctaHref={ctaHref}
               ctaOnClick={ctaOnClick}
               className="text-right w-full max-w-xl"
-              titleClass="text-3xl md:text-4xl font-bold mb-4 text-black dark:text-white"
-              descClass="text-lg md:text-xl mb-4 text-black dark:text-white"
+              titleClass="text-3xl md:text-4xl font-bold mb-4 "
+              descClass="text-lg md:text-xl mb-4 "
             />
           </div>
           <div className="col-span-12 md:col-span-5 relative">

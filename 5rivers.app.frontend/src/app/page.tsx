@@ -23,12 +23,6 @@ export default function HomePage() {
 
   return (
     <>
-      <style>{`
-        body { background-color: #111; margin: 0; padding: 0; overflow-x: hidden; }
-        .container { max-width: 2500px; margin: 0 auto; }
-        .spacer { height: 100vh; }
-        header, footer { position: static !important; z-index: 2 !important; }
-      `}</style>
       <section id="content" ref={contentRef}>
         <Hero
           title="5 Rivers Trucking Inc."

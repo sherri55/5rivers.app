@@ -28,7 +28,7 @@ const Header: React.FC = () => {
       style={{ position: "static", zIndex: 2 }}
     >
       <div className="flex items-center gap-3">
-        <span className="text-2xl font-extrabold text-black tracking-wide drop-shadow-md">
+        <span className="text-2xl font-extrabold tracking-wide drop-shadow-md">
           5 Rivers Trucking Inc.
         </span>
       </div>
@@ -58,25 +58,25 @@ const Header: React.FC = () => {
       <nav className="hidden md:flex space-x-8">
         <a
           href="/"
-          className="text-black hover:text-white font-semibold transition-colors duration-200"
+          className=" hover:text-white font-semibold transition-colors duration-200"
         >
           Home
         </a>
         <a
           href="#services"
-          className="text-black hover:text-white font-semibold transition-colors duration-200"
+          className="hover:text-white font-semibold transition-colors duration-200"
         >
           Services
         </a>
         <a
           href="#contact"
-          className="text-black hover:text-white font-semibold transition-colors duration-200"
+          className="hover:text-white font-semibold transition-colors duration-200"
         >
           Contact
         </a>
         <a
           href="/login"
-          className="text-black hover:text-white font-semibold transition-colors duration-200"
+          className="hover:text-white font-semibold transition-colors duration-200"
         >
           Login
         </a>

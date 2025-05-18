@@ -22,7 +22,7 @@ export function DateRangePicker({ value, onChange }: Props) {
     <div style={{ position: "relative", display: "inline-block" }}>
       <button
         type="button"
-        className="border rounded px-2 py-1 bg-white"
+        className="border rounded px-2 py-1 "
         onClick={() => setOpen((v) => !v)}
       >
         {value.startDate && value.endDate
