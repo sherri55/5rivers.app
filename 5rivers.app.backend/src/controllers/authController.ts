@@ -19,6 +19,7 @@ export async function login(req: Request, res: Response, next: NextFunction) {
         OR: [{ userId: loginId }, { email: loginId }],
       },
     });
+     console.log('user', user)
     if (!user || user.password !== password) {
       console.error(user);
       return res.status(401).json({ error: "Invalid credentials" });

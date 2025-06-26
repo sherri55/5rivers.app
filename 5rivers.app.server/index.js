@@ -273,7 +273,7 @@ async function start() {
   app.get("/", (req, res) => res.send("5Rivers Truck Management API is live"));
 
   const port = process.env.PORT || 4000;
-  app.listen(port, () => {
+  app.listen(port,  '0.0.0.0', () => {
     console.log(
       `🚀 Server ready at http://localhost:${port}${server.graphqlPath}`
     );

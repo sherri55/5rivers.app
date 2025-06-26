@@ -105,7 +105,7 @@ const Promo: React.FC<PromoProps> = ({
             </div>
           </div>
           {/* Desktop: text in its own cell */}
-          <div className="hidden md:flex col-span-12 md:col-span-3 ml-5">
+          <div className="hidden md:flex col-span-12 md:col-span-3 ml-[50px]">
             <PromoText
               title={title}
               description={description}
@@ -122,7 +122,7 @@ const Promo: React.FC<PromoProps> = ({
       ) : (
         <>
           <div className="hidden md:block col-span-12 md:col-span-2" />
-          <div className="hidden md:flex col-span-12 md:col-span-3 mr-5">
+          <div className="hidden md:flex col-span-12 md:col-span-3 mr-[50px]">
             <PromoText
               title={title}
               description={description}

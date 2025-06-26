@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Company, Unit, Driver, Dispatcher } from "@/src/types/entities";
-
 // Centralized API utilities for all entities
+// NOTE: If you change NEXT_PUBLIC_API_URL in .env.local, you must restart the Next.js dev/build server for changes to take effect.
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:9999";
 
 // Generic API request handlers

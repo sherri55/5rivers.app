@@ -11,7 +11,7 @@ import authRoutes from "./routes/auth";
 
 const app: Application = express();
 
-app.use(cors({ origin: "http://localhost:3000" }));
+app.use(cors({ origin: process.env.NEXT_PUBLIC_API_URL || "http://localhost:9999" }));
 app.use(express.json());
 
 app.use("/companies", companyRoutes);
@@ -23,6 +23,6 @@ app.use("/dispatchers", dispatcherRoutes);
 app.use("/jobtypes", jobTypeRoutes);
 app.use("/auth", authRoutes);
 
-app.listen(9999, () => console.log("Server running at http://localhost:9999"));
+app.listen(9999, '0.0.0.0', () => console.log("Server running at " + (process.env.NEXT_PUBLIC_API_URL || "http://localhost:9999")));
 
 export default app;
