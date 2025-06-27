@@ -4,15 +4,46 @@ const prisma = new PrismaClient();
 
 export const getUnits = async (req: Request, res: Response) => {
   try {
+    const page = parseInt(req.query.page as string) || 1;
+    const pageSize = parseInt(req.query.pageSize as string) || 20;
+    const search = req.query.search as string;
+
+    // Build where clause for filtering
+    const where: any = {};
+
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: "insensitive" } },
+        { plateNumber: { contains: search, mode: "insensitive" } },
+        { vin: { contains: search, mode: "insensitive" } },
+      ];
+    }
+
+    // Get total count for pagination
+    const total = await prisma.unit.count({ where });
+
+    // Fetch units with pagination
     const units = await prisma.unit.findMany({
+      where,
       include: { jobs: true },
+      orderBy: { name: "asc" },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
     });
+
     // For each unit, count jobs
     const result = units.map((unit) => ({
       ...unit,
       jobsCount: unit.jobs.length,
     }));
-    res.json(result);
+
+    res.json({
+      data: result,
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
+    });
   } catch (error) {
     console.error("Error in getUnits:", error);
     res.status(500).json({ error: "Failed to fetch units" });

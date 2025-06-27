@@ -19,10 +19,51 @@ const prisma = new PrismaClient();
 
 export const getInvoices = async (req: Request, res: Response) => {
   try {
+    const page = parseInt(req.query.page as string) || 1;
+    const pageSize = parseInt(req.query.pageSize as string) || 20;
+    const search = req.query.search as string;
+    const dispatcherId = req.query.dispatcherId as string;
+    const status = req.query.status as string;
+
+    // Build where clause for filtering
+    const where: any = {};
+    
+    if (dispatcherId) {
+      where.dispatcherId = dispatcherId;
+    }
+    
+    if (status) {
+      where.status = status;
+    }
+
+    if (search) {
+      where.OR = [
+        { invoiceNumber: { contains: search, mode: 'insensitive' } },
+        { billedTo: { contains: search, mode: 'insensitive' } },
+        { billedEmail: { contains: search, mode: 'insensitive' } },
+        { dispatcher: { name: { contains: search, mode: 'insensitive' } } }
+      ];
+    }
+
+    // Get total count for pagination
+    const total = await prisma.invoice.count({ where });
+
+    // Fetch invoices with pagination
     const invoices = await prisma.invoice.findMany({
+      where,
       include: { dispatcher: true, invoiceLines: true, jobs: true },
+      orderBy: { invoiceDate: 'desc' },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
     });
-    res.json(invoices);
+
+    res.json({
+      data: invoices,
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
+    });
   } catch (error) {
     console.error("Error in getInvoices:", error);
     res.status(500).json({ error: "Failed to fetch invoices" });

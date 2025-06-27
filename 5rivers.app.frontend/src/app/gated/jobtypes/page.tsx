@@ -1,22 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { JobTypeList } from "@/src/components/jobtypes/JobTypeList";
-import { JobTypeDetails } from "@/src/components/jobtypes/JobTypeDetails";
 import { JobTypeForm } from "@/src/components/jobtypes/JobTypeForm";
-import { Modal, ConfirmDialog } from "@/src/components/common/Modal";
+import { ConfirmDialog } from "@/src/components/common/Modal";
 import { SlideOver } from "@/src/components/common/SlideOver";
 import { jobTypeApi } from "@/src/lib/api";
 import { toast } from "sonner";
 
 interface JobType {
   jobTypeId: string;
-  title: string;
-  startLocation?: string;
-  endLocation?: string;
-  dispatchType?: string;
-  rateOfJob?: number;
-  companyId?: string;
+  name: string;
+  description?: string;
+  rate?: number;
+  unit?: string;
 }
 
 export default function JobTypesPage() {
@@ -25,8 +22,22 @@ export default function JobTypesPage() {
   const [editingJobType, setEditingJobType] = useState<JobType | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [jobTypeCount, setJobTypeCount] = useState<number>(0);
 
   const refresh = () => setRefreshTrigger((prev) => prev + 1);
+
+  // Fetch job type count
+  useEffect(() => {
+    const fetchJobTypeCount = async () => {
+      try {
+        const response = await jobTypeApi.fetchAll({ pageSize: 1 });
+        setJobTypeCount(response.total || 0);
+      } catch (error) {
+        console.error("Failed to fetch job type count:", error);
+      }
+    };
+    fetchJobTypeCount();
+  }, [refreshTrigger]);
 
   const handleCreate = () => {
     setEditingJobType(null);
@@ -38,15 +49,22 @@ export default function JobTypesPage() {
     setIsFormOpen(true);
   };
 
-  const handleDelete = async () => {
+  const handleDelete = async (jobType: JobType) => {
+    setSelectedJobType(jobType);
+    setConfirmDelete(true);
+  };
+
+  const confirmDeleteAction = async () => {
     if (!selectedJobType) return;
+
     try {
       await jobTypeApi.delete(selectedJobType.jobTypeId);
-      toast.success("Job Type deleted successfully");
+      toast.success("Job type deleted successfully");
       setSelectedJobType(null);
       refresh();
-    } catch (error) {
-      toast.error("Failed to delete job type" + error.message);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      toast.error("Failed to delete job type: " + message);
     }
     setConfirmDelete(false);
   };
@@ -54,89 +72,61 @@ export default function JobTypesPage() {
   return (
     <div className="space-y-6">
       {/* Header Section */}
-      <div className="bg-gradient-to-r from-indigo-600 to-indigo-700 rounded-2xl p-6 text-white shadow-xl">
+      <div className="bg-gradient-to-r from-purple-600 to-purple-700 rounded-2xl p-6 text-white shadow-xl">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-3xl font-bold mb-2">Job Types</h1>
-            <p className="text-indigo-100 text-lg">
-              Manage job types and their configuration
+            <p className="text-purple-100 text-lg">
+              Manage service categories and pricing
             </p>
           </div>
           <div className="mt-4 sm:mt-0">
             <div className="bg-white/20 backdrop-blur-sm rounded-lg px-4 py-2">
-              <span className="text-sm font-medium">Job Types</span>
-              <div className="text-2xl font-bold">18</div>
+              <span className="text-sm font-medium">Total Types</span>
+              <div className="text-2xl font-bold">{jobTypeCount}</div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="flex flex-col lg:flex-row gap-6 min-h-[80vh]">
-        {/* Sidebar/List */}
-        <div className="lg:w-2/5 xl:w-1/3">
-          <div className="sticky top-6">
-            <JobTypeList
-              onSelect={(jt: any) => setSelectedJobType(jt)}
-              onEdit={handleEdit}
-              onCreate={handleCreate}
-              refresh={refreshTrigger}
-            />
-          </div>
-        </div>
-        
-        {/* Details Panel */}
-        <div className="flex-1">
-          {selectedJobType ? (
-            <div className="animate-fade-in">
-              <JobTypeDetails
-                jobType={selectedJobType}
-                onDelete={() => setConfirmDelete(true)}
-                onEdit={() => selectedJobType && handleEdit(selectedJobType)}
-              />
-            </div>
-          ) : (
-            <div className="flex items-center justify-center h-full">
-              <div className="text-center text-slate-500">
-                <div className="w-16 h-16 mx-auto mb-4 bg-slate-100 rounded-2xl flex items-center justify-center">
-                  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                  </svg>
-                </div>
-                <h3 className="text-lg font-semibold mb-2">No Job Type Selected</h3>
-                <p className="text-sm max-w-sm mx-auto">
-                  Select a job type from the list to view its details and manage configuration.
-                </p>
-              </div>
-            </div>
-          )}
-        </div>
+      {/* Main Content - Full Width */}
+      <div className="w-full">
+        <JobTypeList
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+          onCreate={handleCreate}
+          refresh={refreshTrigger}
+        />
       </div>
+
       {/* Create/Edit SlideOver */}
       <SlideOver
         title={editingJobType ? "Edit Job Type" : "Create New Job Type"}
-        subtitle={editingJobType ? "Update job type configuration" : "Add a new job type to the system"}
+        subtitle={
+          editingJobType
+            ? "Update job type information and pricing"
+            : "Add a new service category"
+        }
         isOpen={isFormOpen}
         onClose={() => setIsFormOpen(false)}
         size="lg"
       >
         <JobTypeForm
-          jobType={editingJobType as any || undefined}
+          jobType={editingJobType || undefined}
           onSuccess={() => {
             setIsFormOpen(false);
             refresh();
-            if (editingJobType) {
-              setSelectedJobType(null);
-            }
           }}
           onCancel={() => setIsFormOpen(false)}
         />
       </SlideOver>
+
+      {/* Confirm Delete Dialog */}
       <ConfirmDialog
         title="Delete Job Type"
         message="Are you sure you want to delete this job type? This action cannot be undone."
         isOpen={confirmDelete}
-        onConfirm={handleDelete}
+        onConfirm={confirmDeleteAction}
         onCancel={() => setConfirmDelete(false)}
         confirmText="Delete"
         variant="destructive"

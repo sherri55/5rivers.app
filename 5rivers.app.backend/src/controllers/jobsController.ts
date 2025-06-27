@@ -88,7 +88,48 @@ function saveUploadedImages(
 
 export const getJobs = async (req: Request, res: Response) => {
   try {
+    const page = parseInt(req.query.page as string) || 1;
+    const pageSize = parseInt(req.query.pageSize as string) || 20;
+    const search = req.query.search as string;
+    const dispatcherId = req.query.dispatcherId as string;
+    const unitId = req.query.unitId as string;
+    const driverId = req.query.driverId as string;
+    const status = req.query.status as string;
+
+    // Build where clause for filtering
+    const where: any = {};
+    
+    if (search) {
+      where.OR = [
+        { jobType: { title: { contains: search, mode: 'insensitive' } } },
+        { driver: { name: { contains: search, mode: 'insensitive' } } },
+        { unit: { name: { contains: search, mode: 'insensitive' } } },
+        { dispatcher: { name: { contains: search, mode: 'insensitive' } } }
+      ];
+    }
+    
+    if (dispatcherId) {
+      where.dispatcherId = dispatcherId;
+    }
+    
+    if (unitId) {
+      where.unitId = unitId;
+    }
+    
+    if (driverId) {
+      where.driverId = driverId;
+    }
+    
+    if (status) {
+      where.invoiceStatus = status;
+    }
+
+    // Get total count for pagination
+    const total = await prisma.job.count({ where });
+
+    // Fetch jobs with pagination
     const jobs = await prisma.job.findMany({
+      where,
       include: {
         driver: true,
         jobType: true,
@@ -97,8 +138,18 @@ export const getJobs = async (req: Request, res: Response) => {
         invoiceLines: true,
         invoice: true,
       },
+      orderBy: { jobDate: 'desc' },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
     });
-    res.json(jobs);
+
+    res.json({
+      data: jobs,
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
+    });
   } catch (error) {
     console.error("Error in getJobs:", error);
     res.status(500).json({ error: "Failed to fetch jobs" });

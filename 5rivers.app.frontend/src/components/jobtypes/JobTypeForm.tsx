@@ -3,7 +3,7 @@ import { jobTypeApi, companyApi } from "@/src/lib/api";
 import { Button } from "../ui/button";
 import { FormField } from "../common/FormField";
 import { toast } from "sonner";
-import type { JobType, Company } from "@/src/types/entities";
+import type { JobType } from "@/src/types/entities";
 
 interface JobTypeFormProps {
   jobType?: JobType;
@@ -31,12 +31,14 @@ export function JobTypeForm({
   >([]);
 
   useEffect(() => {
-    companyApi.fetchAll().then((companies: Company[]) => {
+    companyApi.fetchAll().then((response: { data?: any[] } | any[]) => {
+      // Handle paginated response format
+      const companies = response.data || response;
       setCompanyOptions(
         companies
           .slice()
-          .sort((a, b) => a.name.localeCompare(b.name))
-          .map((c) => ({ value: c.companyId || "", label: c.name }))
+          .sort((a: any, b: any) => a.name.localeCompare(b.name))
+          .map((c: any) => ({ value: c.companyId || "", label: c.name }))
       );
     });
   }, []);

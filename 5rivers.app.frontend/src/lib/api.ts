@@ -39,7 +39,19 @@ async function updateData<T>(endpoint: string, id: string, data: T) {
 
 // Companies API
 export const companyApi = {
-  fetchAll: () => fetchData("companies"),
+  fetchAll: (params?: {
+    page?: number;
+    pageSize?: number;
+    search?: string;
+  }) => {
+    const query = new URLSearchParams();
+    if (params?.page) query.append("page", String(params.page));
+    if (params?.pageSize) query.append("pageSize", String(params.pageSize));
+    if (params?.search) query.append("search", params.search);
+
+    const url = params ? `companies?${query.toString()}` : "companies";
+    return fetchData(url);
+  },
   getById: (id: string) => fetchData(`companies/${id}`),
   create: (data: Omit<Company, "companyId">) => createData("companies", data),
   update: (id: string, data: Omit<Company, "companyId">) =>
@@ -49,7 +61,19 @@ export const companyApi = {
 
 // Dispatchers API
 export const dispatcherApi = {
-  fetchAll: () => fetchData("dispatchers"),
+  fetchAll: (params?: {
+    page?: number;
+    pageSize?: number;
+    search?: string;
+  }) => {
+    const query = new URLSearchParams();
+    if (params?.page) query.append("page", String(params.page));
+    if (params?.pageSize) query.append("pageSize", String(params.pageSize));
+    if (params?.search) query.append("search", params.search);
+
+    const url = params ? `dispatchers?${query.toString()}` : "dispatchers";
+    return fetchData(url);
+  },
   getById: (id: string) => fetchData(`dispatchers/${id}`),
   create: (data: Omit<Dispatcher, "dispatcherId">) =>
     createData("dispatchers", data),
@@ -60,7 +84,19 @@ export const dispatcherApi = {
 
 // Drivers API
 export const driverApi = {
-  fetchAll: () => fetchData("drivers"),
+  fetchAll: (params?: {
+    page?: number;
+    pageSize?: number;
+    search?: string;
+  }) => {
+    const query = new URLSearchParams();
+    if (params?.page) query.append("page", String(params.page));
+    if (params?.pageSize) query.append("pageSize", String(params.pageSize));
+    if (params?.search) query.append("search", params.search);
+
+    const url = params ? `drivers?${query.toString()}` : "drivers";
+    return fetchData(url);
+  },
   getById: (id: string) => fetchData(`drivers/${id}`),
   create: (data: Omit<Driver, "driverId">) => createData("drivers", data),
   update: (id: string, data: Omit<Driver, "driverId">) =>
@@ -70,7 +106,19 @@ export const driverApi = {
 
 // Units API
 export const unitApi = {
-  fetchAll: () => fetchData("units"),
+  fetchAll: (params?: {
+    page?: number;
+    pageSize?: number;
+    search?: string;
+  }) => {
+    const query = new URLSearchParams();
+    if (params?.page) query.append("page", String(params.page));
+    if (params?.pageSize) query.append("pageSize", String(params.pageSize));
+    if (params?.search) query.append("search", params.search);
+    
+    const url = params ? `units?${query.toString()}` : "units";
+    return fetchData(url);
+  },
   getById: (id: string) => fetchData(`units/${id}`),
   create: (data: Omit<Unit, "unitId">) => createData("units", data),
   update: (id: string, data: Omit<Unit, "unitId">) =>
@@ -80,26 +128,52 @@ export const unitApi = {
 
 // JobTypes API
 export const jobTypeApi = {
-  fetchAll: () => fetchData("jobtypes"),
+  fetchAll: (params?: {
+    page?: number;
+    pageSize?: number;
+    search?: string;
+    companyId?: string;
+    dispatchType?: string;
+  }) => {
+    const query = new URLSearchParams();
+    if (params?.page) query.append("page", String(params.page));
+    if (params?.pageSize) query.append("pageSize", String(params.pageSize));
+    if (params?.search) query.append("search", params.search);
+    if (params?.companyId) query.append("companyId", params.companyId);
+    if (params?.dispatchType) query.append("dispatchType", params.dispatchType);
+    
+    const url = params ? `jobtypes?${query.toString()}` : "jobtypes";
+    return fetchData(url);
+  },
   getById: (id: string) => fetchData(`jobtypes/${id}`),
   create: (data: any) => createData("jobtypes", data),
   update: (id: string, data: any) => updateData("jobtypes", id, data),
   delete: (id: string) => deleteData("jobtypes", id),
 };
 
-// DriverRates API
-export const driverRateApi = {
-  fetchByDriver: (driverId: string) => fetchData(`drivers/${driverId}/rates`),
-  fetchByJobType: (jobTypeId: string) =>
-    fetchData(`jobtypes/${jobTypeId}/rates`),
-  create: (data: any) => createData("driverrates", data),
-  update: (id: string, data: any) => updateData("driverrates", id, data),
-  delete: (id: string) => deleteData("driverrates", id),
-};
-
 // Jobs API
 export const jobApi = {
-  fetchAll: () => fetchData("jobs"),
+  fetchAll: (params?: {
+    page?: number;
+    pageSize?: number;
+    search?: string;
+    dispatcherId?: string;
+    unitId?: string;
+    driverId?: string;
+    status?: string;
+  }) => {
+    const query = new URLSearchParams();
+    if (params?.page) query.append("page", String(params.page));
+    if (params?.pageSize) query.append("pageSize", String(params.pageSize));
+    if (params?.search) query.append("search", params.search);
+    if (params?.dispatcherId) query.append("dispatcherId", params.dispatcherId);
+    if (params?.unitId) query.append("unitId", params.unitId);
+    if (params?.driverId) query.append("driverId", params.driverId);
+    if (params?.status) query.append("status", params.status);
+    
+    const url = params ? `jobs?${query.toString()}` : "jobs";
+    return fetchData(url);
+  },
   getById: (id: string) => fetchData(`jobs/${id}`),
   create: (data: any, isFormData = false) => {
     if (isFormData) {
@@ -151,7 +225,23 @@ export const jobTicketApi = {
 
 // Invoices API
 export const invoiceApi = {
-  fetchAll: () => fetchData("invoices"),
+  fetchAll: (params?: {
+    page?: number;
+    pageSize?: number;
+    search?: string;
+    dispatcherId?: string;
+    status?: string;
+  }) => {
+    const query = new URLSearchParams();
+    if (params?.page) query.append("page", String(params.page));
+    if (params?.pageSize) query.append("pageSize", String(params.pageSize));
+    if (params?.search) query.append("search", params.search);
+    if (params?.dispatcherId) query.append("dispatcherId", params.dispatcherId);
+    if (params?.status) query.append("status", params.status);
+
+    const url = params ? `invoices?${query.toString()}` : "invoices";
+    return fetchData(url);
+  },
   getById: (id: string) => fetchData(`invoices/${id}`),
   create: (data: any) => createData("invoices", data),
   update: (id: string, data: any) => updateData("invoices", id, data),
@@ -254,3 +344,12 @@ export async function loginUser(
   localStorage.setItem("token", token);
   return token;
 }
+
+// Driver Rates API
+export const driverRateApi = {
+  fetchByDriver: (driverId: string) => fetchData(`drivers/${driverId}/rates`),
+  fetchByJobType: (jobTypeId: string) => fetchData(`jobtypes/${jobTypeId}/rates`),
+  create: (data: any) => createData("driverrates", data),
+  update: (id: string, data: any) => updateData("driverrates", id, data),
+  delete: (id: string) => deleteData("driverrates", id),
+};

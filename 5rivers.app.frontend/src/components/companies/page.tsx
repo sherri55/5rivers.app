@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { CompanyList } from "@/src/components/companies/CompanyList";
 import { CompanyForm } from "@/src/components/companies/CompanyForm";
 import { CompanyView } from "@/src/components/companies/CompanyView";
@@ -25,23 +25,9 @@ export default function CompaniesPage() {
   const [editingCompany, setEditingCompany] = useState<Company | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
-  const [companyCount, setCompanyCount] = useState<number>(0);
 
   // Refresh the list when data changes
   const refresh = () => setRefreshTrigger((prev) => prev + 1);
-
-  // Fetch company count
-  useEffect(() => {
-    const fetchCompanyCount = async () => {
-      try {
-        const response = await companyApi.fetchAll({ pageSize: 1 });
-        setCompanyCount(response.total || 0);
-      } catch (error) {
-        console.error("Failed to fetch company count:", error);
-      }
-    };
-    fetchCompanyCount();
-  }, [refreshTrigger]);
 
   const handleCreate = () => {
     setEditingCompany(null);
@@ -68,9 +54,8 @@ export default function CompaniesPage() {
       setSelectedCompany(null);
       setIsViewOpen(false);
       refresh();
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "Unknown error";
-      toast.error("Failed to delete company: " + message);
+    } catch (error: any) {
+      toast.error("Failed to delete company: " + error.message);
     }
     setConfirmDelete(false);
   };
@@ -89,7 +74,7 @@ export default function CompaniesPage() {
           <div className="mt-4 sm:mt-0">
             <div className="bg-white/20 backdrop-blur-sm rounded-lg px-4 py-2">
               <span className="text-sm font-medium">Total Companies</span>
-              <div className="text-2xl font-bold">{companyCount}</div>
+              <div className="text-2xl font-bold">12</div>
             </div>
           </div>
         </div>

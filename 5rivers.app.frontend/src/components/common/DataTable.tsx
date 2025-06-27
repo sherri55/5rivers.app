@@ -15,7 +15,7 @@ import { Search } from "lucide-react";
 
 export interface Column<T> {
   header: string;
-  accessorKey: keyof T | ((row: T) => any);
+  accessorKey: keyof T | ((row: T) => unknown);
   cell?: (row: T) => React.ReactNode;
 }
 
@@ -28,6 +28,7 @@ interface DataTableProps<T> {
   searchPlaceholder?: string;
   emptyTitle?: string;
   emptyDescription?: string;
+  onRowClick?: (row: T) => void;
 }
 
 export function DataTable<T>({
@@ -39,6 +40,7 @@ export function DataTable<T>({
   searchPlaceholder = "Search...",
   emptyTitle = "No Data",
   emptyDescription = "There are no records to display.",
+  onRowClick,
 }: DataTableProps<T>) {
   const [search, setSearch] = useState("");
 
@@ -50,7 +52,7 @@ export function DataTable<T>({
       })
     : data;
 
-  const renderCell = (row: T, column: Column<T>) => {
+  const renderCell = (row: T, column: Column<T>): React.ReactNode => {
     if (column.cell) {
       return column.cell(row);
     }
@@ -60,7 +62,7 @@ export function DataTable<T>({
         ? column.accessorKey(row)
         : row[column.accessorKey as keyof T];
 
-    return accessValue ?? "—";
+    return String(accessValue ?? "—");
   };
 
   return (
@@ -107,7 +109,11 @@ export function DataTable<T>({
           </TableHeader>
           <TableBody>
             {filteredData.map((row, rowIndex) => (
-              <TableRow key={rowIndex}>
+              <TableRow
+                key={rowIndex}
+                onClick={() => onRowClick?.(row)}
+                className="cursor-pointer hover:bg-muted"
+              >
                 {columns.map((column, colIndex) => (
                   <TableCell key={colIndex}>
                     {renderCell(row, column)}

@@ -4,10 +4,45 @@ const prisma = new PrismaClient();
 
 export const getCompanies = async (req: Request, res: Response) => {
   try {
+    const page = parseInt(req.query.page as string) || 1;
+    const pageSize = parseInt(req.query.pageSize as string) || 20;
+    const search = req.query.search as string;
+
+    // Build where clause for filtering
+    const where: any = {};
+    
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } }
+      ];
+    }
+
+    // Get total count for pagination
+    const total = await prisma.company.count({ where });
+
+    // Fetch companies with pagination
     const companies = await prisma.company.findMany({
+      where,
       include: { jobTypes: true },
+      orderBy: { name: 'asc' },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
     });
-    res.json(companies);
+
+    // For each company, add job types count
+    const result = companies.map((company) => ({
+      ...company,
+      jobTypesCount: company.jobTypes.length,
+    }));
+
+    res.json({
+      data: result,
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
+    });
   } catch (error) {
     console.error('Error in getCompanies:', error);
     res.status(500).json({ error: "Failed to fetch companies" });

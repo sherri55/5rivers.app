@@ -58,13 +58,26 @@ export function JobForm({ job, onSuccess, onCancel }: JobFormProps) {
       unitApi.fetchAll(),
       dispatcherApi.fetchAll(),
     ])
-      .then(([jobTypes, drivers, units, dispatchers]) => {
-        setJobTypes(jobTypes);
-        setDrivers(drivers);
-        setUnits(units);
-        setDispatchers(dispatchers);
-        setDropdownLoading(false);
-      })
+      .then(
+        ([
+          jobTypesResponse,
+          driversResponse,
+          unitsResponse,
+          dispatchersResponse,
+        ]) => {
+          // Handle paginated response format
+          const jobTypes = jobTypesResponse.data || jobTypesResponse;
+          const drivers = driversResponse.data || driversResponse;
+          const units = unitsResponse.data || unitsResponse;
+          const dispatchers = dispatchersResponse.data || dispatchersResponse;
+
+          setJobTypes(jobTypes);
+          setDrivers(drivers);
+          setUnits(units);
+          setDispatchers(dispatchers);
+          setDropdownLoading(false);
+        }
+      )
       .catch(() => setDropdownLoading(false));
   }, []);
 

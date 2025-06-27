@@ -4,7 +4,7 @@ const nextConfig: NextConfig = {
   // Use src/app as the app directory
   experimental: {},
   // Explicitly allow your production domain for cross-origin requests
-  allowedDevOrigins: ["localhost","5riverstruckinginc.ca"],
+  // allowedDevOrigins: ["localhost:9999","5riverstruckinginc.ca"],
   // Optionally, add more config options as needed
 };
 

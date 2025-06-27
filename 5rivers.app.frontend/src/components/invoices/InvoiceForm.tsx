@@ -74,7 +74,11 @@ export function InvoiceForm({
   useEffect(() => {
     dispatcherApi
       .fetchAll()
-      .then(setDispatchers)
+      .then((response) => {
+        // Handle paginated response format
+        const dispatchers = response.data || response;
+        setDispatchers(dispatchers);
+      })
       .catch(() => toast.error("Failed to load dispatchers"));
   }, []);
 
@@ -112,19 +116,21 @@ export function InvoiceForm({
   // Fetch jobs for selected dispatcher
   useEffect(() => {
     if (dispatcherId) {
-      jobApi.fetchAll().then((allJobs: any[]) => {
+      jobApi.fetchAll().then((response: { data?: any[] } | any[]) => {
+        // Handle paginated response format
+        const allJobs = response.data || response;
         let filtered;
         if (invoice && invoice.invoiceId) {
           // Include jobs for this dispatcher that are either not invoiced or belong to this invoice
           filtered = allJobs.filter(
-            (j) =>
+            (j: any) =>
               j.dispatcherId === dispatcherId &&
               (!j.invoiceId || j.invoiceId === invoice.invoiceId)
           );
         } else {
           // Only jobs for this dispatcher and not already invoiced
           filtered = allJobs.filter(
-            (j) => j.dispatcherId === dispatcherId && !j.invoiceId
+            (j: any) => j.dispatcherId === dispatcherId && !j.invoiceId
           );
         }
         setJobs(filtered);

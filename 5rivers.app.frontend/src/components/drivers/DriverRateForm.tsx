@@ -51,8 +51,10 @@ export function DriverRateForm({
     setLoadingJobTypes(true);
     jobTypeApi
       .fetchAll()
-      .then((data) => {
-        setJobTypes(data);
+      .then((response) => {
+        // Handle paginated response format
+        const jobTypesData = response.data || response;
+        setJobTypes(jobTypesData);
         setLoadingJobTypes(false);
       })
       .catch((error) => {
