@@ -92,72 +92,78 @@ export function CompanyForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <FormField
-        id="name"
-        label="Company Name"
-        value={name}
-        onChange={setName}
-        placeholder="Enter company name"
-        required
-        error={errors.name}
-      />
+    <form onSubmit={handleSubmit} className="slide-over-form">
+      <div className="form-section">
+        <FormField
+          id="name"
+          label="Company Name"
+          value={name}
+          onChange={setName}
+          placeholder="Enter company name"
+          required
+          error={errors.name}
+        />
 
-      <FormField
-        id="email"
-        label="Email Address"
-        type="email"
-        value={email}
-        onChange={setEmail}
-        placeholder="Enter company email"
-        required
-        error={errors.email}
-      />
+        <FormField
+          id="email"
+          label="Email Address"
+          type="email"
+          value={email}
+          onChange={setEmail}
+          placeholder="Enter company email"
+          required
+          error={errors.email}
+        />
+      </div>
 
-      <FormField
-        id="phone"
-        label="Phone Number"
-        type="tel"
-        value={phone}
-        onChange={setPhone}
-        placeholder="Enter phone number"
-        error={errors.phone}
-      />
+      <div className="form-section">
+        <FormField
+          id="phone"
+          label="Phone Number"
+          type="tel"
+          value={phone}
+          onChange={setPhone}
+          placeholder="Enter phone number"
+          error={errors.phone}
+        />
 
-      <FormField
-        id="description"
-        label="Description"
-        type="textarea"
-        value={description}
-        onChange={setDescription}
-        placeholder="Enter company description"
-        error={errors.description}
-      />
+        <FormField
+          id="description"
+          label="Description"
+          type="textarea"
+          value={description}
+          onChange={setDescription}
+          placeholder="Enter company description"
+          error={errors.description}
+        />
+      </div>
 
-      <div className="flex justify-end gap-2 pt-4">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onCancel}
-          disabled={loading}
-        >
-          Cancel
-        </Button>
-        <Button
-          type="submit"
-          disabled={loading}
-          className={
-            company
-              ? "bg-orange-500 hover:bg-orange-600 text-white"
-              : "bg-blue-600 hover:bg-blue-700 text-white"
-          }
-        >
-          {loading
-            ? "Saving..."
-            : company
-            ? "Update Company"
-            : "Create Company"}
-        </Button>
+      <div className="form-actions sticky">
+        <div className="btn-group">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onCancel}
+            disabled={loading}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            disabled={loading}
+            className={
+              company
+                ? "bg-orange-500 hover:bg-orange-600 text-white"
+                : "bg-blue-600 hover:bg-blue-700 text-white"
+            }
+          >
+            {loading
+              ? "Saving..."
+              : company
+              ? "Update Company"
+              : "Create Company"}
+          </Button>
+        </div>
       </div>
     </form>
   );

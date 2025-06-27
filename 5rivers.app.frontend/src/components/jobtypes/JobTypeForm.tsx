@@ -77,90 +77,115 @@ export function JobTypeForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <FormField
-        id="title"
-        label="Title"
-        value={title}
-        onChange={setTitle}
-        placeholder="Enter title"
-        required
-        error={errors.title}
-      />
-      <FormField
-        id="startLocation"
-        label="Start Location"
-        value={startLocation}
-        onChange={setStartLocation}
-        placeholder="Enter start location"
-      />
-      <FormField
-        id="endLocation"
-        label="End Location"
-        value={endLocation}
-        onChange={setEndLocation}
-        placeholder="Enter end location"
-      />
-      <FormField
-        id="dispatchType"
-        label="Dispatch Type"
-        type="select"
-        value={dispatchType}
-        onChange={setDispatchType}
-        options={[
-          { value: "Hourly", label: "Hourly" },
-          { value: "Tonnage", label: "Tonnage" },
-          { value: "Load", label: "Load" },
-          { value: "Fixed", label: "Fixed" },
-        ]}
-        placeholder="Select dispatch type"
-      />
-      <FormField
-        id="rateOfJob"
-        label="Rate"
-        type="number"
-        value={rateOfJob}
-        onChange={setRateOfJob}
-        placeholder="Enter rate"
-      />
-      <FormField
-        id="companyId"
-        label="Company"
-        type="select"
-        value={companyId}
-        onChange={setCompanyId}
-        options={companyOptions}
-        placeholder="Select company"
-        required
-        error={errors.companyId}
-      />
-      <div className="flex gap-2 justify-end">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onCancel}
-          disabled={loading}
-        >
-          Cancel
-        </Button>
-        <Button
-          type="submit"
-          disabled={loading}
-          className={
-            jobType
-              ? "bg-orange-500 hover:bg-orange-600 text-white"
-              : "bg-blue-600 hover:bg-blue-700 text-white"
-          }
-        >
-          {loading
-            ? jobType
-              ? "Updating..."
-              : "Creating..."
-            : jobType
-            ? "Update Job Type"
-            : "Create Job Type"}
-        </Button>
-      </div>
-    </form>
+    <div className="slide-over-form">
+      <form onSubmit={handleSubmit}>
+        <div className="form-section">
+          <FormField
+            id="title"
+            label="Title"
+            value={title}
+            onChange={setTitle}
+            placeholder="Enter title"
+            required
+            error={errors.title}
+          />
+          
+          <div className="form-row-2">
+            <FormField
+              id="startLocation"
+              label="Start Location"
+              value={startLocation}
+              onChange={setStartLocation}
+              placeholder="Enter start location"
+            />
+            <FormField
+              id="endLocation"
+              label="End Location"
+              value={endLocation}
+              onChange={setEndLocation}
+              placeholder="Enter end location"
+            />
+          </div>
+
+          <div className="form-row-2">
+            <FormField
+              id="dispatchType"
+              label="Dispatch Type"
+              type="select"
+              value={dispatchType}
+              onChange={setDispatchType}
+              options={[
+                { value: "Hourly", label: "Hourly" },
+                { value: "Tonnage", label: "Tonnage" },
+                { value: "Load", label: "Load" },
+                { value: "Fixed", label: "Fixed" },
+              ]}
+              placeholder="Select dispatch type"
+            />
+            <FormField
+              id="rateOfJob"
+              label="Rate"
+              type="number"
+              value={rateOfJob}
+              onChange={setRateOfJob}
+              placeholder="Enter rate"
+            />
+          </div>
+
+          <FormField
+            id="companyId"
+            label="Company"
+            type="select"
+            value={companyId}
+            onChange={setCompanyId}
+            options={companyOptions}
+            placeholder="Select company"
+            required
+            error={errors.companyId}
+          />
+        </div>
+
+        <div className="form-actions sticky">
+          <div className="btn-group">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onCancel}
+              disabled={loading}
+              style={{
+                backgroundColor: 'white',
+                border: '1px solid #d1d5db',
+                color: '#374151',
+                padding: '8px 16px',
+                borderRadius: '6px',
+                cursor: 'pointer'
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              disabled={loading}
+              style={{
+                backgroundColor: jobType ? '#f97316' : '#2563eb',
+                color: 'white',
+                border: 'none',
+                padding: '8px 16px',
+                borderRadius: '6px',
+                cursor: 'pointer'
+              }}
+            >
+              {loading
+                ? jobType
+                  ? "Updating..."
+                  : "Creating..."
+                : jobType
+                ? "Update Job Type"
+                : "Create Job Type"}
+            </Button>
+          </div>
+        </div>
+      </form>
+    </div>
   );
 }

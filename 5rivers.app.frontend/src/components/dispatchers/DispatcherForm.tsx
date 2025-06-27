@@ -102,83 +102,91 @@ export function DispatcherForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <FormField
-        id="name"
-        label="Name"
-        value={name}
-        onChange={setName}
-        placeholder="Enter dispatcher name"
-        required
-        error={errors.name}
-      />
+    <form onSubmit={handleSubmit} className="slide-over-form">
+      <div className="form-section">
+        <FormField
+          id="name"
+          label="Name"
+          value={name}
+          onChange={setName}
+          placeholder="Enter dispatcher name"
+          required
+          error={errors.name}
+        />
 
-      <FormField
-        id="email"
-        label="Email Address"
-        type="email"
-        value={email}
-        onChange={setEmail}
-        placeholder="Enter email address"
-        required
-        error={errors.email}
-      />
+        <FormField
+          id="email"
+          label="Email Address"
+          type="email"
+          value={email}
+          onChange={setEmail}
+          placeholder="Enter email address"
+          required
+          error={errors.email}
+        />
+      </div>
 
-      <FormField
-        id="phone"
-        label="Phone Number"
-        type="tel"
-        value={phone}
-        onChange={setPhone}
-        placeholder="Enter phone number"
-      />
+      <div className="form-section">
+        <FormField
+          id="phone"
+          label="Phone Number"
+          type="tel"
+          value={phone}
+          onChange={setPhone}
+          placeholder="Enter phone number"
+        />
 
-      <FormField
-        id="commissionPercent"
-        label="Commission Percentage"
-        type="number"
-        value={commissionPercent}
-        onChange={setCommissionPercent}
-        placeholder="Enter commission percentage"
-        min={0}
-        max={100}
-        step={0.1}
-        error={errors.commissionPercent}
-      />
+        <FormField
+          id="commissionPercent"
+          label="Commission Percentage"
+          type="number"
+          value={commissionPercent}
+          onChange={setCommissionPercent}
+          placeholder="Enter commission percentage"
+          min={0}
+          max={100}
+          step={0.1}
+          error={errors.commissionPercent}
+        />
+      </div>
 
-      <FormField
-        id="description"
-        label="Description"
-        type="textarea"
-        value={description}
-        onChange={setDescription}
-        placeholder="Enter description"
-      />
+      <div className="form-section">
+        <FormField
+          id="description"
+          label="Description"
+          type="textarea"
+          value={description}
+          onChange={setDescription}
+          placeholder="Enter description"
+        />
+      </div>
 
-      <div className="flex justify-end gap-2 pt-4">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onCancel}
-          disabled={loading}
-        >
-          Cancel
-        </Button>
-        <Button
-          type="submit"
-          disabled={loading}
-          className={
-            dispatcher
-              ? "bg-orange-500 hover:bg-orange-600 text-white"
-              : "bg-blue-600 hover:bg-blue-700 text-white"
-          }
-        >
-          {loading
-            ? "Saving..."
-            : dispatcher
-            ? "Update Dispatcher"
-            : "Create Dispatcher"}
-        </Button>
+      <div className="form-actions sticky">
+        <div className="btn-group">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onCancel}
+            disabled={loading}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            disabled={loading}
+            className={
+              dispatcher
+                ? "bg-orange-500 hover:bg-orange-600 text-white"
+                : "bg-blue-600 hover:bg-blue-700 text-white"
+            }
+          >
+            {loading
+              ? "Saving..."
+              : dispatcher
+              ? "Update Dispatcher"
+              : "Create Dispatcher"}
+          </Button>
+        </div>
       </div>
     </form>
   );

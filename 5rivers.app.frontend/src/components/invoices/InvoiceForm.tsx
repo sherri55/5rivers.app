@@ -199,136 +199,151 @@ export function InvoiceForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <FormField
-        id="invoiceDate"
-        label="Date"
-        type="date"
-        value={invoiceDate}
-        onChange={setInvoiceDate}
-        required
-        error={errors.invoiceDate}
-      />
-      <div>
-        <label className="block text-sm font-medium mb-1">Dispatcher</label>
-        <select
-          id="dispatcherId"
-          value={dispatcherId}
-          onChange={(e) => setDispatcherId(e.target.value)}
-          className="w-full border rounded px-2 py-1"
-          required
-        >
-          <option value="">Select dispatcher</option>
-          {dispatchers.map((d) => (
-            <option key={d.dispatcherId} value={d.dispatcherId}>
-              {d.name}
-            </option>
-          ))}
-        </select>
-        {errors.dispatcherId && (
-          <div className="text-red-500 text-xs">{errors.dispatcherId}</div>
-        )}
-      </div>
-      <FormField
-        id="billedTo"
-        label="Billed To"
-        value={billedTo}
-        onChange={setBilledTo}
-        placeholder="Auto-filled from dispatcher"
-        required
-        error={errors.billedTo}
-        disabled
-      />
-      <FormField
-        id="billedEmail"
-        label="Billed Email"
-        type="email"
-        value={billedEmail}
-        onChange={setBilledEmail}
-        placeholder="Auto-filled from dispatcher"
-        required
-        error={errors.billedEmail}
-        disabled
-      />
-      <FormField
-        id="commission"
-        label="Commission (%)"
-        type="number"
-        value={commission}
-        onChange={setCommission}
-        placeholder="Auto-filled from dispatcher"
-        required
-        disabled
-      />
-      <div>
-        <label className="block text-sm font-medium mb-1">Jobs</label>
-        <Select
-          isMulti
-          options={jobOptions}
-          value={jobOptions.filter((opt) => selectedJobIds.includes(opt.value))}
-          onChange={(selected) =>
+    <div className="slide-over-form">
+      <form onSubmit={handleSubmit}>
+        <div className="form-section">
+          <FormField
+            id="invoiceDate"
+            label="Date"
+            type="date"
+            value={invoiceDate}
+            onChange={setInvoiceDate}
+            required
+            error={errors.invoiceDate}
+          />
+          <div>
+            <label className="block text-sm font-medium mb-1">Dispatcher</label>
+            <select
+              id="dispatcherId"
+              value={dispatcherId}
+              onChange={(e) => setDispatcherId(e.target.value)}
+              className="w-full border rounded px-2 py-1"
+              required
+            >
+              <option value="">Select dispatcher</option>
+              {dispatchers.map((d) => (
+                <option key={d.dispatcherId} value={d.dispatcherId}>
+                  {d.name}
+                </option>
+              ))}
+            </select>
+            {errors.dispatcherId && (
+              <div className="text-red-500 text-xs">{errors.dispatcherId}</div>
+            )}
+          </div>
+          <FormField
+            id="billedTo"
+            label="Billed To"
+            value={billedTo}
+            onChange={setBilledTo}
+            placeholder="Auto-filled from dispatcher"
+            required
+            error={errors.billedTo}
+          />
+          <FormField
+            id="billedEmail"
+            label="Billed Email"
+            type="email"
+            value={billedEmail}
+            onChange={setBilledEmail}
+            placeholder="Auto-filled from dispatcher"
+            required
+            error={errors.billedEmail}
+          />
+          <FormField
+            id="commission"
+            label="Commission (%)"
+            type="number"
+            value={commission}
+            onChange={setCommission}
+            placeholder="Auto-filled from dispatcher"
+            required
+          />
+          <div>
+            <label className="block text-sm font-medium mb-1">Jobs</label>
+            <Select
+              isMulti
+              options={jobOptions}
+              value={jobOptions.filter((opt) => selectedJobIds.includes(opt.value))}
+              onChange={(selected) =>
             setSelectedJobIds(selected.map((opt) => opt.value))
-          }
-          classNamePrefix="react-select"
-          placeholder="Select jobs..."
-        />
-        {errors.jobs && (
-          <div className="text-red-500 text-xs">{errors.jobs}</div>
-        )}
-      </div>
-      <div>
-        <label className="block text-sm font-medium mb-1">Status</label>
-        <select
-          value={status}
-          onChange={(e) => setStatus(e.target.value)}
-          className="w-full border rounded px-2 py-1"
-        >
-          <option value="pending">Pending</option>
-          <option value="raised">Raised</option>
-          <option value="received">Received</option>
-        </select>
-      </div>
-      <div className="flex gap-4">
-        <div>
-          <label className="block text-xs text-muted-foreground">
-            Subtotal
-          </label>
-          <div className="font-semibold">${subTotal.toFixed(2)}</div>
+              }
+              classNamePrefix="react-select"
+              placeholder="Select jobs..."
+            />
+            {errors.jobs && (
+              <div className="text-red-500 text-xs">{errors.jobs}</div>
+            )}
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Status</label>
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              className="w-full border rounded px-2 py-1"
+            >
+              <option value="pending">Pending</option>
+              <option value="raised">Raised</option>
+              <option value="received">Received</option>
+            </select>
+          </div>
+          <div className="flex gap-4">
+            <div>
+              <label className="block text-xs text-muted-foreground">
+                Subtotal
+              </label>
+              <div className="font-semibold">${subTotal.toFixed(2)}</div>
+            </div>
+            <div>
+              <label className="block text-xs text-muted-foreground">
+                Total (incl. 13% HST)
+              </label>
+              <div className="font-semibold">${total.toFixed(2)}</div>
+            </div>
+          </div>
         </div>
-        <div>
-          <label className="block text-xs text-muted-foreground">
-            Total (incl. 13% HST)
-          </label>
-          <div className="font-semibold">${total.toFixed(2)}</div>
+
+        <div className="form-actions sticky">
+          <div className="btn-group">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onCancel}
+              disabled={loading}
+              style={{
+                backgroundColor: 'white',
+                border: '1px solid #d1d5db',
+                color: '#374151',
+                padding: '8px 16px',
+                borderRadius: '6px',
+                cursor: 'pointer'
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              disabled={loading}
+              style={{
+                backgroundColor: invoice ? '#f97316' : '#2563eb',
+                color: 'white',
+                border: 'none',
+                padding: '8px 16px',
+                borderRadius: '6px',
+                cursor: 'pointer'
+              }}
+            >
+              {loading
+                ? invoice
+                  ? "Updating..."
+                  : "Creating..."
+                : invoice
+                ? "Update Invoice"
+                : "Create Invoice"}
+            </Button>
+          </div>
         </div>
-      </div>
-      <div className="flex gap-2 justify-end">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onCancel}
-          disabled={loading}
-        >
-          Cancel
-        </Button>
-        <Button
-          type="submit"
-          disabled={loading}
-          className={
-            invoice
-              ? "bg-orange-500 hover:bg-orange-600 text-white"
-              : "bg-blue-600 hover:bg-blue-700 text-white"
-          }
-        >
-          {loading
-            ? invoice
-              ? "Updating..."
-              : "Creating..."
-            : invoice
-            ? "Update Invoice"
-            : "Create Invoice"}
-        </Button>
-      </div>
-    </form>
+      </form>
+    </div>
   );
 }

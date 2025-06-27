@@ -267,54 +267,56 @@ export function JobForm({ job, onSuccess, onCancel }: JobFormProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <FormField
-        id="jobDate"
-        label="Date"
-        type="date"
-        value={jobDate}
-        onChange={setJobDate}
-        required
-        error={errors.jobDate}
-      />
-      <FormField
-        id="jobTypeId"
-        label="Job Type"
-        type="select"
-        value={jobTypeId}
-        onChange={setJobTypeId}
-        options={jobTypes
-          .slice()
-          .sort((a, b) => a.title.localeCompare(b.title))
-          .map((jt) => ({
-            value: jt.jobTypeId || "",
-            label: jt.title,
-          }))}
-        placeholder={
-          dropdownLoading ? "Loading job types..." : "Select job type"
-        }
-        required
-        error={errors.jobTypeId}
-      />
-      <FormField
-        id="driverId"
-        label="Driver"
-        type="select"
-        value={driverId}
-        onChange={setDriverId}
-        options={drivers.map((d) => ({
-          value: d.driverId || "",
-          label: d.name,
-        }))}
-        placeholder={dropdownLoading ? "Loading drivers..." : "Select driver"}
-        required
-        error={errors.driverId}
-      />
-      <FormField
-        id="unitId"
-        label="Unit"
-        type="select"
-        value={unitId}
+    <div className="slide-over-form">
+      <form onSubmit={handleSubmit}>
+        <div className="form-section">
+          <FormField
+            id="jobDate"
+            label="Date"
+            type="date"
+            value={jobDate}
+            onChange={setJobDate}
+            required
+            error={errors.jobDate}
+          />
+          <FormField
+            id="jobTypeId"
+            label="Job Type"
+            type="select"
+            value={jobTypeId}
+            onChange={setJobTypeId}
+            options={jobTypes
+              .slice()
+              .sort((a, b) => a.title.localeCompare(b.title))
+              .map((jt) => ({
+                value: jt.jobTypeId || "",
+                label: jt.title,
+              }))}
+            placeholder={
+              dropdownLoading ? "Loading job types..." : "Select job type"
+            }
+            required
+            error={errors.jobTypeId}
+          />
+          <FormField
+            id="driverId"
+            label="Driver"
+            type="select"
+            value={driverId}
+            onChange={setDriverId}
+            options={drivers.map((d) => ({
+              value: d.driverId || "",
+              label: d.name,
+            }))}
+            placeholder={dropdownLoading ? "Loading drivers..." : "Select driver"}
+            required
+            error={errors.driverId}
+          />
+          <FormField
+            id="unitId"
+            label="Unit"
+            type="select"
+            value={unitId}
         onChange={setUnitId}
         options={units.map((u) => ({ value: u.unitId || "", label: u.name }))}
         placeholder={dropdownLoading ? "Loading units..." : "Select unit"}
@@ -493,7 +495,6 @@ export function JobForm({ job, onSuccess, onCancel }: JobFormProps) {
         error={errors.jobGrossAmount}
         min={0}
         step={0.01}
-        readOnly={dispatchType !== "Fixed"}
       />
       {/* Image upload field */}
       <div>
@@ -540,34 +541,50 @@ export function JobForm({ job, onSuccess, onCancel }: JobFormProps) {
             ))}
           </div>
         )}
-      </div>
-      <div className="flex gap-2 justify-end">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onCancel}
-          disabled={loading}
-        >
-          Cancel
-        </Button>
-        <Button
-          type="submit"
-          disabled={loading}
-          className={
-            job
-              ? "bg-orange-500 hover:bg-orange-600 text-white"
-              : "bg-blue-600 hover:bg-blue-700 text-white"
-          }
-        >
-          {loading
-            ? job
-              ? "Updating..."
-              : "Creating..."
-            : job
-            ? "Update Job"
-            : "Create Job"}
-        </Button>
-      </div>
-    </form>
+        </div>
+        </div>
+
+        <div className="form-actions sticky">
+          <div className="btn-group">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onCancel}
+              disabled={loading}
+              style={{
+                backgroundColor: 'white',
+                border: '1px solid #d1d5db',
+                color: '#374151',
+                padding: '8px 16px',
+                borderRadius: '6px',
+                cursor: 'pointer'
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              disabled={loading}
+              style={{
+                backgroundColor: job ? '#f97316' : '#2563eb',
+                color: 'white',
+                border: 'none',
+                padding: '8px 16px',
+                borderRadius: '6px',
+                cursor: 'pointer'
+              }}
+            >
+              {loading
+                ? job
+                  ? "Updating..."
+                  : "Creating..."
+                : job
+                ? "Update Job"
+                : "Create Job"}
+            </Button>
+          </div>
+        </div>
+      </form>
+    </div>
   );
 }

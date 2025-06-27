@@ -1,3 +1,5 @@
+@import "tailwindcss";
+
 @font-face {
   font-family: 'Proxima Nova';
   src: url('/fonts/proxima-nova/proximanova_regular.ttf') format('truetype');
@@ -14,22 +16,56 @@
   font-display: swap;
 }
 
-@font-face {
-  font-family: 'Proxima Nova';
-  src: url('/fonts/proxima-nova/proximanova_regular.ttf') format('truetype');
-  ;
-  font-weight: 400;
-  font-style: italic;
-  font-display: swap;
+/* CSS Variables for consistent theming */
+:root {
+  --color-primary: #2563eb;
+  --color-primary-dark: #1d4ed8;
+  --color-primary-light: #3b82f6;
+  --color-secondary: #64748b;
+  --color-accent: #06b6d4;
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
+  --color-background: #ffffff;
+  --color-surface: #f8fafc;
+  --color-surface-hover: #f1f5f9;
+  --color-border: #e2e8f0;
+  --color-text-primary: #0f172a;
+  --color-text-secondary: #64748b;
+  --color-text-muted: #94a3b8;
+  --gradient-primary: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+  --gradient-surface: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+}
+
+/* Dark mode variables */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-background: #0f172a;
+    --color-surface: #1e293b;
+    --color-surface-hover: #334155;
+    --color-border: #334155;
+    --color-text-primary: #f8fafc;
+    --color-text-secondary: #cbd5e1;
+    --color-text-muted: #94a3b8;
+    --gradient-surface: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  }
 }
 
 body {
-  font-family: 'Proxima Nova', Arial, sans-serif;
-  color: white;
-  background-color: #111 !important;
+  font-family: 'Proxima Nova', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: var(--color-text-primary);
+  background: var(--color-background);
   margin: 0;
   padding: 0;
   overflow-x: hidden;
+  line-height: 1.6;
+  font-feature-settings: 'kern' 1, 'liga' 1;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .container {
@@ -47,4 +83,681 @@ footer {
   z-index: 2 !important;
 }
 
-@import "tailwindcss";
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-surface);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}
+
+/* Enhanced animations */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.5s ease-out;
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 0.3s ease-out;
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Modern card shadows with gradient borders */
+.card-modern {
+  background: var(--gradient-surface);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-md);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card-modern:hover {
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-2px);
+}
+
+/* Glass effect for special elements */
+.glass-effect {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* Improved focus states */
+.focus-ring {
+  outline: none;
+  box-shadow: 0 0 0 2px #3b82f6, 0 0 0 4px rgba(59, 130, 246, 0.2);
+}
+
+/* Utility classes for consistent spacing */
+.section-padding {
+  padding: 4rem 1rem;
+}
+
+@media (min-width: 640px) {
+  .section-padding {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .section-padding {
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+}
+
+.content-container {
+  max-width: 80rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Enhanced button styles */
+.btn-primary {
+  background: var(--gradient-primary);
+  border: none;
+  color: white;
+  font-weight: 600;
+  transition: all 0.2s;
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Slide-over specific styles */
+.slide-over-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.slide-over-form .form-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.slide-over-form .form-actions {
+  display: flex;
+  gap: 0.75rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid rgb(226 232 240);
+  background-color: rgb(248 250 252);
+  margin-left: -1rem;
+  margin-right: -1rem;
+  padding-left: 1rem;
+  padding-right: 1rem;
+  padding-bottom: 1rem;
+  margin-top: 2rem;
+}
+
+@media (min-width: 640px) {
+  .slide-over-form .form-actions {
+    margin-left: -1.5rem;
+    margin-right: -1.5rem;
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+.slide-over-form .form-actions.sticky {
+  position: sticky;
+  bottom: 0;
+  margin-top: auto;
+}
+
+/* Form layout improvements for slide-overs */
+.slide-over-form input,
+.slide-over-form textarea,
+.slide-over-form select {
+  width: 100%;
+}
+
+.slide-over-form .form-row-2 {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+@media (min-width: 640px) {
+  .slide-over-form .form-row-2 {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.slide-over-form .form-row-3 {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+@media (min-width: 640px) {
+  .slide-over-form .form-row-3 {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}
+
+/* Enhanced focus styles for slide-overs */
+.slide-over-form input:focus,
+.slide-over-form textarea:focus,
+.slide-over-form select:focus {
+  outline: 2px solid rgb(59 130 246);
+  outline-offset: 2px;
+}
+
+/* Improved button spacing in slide-overs */
+.slide-over-form .btn-group {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+}
+
+.slide-over-form .btn-group.full-width {
+  width: 100%;
+}
+
+.slide-over-form .btn-group.full-width button {
+  flex: 1;
+}
+
+/* Slide-over animation enhancements */
+.slide-over-backdrop {
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.slide-over-panel {
+  box-shadow: 
+    0 25px 50px -12px rgba(0, 0, 0, 0.25),
+    0 0 0 1px rgba(0, 0, 0, 0.05);
+}
+
+/* Smooth scrolling in slide-overs */
+.slide-over-content {
+  scroll-behavior: smooth;
+}
+
+/* Better form spacing in slide-overs */
+.slide-over-form .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.slide-over-form .form-group-inline {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+/* Loading state for slide-over forms */
+.slide-over-form.loading {
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+.slide-over-form .loading-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+/* Form field visibility fixes for slide-overs */
+.slide-over-form input[data-slot="input"] {
+  background-color: white !important;
+  border: 1px solid #d1d5db !important;
+  color: #374151 !important;
+  font-size: 14px;
+  line-height: 1.5;
+  padding: 8px 12px;
+  border-radius: 6px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  min-height: 40px;
+}
+
+.slide-over-form input[data-slot="input"]:focus {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
+  outline: none;
+}
+
+.slide-over-form textarea {
+  background-color: white !important;
+  border: 1px solid #d1d5db !important;
+  color: #374151 !important;
+  font-size: 14px;
+  line-height: 1.5;
+  padding: 8px 12px;
+  border-radius: 6px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  min-height: 80px;
+  resize: vertical;
+}
+
+.slide-over-form textarea:focus {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
+  outline: none;
+}
+
+.slide-over-form label[data-slot="label"] {
+  color: #374151 !important;
+  font-weight: 500;
+  font-size: 14px;
+  margin-bottom: 4px;
+  display: block;
+}
+
+.slide-over-form .text-destructive {
+  color: #dc2626 !important;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+/* Select component fixes */
+.slide-over-form button[role="combobox"] {
+  background-color: white !important;
+  border: 1px solid #d1d5db !important;
+  color: #374151 !important;
+  font-size: 14px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  min-height: 40px;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.slide-over-form button[role="combobox"]:focus {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
+  outline: none;
+}
+
+/* Placeholder text */
+.slide-over-form input::placeholder,
+.slide-over-form textarea::placeholder {
+  color: #9ca3af !important;
+}
+
+/* Required asterisk styling */
+.slide-over-form label::after {
+  color: #dc2626;
+  margin-left: 2px;
+}
+
+/* Debug CSS for slide-over forms - temporary for visibility */
+.slide-over-form * {
+  box-sizing: border-box;
+}
+
+.slide-over-form {
+  background-color: white;
+  position: relative;
+  z-index: 1;
+}
+
+.slide-over-form .form-section {
+  background-color: transparent;
+  margin-bottom: 1.5rem;
+}
+
+.slide-over-form .space-y-1 > * + * {
+  margin-top: 0.25rem;
+}
+
+/* Force form field visibility */
+.slide-over-form input,
+.slide-over-form textarea,
+.slide-over-form select,
+.slide-over-form button[role="combobox"] {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  width: 100% !important;
+  box-sizing: border-box;
+  margin: 4px 0;
+}
+
+/* Label visibility */
+.slide-over-form label {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  margin-bottom: 4px;
+  font-weight: 500;
+  color: #374151;
+}
+
+/* Error message visibility */
+.slide-over-form .text-destructive,
+.slide-over-form [class*="text-red"] {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  color: #dc2626 !important;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+/* Simple test form field styling */
+.slide-over-form .test-visible {
+  background: red !important;
+  color: white !important;
+  padding: 10px !important;
+  border: 2px solid blue !important;
+}
+
+/* Fallback form styling if Tailwind isn't working */
+.slide-over-form input[type="text"],
+.slide-over-form input[type="email"],
+.slide-over-form input[type="tel"],
+.slide-over-form input[type="number"],
+.slide-over-form textarea {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 14px;
+  line-height: 1.4;
+  background-color: white;
+  color: #333;
+  min-height: 40px;
+}
+
+.slide-over-form input[type="text"]:focus,
+.slide-over-form input[type="email"]:focus,
+.slide-over-form input[type="tel"]:focus,
+.slide-over-form input[type="number"]:focus,
+.slide-over-form textarea:focus {
+  border-color: #0066cc;
+  outline: none;
+  box-shadow: 0 0 5px rgba(0, 102, 204, 0.3);
+}
+
+/* Comprehensive Select/Dropdown styling for slide-overs */
+.slide-over-form [data-radix-select-trigger],
+.slide-over-form button[role="combobox"] {
+  background-color: white !important;
+  border: 2px solid #d1d5db !important;
+  color: #1f2937 !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  padding: 8px 12px !important;
+  border-radius: 6px !important;
+  min-height: 40px !important;
+  width: 100% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  cursor: pointer !important;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+}
+
+.slide-over-form [data-radix-select-trigger]:hover,
+.slide-over-form button[role="combobox"]:hover {
+  border-color: #6b7280 !important;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1) !important;
+}
+
+.slide-over-form [data-radix-select-trigger]:focus,
+.slide-over-form button[role="combobox"]:focus {
+  border-color: #2563eb !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1) !important;
+  outline: none !important;
+}
+
+.slide-over-form [data-radix-select-trigger] > span,
+.slide-over-form button[role="combobox"] > span {
+  color: #1f2937 !important;
+  font-weight: 500 !important;
+  flex-grow: 1;
+  text-align: left;
+}
+
+.slide-over-form [data-radix-select-trigger] > svg,
+.slide-over-form button[role="combobox"] > svg {
+  color: #374151 !important;
+  width: 16px !important;
+  height: 16px !important;
+  flex-shrink: 0;
+}
+
+/* Select dropdown content styling with higher specificity */
+[data-radix-select-content] {
+  background-color: white !important;
+  border: 1px solid #d1d5db !important;
+  border-radius: 8px !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
+  z-index: 99999 !important;
+  max-height: 200px !important;
+  overflow-y: auto !important;
+  min-width: 200px !important;
+  padding: 8px !important;
+}
+
+[data-radix-select-viewport] {
+  padding: 0 !important;
+}
+
+[data-radix-select-item] {
+  color: #1f2937 !important;
+  background-color: transparent !important;
+  padding: 10px 12px !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  cursor: pointer !important;
+  border-radius: 6px !important;
+  margin: 2px 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  position: relative !important;
+  outline: none !important;
+  transition: all 0.2s ease !important;
+}
+
+[data-radix-select-item]:hover,
+[data-radix-select-item][data-highlighted] {
+  background-color: #f3f4f6 !important;
+  color: #111827 !important;
+}
+
+[data-radix-select-item][data-state="checked"] {
+  background-color: #dbeafe !important;
+  color: #1e40af !important;
+  font-weight: 600 !important;
+}
+
+[data-radix-select-item-text] {
+  color: inherit !important;
+  font-weight: inherit !important;
+}
+
+[data-radix-select-item-indicator] {
+  position: absolute !important;
+  left: 8px !important;
+  width: 16px !important;
+  height: 16px !important;
+  color: #2563eb !important;
+}
+
+/* Ensure dropdown placeholder text is visible and styled */
+.slide-over-form [data-radix-select-value][data-placeholder] {
+  color: #6b7280 !important;
+  font-weight: 400 !important;
+}
+
+.slide-over-form [data-radix-select-value]:not([data-placeholder]) {
+  color: #1f2937 !important;
+  font-weight: 500 !important;
+}
+
+/* Additional fallback for any select-like elements */
+.slide-over-form select,
+.slide-over-form [role="combobox"],
+.slide-over-form [role="button"][aria-expanded] {
+  background-color: white !important;
+  border: 2px solid #d1d5db !important;
+  color: #1f2937 !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  padding: 8px 12px !important;
+  border-radius: 6px !important;
+  min-height: 40px !important;
+  width: 100% !important;
+  cursor: pointer !important;
+}
+
+.slide-over-form select:focus,
+.slide-over-form [role="combobox"]:focus,
+.slide-over-form [role="button"][aria-expanded]:focus {
+  border-color: #2563eb !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1) !important;
+  outline: none !important;
+}
+
+/* Force dark text for any text content in dropdowns */
+.slide-over-form [data-radix-select-trigger] *,
+.slide-over-form button[role="combobox"] *,
+.slide-over-form select * {
+  color: #1f2937 !important;
+}
+
+/* Override any inherited light colors */
+.slide-over-form [data-radix-select-value] {
+  color: #1f2937 !important;
+  opacity: 1 !important;
+}
+
+/* Ensure all form elements have proper box model */
+.slide-over-form * {
+  box-sizing: border-box !important;
+}
+
+/* Force visibility and layout for all form content */
+.slide-over-form .space-y-1,
+.slide-over-form .space-y-2,
+.slide-over-form .space-y-4 {
+  display: block !important;
+}
+
+.slide-over-form .space-y-1 > * {
+  margin-bottom: 4px !important;
+}
+
+.slide-over-form .space-y-2 > * {
+  margin-bottom: 8px !important;
+}
+
+.slide-over-form .space-y-4 > * {
+  margin-bottom: 16px !important;
+}
+
+/* Ultra-specific dropdown fixes for maximum visibility */
+.slide-over-form .space-y-1 button[data-radix-select-trigger] {
+  background: white !important;
+  color: #111827 !important;
+  border: 2px solid #374151 !important;
+  font-weight: 600 !important;
+}
+
+/* Target the FormField select components specifically */
+.slide-over-form .space-y-1 button[type="button"] {
+  background-color: white !important;
+  color: #111827 !important;
+  border: 2px solid #374151 !important;
+  font-weight: 600 !important;
+  text-shadow: none !important;
+}
+
+/* Make sure any span inside select buttons is dark */
+.slide-over-form button[data-radix-select-trigger] span,
+.slide-over-form button[role="combobox"] span {
+  color: #111827 !important;
+  font-weight: 600 !important;
+  opacity: 1 !important;
+  text-shadow: none !important;
+}
+
+/* Override any framework styles that might be making text light */
+.slide-over-form [data-radix-select-value] {
+  color: #111827 !important;
+  font-weight: 600 !important;
+  opacity: 1 !important;
+  text-shadow: none !important;
+}
+
+/* Placeholder text should be visible but lighter */
+.slide-over-form [data-radix-select-value][data-placeholder] {
+  color: #6b7280 !important;
+  font-weight: 500 !important;
+  opacity: 1 !important;
+}
+
+/* Force all text nodes to be dark */
+.slide-over-form button * {
+  color: inherit !important;
+}
+
+/* Debug styling - temporarily make all select elements have dark background to test */
+.slide-over-form button[data-radix-select-trigger] {
+  background: linear-gradient(to right, white, #f9fafb) !important;
+  border: 2px solid #1f2937 !important;
+}

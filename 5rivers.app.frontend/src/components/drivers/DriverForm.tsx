@@ -96,78 +96,86 @@ export function DriverForm({ driver, onSuccess, onCancel }: DriverFormProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <FormField
-        id="name"
-        label="Name"
-        value={name}
-        onChange={setName}
-        placeholder="Enter driver name"
-        required
-        error={errors.name}
-      />
+    <form onSubmit={handleSubmit} className="slide-over-form">
+      <div className="form-section">
+        <FormField
+          id="name"
+          label="Name"
+          value={name}
+          onChange={setName}
+          placeholder="Enter driver name"
+          required
+          error={errors.name}
+        />
 
-      <FormField
-        id="email"
-        label="Email Address"
-        type="email"
-        value={email}
-        onChange={setEmail}
-        placeholder="Enter email address"
-        required
-        error={errors.email}
-      />
+        <FormField
+          id="email"
+          label="Email Address"
+          type="email"
+          value={email}
+          onChange={setEmail}
+          placeholder="Enter email address"
+          required
+          error={errors.email}
+        />
+      </div>
 
-      <FormField
-        id="phone"
-        label="Phone Number"
-        type="tel"
-        value={phone}
-        onChange={setPhone}
-        placeholder="Enter phone number"
-      />
+      <div className="form-section">
+        <FormField
+          id="phone"
+          label="Phone Number"
+          type="tel"
+          value={phone}
+          onChange={setPhone}
+          placeholder="Enter phone number"
+        />
 
-      <FormField
-        id="hourlyRate"
-        label="Hourly Rate"
-        type="number"
-        value={hourlyRate}
-        onChange={setHourlyRate}
-        placeholder="Enter hourly rate"
-        min={0}
-        step={0.01}
-        error={errors.hourlyRate}
-      />
+        <FormField
+          id="hourlyRate"
+          label="Hourly Rate"
+          type="number"
+          value={hourlyRate}
+          onChange={setHourlyRate}
+          placeholder="Enter hourly rate"
+          min={0}
+          step={0.01}
+          error={errors.hourlyRate}
+        />
+      </div>
 
-      <FormField
-        id="description"
-        label="Description"
-        type="textarea"
-        value={description}
-        onChange={setDescription}
-        placeholder="Enter description"
-      />
+      <div className="form-section">
+        <FormField
+          id="description"
+          label="Description"
+          type="textarea"
+          value={description}
+          onChange={setDescription}
+          placeholder="Enter description"
+        />
+      </div>
 
-      <div className="flex justify-end gap-2 pt-4">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onCancel}
-          disabled={loading}
-        >
-          Cancel
-        </Button>
-        <Button
-          type="submit"
-          disabled={loading}
-          className={
-            driver
-              ? "bg-orange-500 hover:bg-orange-600 text-white"
-              : "bg-blue-600 hover:bg-blue-700 text-white"
-          }
-        >
-          {loading ? "Saving..." : driver ? "Update Driver" : "Create Driver"}
-        </Button>
+      <div className="form-actions sticky">
+        <div className="btn-group">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onCancel}
+            disabled={loading}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            disabled={loading}
+            className={
+              driver
+                ? "bg-orange-500 hover:bg-orange-600 text-white"
+                : "bg-blue-600 hover:bg-blue-700 text-white"
+            }
+          >
+            {loading ? "Saving..." : driver ? "Update Driver" : "Create Driver"}
+          </Button>
+        </div>
       </div>
     </form>
   );

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { FormField } from "@/src/components/common/FormField";
+import { Button } from "@/src/components/ui/button";
 import { unitApi } from "@/src/lib/api";
 import { toast } from "sonner";
 
@@ -85,76 +86,98 @@ export function UnitForm({ unit, onSuccess, onCancel }: UnitFormProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <FormField
-        id="name"
-        label="Unit Name"
-        value={name}
-        onChange={setName}
-        placeholder="Enter unit name"
-        required
-        error={errors.name}
-      />
+    <div className="slide-over-form">
+      <form onSubmit={handleSubmit}>
+        <div className="form-section">
+          <div className="form-row-2">
+            <FormField
+              id="name"
+              label="Unit Name"
+              value={name}
+              onChange={setName}
+              placeholder="Enter unit name"
+              required
+              error={errors.name}
+            />
 
-      <FormField
-        id="plateNumber"
-        label="Plate Number"
-        value={plateNumber}
-        onChange={setPlateNumber}
-        placeholder="Enter plate number"
-      />
+            <FormField
+              id="plateNumber"
+              label="Plate Number"
+              value={plateNumber}
+              onChange={setPlateNumber}
+              placeholder="Enter plate number"
+            />
+          </div>
 
-      <FormField
-        id="vin"
-        label="VIN"
-        value={vin}
-        onChange={setVin}
-        placeholder="Enter VIN"
-      />
+          <div className="form-row-2">
+            <FormField
+              id="vin"
+              label="VIN"
+              value={vin}
+              onChange={setVin}
+              placeholder="Enter VIN"
+            />
 
-      <FormField
-        id="color"
-        label="Color"
-        value={color}
-        onChange={setColor}
-        placeholder="Enter color"
-      />
+            <FormField
+              id="color"
+              label="Color"
+              value={color}
+              onChange={setColor}
+              placeholder="Enter color"
+            />
+          </div>
 
-      <FormField
-        id="description"
-        label="Description"
-        value={description}
-        onChange={setDescription}
-        placeholder="Enter description"
-      />
+          <FormField
+            id="description"
+            label="Description"
+            type="textarea"
+            value={description}
+            onChange={setDescription}
+            placeholder="Enter description"
+          />
+        </div>
 
-      <div className="flex gap-2 justify-end">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onCancel}
-          disabled={loading}
-        >
-          Cancel
-        </Button>
-        <Button
-          type="submit"
-          disabled={loading}
-          className={
-            unit
-              ? "bg-orange-500 hover:bg-orange-600 text-white"
-              : "bg-blue-600 hover:bg-blue-700 text-white"
-          }
-        >
-          {loading
-            ? unit
-              ? "Updating..."
-              : "Creating..."
-            : unit
-            ? "Update Unit"
-            : "Create Unit"}
-        </Button>
-      </div>
-    </form>
+        <div className="form-actions sticky">
+          <div className="btn-group">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onCancel}
+              disabled={loading}
+              style={{
+                backgroundColor: 'white',
+                border: '1px solid #d1d5db',
+                color: '#374151',
+                padding: '8px 16px',
+                borderRadius: '6px',
+                cursor: 'pointer'
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              disabled={loading}
+              style={{
+                backgroundColor: unit ? '#f97316' : '#2563eb',
+                color: 'white',
+                border: 'none',
+                padding: '8px 16px',
+                borderRadius: '6px',
+                cursor: 'pointer'
+              }}
+            >
+              {loading
+                ? unit
+                  ? "Updating..."
+                  : "Creating..."
+                : unit
+                ? "Update Unit"
+                : "Create Unit"}
+            </Button>
+          </div>
+        </div>
+      </form>
+    </div>
   );
 }
