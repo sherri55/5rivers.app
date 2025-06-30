@@ -25,43 +25,43 @@ export function CompanyView({
   onClose,
 }: CompanyViewProps) {
   return (
-    <div className="slide-over-form">
+    <div className="slide-over-form slide-over-view">
       <div className="form-section">
         <div className="grid grid-cols-1 gap-6">
           <div>
-            <div className="text-xs text-muted-foreground uppercase mb-1">
+            <div className="view-field-label">
               Company Name
             </div>
-            <div className="font-medium text-base">{company.name}</div>
+            <div className="view-field-value font-medium">{company.name}</div>
           </div>
 
           <div>
-            <div className="text-xs text-muted-foreground uppercase mb-1">
+            <div className="view-field-label">
               Email Address
             </div>
-            <div className="text-base">{company.email || "—"}</div>
+            <div className="view-field-value">{company.email || "—"}</div>
           </div>
 
           <div>
-            <div className="text-xs text-muted-foreground uppercase mb-1">
+            <div className="view-field-label">
               Phone Number
             </div>
-            <div className="text-base">{company.phone || "—"}</div>
+            <div className="view-field-value">{company.phone || "—"}</div>
           </div>
 
           <div>
-            <div className="text-xs text-muted-foreground uppercase mb-1">
+            <div className="view-field-label">
               Job Types Count
             </div>
-            <div className="text-base">{company.jobTypesCount || 0}</div>
+            <div className="view-field-value">{company.jobTypesCount || 0}</div>
           </div>
 
           {company.description && (
             <div>
-              <div className="text-xs text-muted-foreground uppercase mb-1">
+              <div className="view-field-label">
                 Description
               </div>
-              <div className="text-base whitespace-pre-wrap">
+              <div className="view-field-value whitespace-pre-wrap">
                 {company.description}
               </div>
             </div>

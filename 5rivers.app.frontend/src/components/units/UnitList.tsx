@@ -30,7 +30,7 @@ export function UnitList({
   useEffect(() => {
     setLoading(true);
     unitApi
-      .fetchAll()
+      .fetchAll({ pageSize: 10000 })
       .then((response) => {
         // Handle paginated response format
         const units = response.data || response; // Support both old and new format

@@ -210,6 +210,13 @@ export const jobApi = {
     if (!res.ok) throw new Error("Failed to toggle paymentReceived");
     return res.json();
   },
+  toggleDriverPaid: async (id: string) => {
+    const res = await fetch(`${API_URL}/jobs/${id}/toggle-driver-paid`, {
+      method: "PUT",
+    });
+    if (!res.ok) throw new Error("Failed to toggle driverPaid");
+    return res.json();
+  },
 };
 
 // JobTicket API

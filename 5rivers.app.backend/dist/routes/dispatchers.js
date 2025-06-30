@@ -1,0 +1,11 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const dispatchersController_1 = require("../controllers/dispatchersController");
+const dispatcherRoutes = (0, express_1.Router)();
+dispatcherRoutes.get("/", dispatchersController_1.getDispatchers);
+dispatcherRoutes.get("/:id", dispatchersController_1.getDispatcherById);
+dispatcherRoutes.post("/", dispatchersController_1.createDispatcher);
+dispatcherRoutes.put("/:id", dispatchersController_1.updateDispatcher);
+dispatcherRoutes.delete("/:id", dispatchersController_1.deleteDispatcher);
+exports.default = dispatcherRoutes;

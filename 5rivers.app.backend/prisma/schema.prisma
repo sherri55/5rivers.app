@@ -1,15 +1,14 @@
-/**
- * prisma/schema.prisma
- */
+generator client {
+  provider = "prisma-client-js"
+}
+
 datasource db {
   provider = "sqlite"
   url      = "file:../src/db/5rivers.db"
 }
 
-generator client {
-  provider = "prisma-client-js"
-}
-
+/// *
+///  * prisma/schema.prisma
 model Company {
   companyId   String    @id @default(uuid())
   name        String
@@ -43,19 +42,19 @@ model Driver {
   hourlyRate  Float
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
-  jobs        Job[]
   driverRates DriverRate[]
+  jobs        Job[]
 }
 
 model Unit {
   unitId      String   @id @default(uuid())
   name        String
   description String?
-  plateNumber String?
-  color       String?
-  vin         String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  color       String?
+  plateNumber String?
+  vin         String?
   jobs        Job[]
 }
 
@@ -69,9 +68,9 @@ model JobType {
   companyId     String?
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
-  company       Company?     @relation(fields: [companyId], references: [companyId])
-  jobs          Job[]
   driverRates   DriverRate[]
+  jobs          Job[]
+  company       Company?     @relation(fields: [companyId], references: [companyId])
 }
 
 model DriverRate {
@@ -82,14 +81,14 @@ model DriverRate {
   percentageRate Float?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
-  driver         Driver   @relation(fields: [driverId], references: [driverId])
   jobType        JobType  @relation(fields: [jobTypeId], references: [jobTypeId])
+  driver         Driver   @relation(fields: [driverId], references: [driverId])
 
   @@unique([driverId, jobTypeId])
 }
 
 model Job {
-  jobId           String   @id @default(uuid())
+  jobId           String        @id @default(uuid())
   jobDate         String
   jobGrossAmount  Float?
   jobTypeId       String?
@@ -97,31 +96,31 @@ model Job {
   dispatcherId    String?
   unitId          String?
   invoiceId       String?
-  invoiceStatus   String   @default("Pending")
+  invoiceStatus   String        @default("Pending")
   weight          String?
   loads           Int?
-  startTime       String? // NEW: Start time for job
-  endTime         String? // NEW: End time for job
-  ticketIds       String? // Stores ticket numbers as JSON string in TEXT column
-  imageUrls       String? // Stores image URLs as JSON string in TEXT column
-  paymentReceived Boolean  @default(false) // NEW: Payment received status
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  jobType      JobType?      @relation(fields: [jobTypeId], references: [jobTypeId])
-  driver       Driver?       @relation(fields: [driverId], references: [driverId])
-  dispatcher   Dispatcher?   @relation(fields: [dispatcherId], references: [dispatcherId])
-  unit         Unit?         @relation(fields: [unitId], references: [unitId])
-  invoice      Invoice?      @relation(fields: [invoiceId], references: [invoiceId])
-  invoiceLines InvoiceLine[]
+  startTime       String?
+  endTime         String?
+  ticketIds       String?
+  paymentReceived Boolean       @default(false)
+  driverPaid      Boolean       @default(false)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  imageUrls       String?
+  invoiceLines    InvoiceLine[]
+  invoice         Invoice?      @relation(fields: [invoiceId], references: [invoiceId])
+  unit            Unit?         @relation(fields: [unitId], references: [unitId])
+  dispatcher      Dispatcher?   @relation(fields: [dispatcherId], references: [dispatcherId])
+  driver          Driver?       @relation(fields: [driverId], references: [driverId])
+  jobType         JobType?      @relation(fields: [jobTypeId], references: [jobTypeId])
 }
 
 model Invoice {
-  invoiceId       String   @id @default(uuid())
+  invoiceId       String        @id @default(uuid())
   dispatcherId    String
-  invoiceNumber   String   @unique
+  invoiceNumber   String        @unique
   invoiceDate     DateTime
-  status          String   @default("Pending")
+  status          String        @default("Pending")
   subTotal        Float?
   dispatchPercent Float?
   commission      Float?
@@ -129,12 +128,11 @@ model Invoice {
   total           Float?
   billedTo        String?
   billedEmail     String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  dispatcher   Dispatcher    @relation(fields: [dispatcherId], references: [dispatcherId])
-  jobs         Job[]
-  invoiceLines InvoiceLine[]
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  dispatcher      Dispatcher    @relation(fields: [dispatcherId], references: [dispatcherId])
+  invoiceLines    InvoiceLine[]
+  jobs            Job[]
 }
 
 model InvoiceLine {
@@ -144,16 +142,16 @@ model InvoiceLine {
   lineAmount    Float    @default(0)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
-
-  invoice Invoice @relation(fields: [invoiceId], references: [invoiceId])
-  job     Job     @relation(fields: [jobId], references: [jobId])
+  job           Job      @relation(fields: [jobId], references: [jobId])
+  invoice       Invoice  @relation(fields: [invoiceId], references: [invoiceId])
 }
 
 model User {
-  id        String   @id @default(uuid())
-  userId    String   @unique // <-- Add this line for user-facing login ID
-  email     String   @unique
+  userId    String               @id
+  email     String               @unique(map: "sqlite_autoindex_User_1")
   password  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  name      String?
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+  id        Unsupported("uuid")?
 }

@@ -73,7 +73,7 @@ export function InvoiceForm({
   // Fetch dispatchers on mount
   useEffect(() => {
     dispatcherApi
-      .fetchAll()
+      .fetchAll({ pageSize: 10000 })
       .then((response) => {
         // Handle paginated response format
         const dispatchers = response.data || response;
@@ -116,7 +116,7 @@ export function InvoiceForm({
   // Fetch jobs for selected dispatcher
   useEffect(() => {
     if (dispatcherId) {
-      jobApi.fetchAll().then((response: { data?: any[] } | any[]) => {
+      jobApi.fetchAll({ pageSize: 10000 }).then((response: { data?: any[] } | any[]) => {
         // Handle paginated response format
         const allJobs = response.data || response;
         let filtered;

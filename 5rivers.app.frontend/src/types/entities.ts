@@ -49,6 +49,8 @@ export interface Invoice {
   commission?: number | string;
   hst?: number | string;
   total?: number | string;
+  jobs?: Array<Job>;
+  dispatcher?: { name: string };
 }
 
 export interface Job {
@@ -59,8 +61,18 @@ export interface Job {
   unitId?: string;
   dispatcherId?: string;
   status?: string;
+  invoiceStatus?: string;
   jobGrossAmount?: number | string;
   invoiceId?: string;
+  paymentReceived?: boolean;
+  driverPaid?: boolean;
+  startTime?: string;
+  endTime?: string;
+  weight?: string | string[];
+  loads?: number;
+  tickets?: string | string[];
+  ticketIds?: string | string[];
+  imageUrls?: string[];
 }
 
 export interface JobType {

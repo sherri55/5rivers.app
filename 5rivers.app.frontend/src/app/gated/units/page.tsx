@@ -7,17 +7,7 @@ import { ConfirmDialog } from "@/src/components/common/Modal";
 import { SlideOver } from "@/src/components/common/SlideOver";
 import { unitApi } from "@/src/lib/api";
 import { toast } from "sonner";
-
-interface Unit {
-  unitId: string;
-  name?: string;
-  status?: string;
-  plateNumber?: string;
-  color?: string;
-  vin?: string;
-  companyId?: string;
-  company?: { name: string };
-}
+import { Unit } from "@/src/types/entities";
 
 export default function UnitsPage() {
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
@@ -45,6 +35,10 @@ export default function UnitsPage() {
   const handleCreate = () => {
     setEditingUnit(null);
     setIsFormOpen(true);
+  };
+
+  const handleView = (unit: Unit) => {
+    setSelectedUnit(unit);
   };
 
   const handleEdit = (unit: Unit) => {
@@ -95,8 +89,8 @@ export default function UnitsPage() {
       {/* Main Content - Full Width */}
       <div className="w-full">
         <UnitList
+          onView={handleView}
           onEdit={handleEdit}
-          onDelete={handleDelete}
           onCreate={handleCreate}
           refresh={refreshTrigger}
         />

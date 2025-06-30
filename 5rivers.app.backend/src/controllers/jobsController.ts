@@ -299,3 +299,19 @@ export const togglePaymentReceived = async (req: Request, res: Response) => {
     res.status(400).json({ error: "Failed to toggle payment status" });
   }
 };
+
+export const toggleDriverPaid = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const job = await prisma.job.findUnique({ where: { jobId: id } });
+    // Toggle driverPaid
+    const updated = await prisma.job.update({
+      where: { jobId: id },
+      data: { driverPaid: !(job as any).driverPaid },
+    });
+    res.json(updated);
+  } catch (error) {
+    console.error("Error in toggleDriverPaid:", error);
+    res.status(400).json({ error: "Failed to toggle driver payment status" });
+  }
+};

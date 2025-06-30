@@ -14,21 +14,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { DateRangePicker } from "../common/DateRangePicker";
-
-interface Invoice {
-  invoiceId: string;
-  invoiceNumber: string;
-  invoiceDate: string;
-  dispatcherId?: string;
-  billedTo?: string;
-  billedEmail?: string;
-  status?: string;
-  subTotal?: number;
-  commission?: number;
-  hst?: number;
-  total?: number;
-  dispatcher?: { name: string };
-}
+import { Invoice } from "@/src/types/entities";
 
 interface Dispatcher {
   dispatcherId: string;
@@ -86,26 +72,26 @@ export function InvoiceList({
           dispatcherId: dispatcherId || undefined,
           status: status || undefined,
         }),
-        page === 1 ? dispatcherApi.fetchAll() : Promise.resolve(dispatchers),
+        page === 1 ? dispatcherApi.fetchAll({ pageSize: 10000 }) : Promise.resolve(dispatchers),
       ]);
 
       if (page === 1) {
-        setInvoices(invoicesResponse.data);
-        setDispatchers(dispatchersData);
+        setInvoices(Array.isArray(invoicesResponse.data) ? invoicesResponse.data : []);
+        setDispatchers(Array.isArray(dispatchersData) ? dispatchersData : []);
       } else {
-        setInvoices(prev => [...prev, ...invoicesResponse.data]);
+        setInvoices(prev => [...prev, ...(Array.isArray(invoicesResponse.data) ? invoicesResponse.data : [])]);
       }
 
-      setCurrentPage(invoicesResponse.page);
-      setTotalPages(invoicesResponse.totalPages);
-      setHasMore(invoicesResponse.page < invoicesResponse.totalPages);
+      setCurrentPage(invoicesResponse.page || 1);
+      setTotalPages(invoicesResponse.totalPages || 1);
+      setHasMore((invoicesResponse.page || 1) < (invoicesResponse.totalPages || 1));
 
       // Load all invoices for search if we don't have them yet
       if (allInvoices.length === 0 && !searchQuery) {
         const allInvoicesResponse = await invoiceApi.fetchAll({
           pageSize: 10000, // Large number to get all
         });
-        setAllInvoices(allInvoicesResponse.data);
+        setAllInvoices(Array.isArray(allInvoicesResponse.data) ? allInvoicesResponse.data : []);
       }
     } catch (err) {
       setError("Failed to load invoices");
@@ -125,7 +111,7 @@ export function InvoiceList({
     const timer = setTimeout(() => {
       if (searchQuery.trim()) {
         // Filter from all invoices for immediate search results
-        const filtered = allInvoices.filter(invoice => 
+        const filtered = (Array.isArray(allInvoices) ? allInvoices : []).filter(invoice => 
           invoice.invoiceNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
           invoice.billedTo?.toLowerCase().includes(searchQuery.toLowerCase()) ||
           invoice.billedEmail?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -149,7 +135,7 @@ export function InvoiceList({
   };
 
   // Apply date range filtering
-  const dateFilteredInvoices = invoices.filter((invoice) => {
+  const dateFilteredInvoices = (Array.isArray(invoices) ? invoices : []).filter((invoice) => {
     if (dateRange.startDate && parseLocalDate(invoice.invoiceDate) < dateRange.startDate)
       return false;
     if (dateRange.endDate && parseLocalDate(invoice.invoiceDate) > dateRange.endDate)
@@ -161,7 +147,7 @@ export function InvoiceList({
   function groupInvoicesByMonth(invoices: Invoice[]) {
     const monthGroups: Record<string, Invoice[]> = {};
     
-    invoices.forEach((invoice) => {
+    (Array.isArray(invoices) ? invoices : []).forEach((invoice) => {
       const date = invoice.invoiceDate ? parseLocalDate(invoice.invoiceDate) : null;
       if (!date) return;
       

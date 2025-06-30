@@ -31,7 +31,7 @@ export function JobTypeForm({
   >([]);
 
   useEffect(() => {
-    companyApi.fetchAll().then((response: { data?: any[] } | any[]) => {
+    companyApi.fetchAll({ pageSize: 10000 }).then((response: any) => {
       // Handle paginated response format
       const companies = response.data || response;
       setCompanyOptions(

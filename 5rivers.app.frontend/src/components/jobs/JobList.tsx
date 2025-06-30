@@ -10,7 +10,6 @@ import {
   Book,
   Search,
   Loader2,
-  Eye,
 } from "lucide-react";
 import { ConfirmDialog } from "../common/Modal";
 import { toast } from "sonner";
@@ -24,6 +23,7 @@ interface Job extends Omit<EntityJob, 'jobTypeId'> {
   unit?: { name: string; unitId: string };
   dispatcher?: { name: string; dispatcherId: string };
   paymentReceived?: boolean;
+  driverPaid?: boolean;
 }
 
 interface Dispatcher {
@@ -86,8 +86,8 @@ export function JobList({
           dispatcherId: dispatcherId || undefined,
           unitId: unitId || undefined,
         }),
-        page === 1 ? dispatcherApi.fetchAll() : Promise.resolve(dispatchers),
-        page === 1 ? unitApi.fetchAll() : Promise.resolve(units),
+        page === 1 ? dispatcherApi.fetchAll({ pageSize: 10000 }) : Promise.resolve(dispatchers),
+        page === 1 ? unitApi.fetchAll({ pageSize: 10000 }) : Promise.resolve(units),
       ]);
 
       if (page === 1) {
@@ -196,6 +196,20 @@ export function JobList({
       );
     } catch {
       toast.error("Failed to toggle payment status");
+    }
+  };
+
+  const handleToggleDriverPaid = async (job: Job) => {
+    try {
+      const updated = await jobApi.toggleDriverPaid(job.jobId);
+      setJobs((prev) =>
+        prev.map((j) => (j.jobId === job.jobId ? { ...j, ...updated } : j))
+      );
+      toast.success(
+        updated.driverPaid ? "Driver marked as paid" : "Driver marked as unpaid"
+      );
+    } catch {
+      toast.error("Failed to toggle driver payment status");
     }
   };
 
@@ -347,12 +361,18 @@ export function JobList({
                   {/* Status indicator */}
                   <div className="flex items-center gap-2">
                     {job.invoiceId ? (
-                      <Book className="h-5 w-5 text-green-500" title="Invoiced" />
+                      <div title="Invoiced">
+                        <Book className="h-5 w-5 text-green-500" />
+                      </div>
                     ) : (
-                      <Book className="h-5 w-5 text-gray-400" title="Not Invoiced" />
+                      <div title="Not Invoiced">
+                        <Book className="h-5 w-5 text-gray-400" />
+                      </div>
                     )}
                     {job.paymentReceived && (
-                      <CheckCircle className="h-5 w-5 text-green-600" title="Payment Received" />
+                      <div title="Payment Received">
+                        <CheckCircle className="h-5 w-5 text-green-600" />
+                      </div>
                     )}
                   </div>
                   

@@ -5,15 +5,7 @@ import { FormField } from "@/src/components/common/FormField";
 import { Button } from "@/src/components/ui/button";
 import { unitApi } from "@/src/lib/api";
 import { toast } from "sonner";
-
-interface Unit {
-  unitId: string;
-  name: string;
-  plateNumber?: string;
-  vin?: string;
-  color?: string;
-  description?: string;
-}
+import { Unit } from "@/src/types/entities";
 
 interface UnitFormProps {
   unit?: Unit;

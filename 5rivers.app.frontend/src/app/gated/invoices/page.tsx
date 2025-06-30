@@ -7,19 +7,7 @@ import { ConfirmDialog } from "@/src/components/common/Modal";
 import { SlideOver } from "@/src/components/common/SlideOver";
 import { invoiceApi } from "@/src/lib/api";
 import { toast } from "sonner";
-
-interface Invoice {
-  invoiceId: string;
-  invoiceNumber?: string;
-  billedTo?: string;
-  billedDate?: string;
-  dueDate?: string;
-  totalAmount?: number;
-  status?: string;
-  notes?: string;
-  companyId?: string;
-  company?: { name: string };
-}
+import { Invoice } from "@/src/types/entities";
 
 export default function InvoicesPage() {
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);

@@ -7,14 +7,7 @@ import { ConfirmDialog } from "@/src/components/common/Modal";
 import { SlideOver } from "@/src/components/common/SlideOver";
 import { jobTypeApi } from "@/src/lib/api";
 import { toast } from "sonner";
-
-interface JobType {
-  jobTypeId: string;
-  name: string;
-  description?: string;
-  rate?: number;
-  unit?: string;
-}
+import { JobType } from "@/src/types/entities";
 
 export default function JobTypesPage() {
   const [selectedJobType, setSelectedJobType] = useState<JobType | null>(null);
@@ -42,6 +35,10 @@ export default function JobTypesPage() {
   const handleCreate = () => {
     setEditingJobType(null);
     setIsFormOpen(true);
+  };
+
+  const handleView = (jobType: JobType) => {
+    setSelectedJobType(jobType);
   };
 
   const handleEdit = (jobType: JobType) => {
@@ -92,8 +89,8 @@ export default function JobTypesPage() {
       {/* Main Content - Full Width */}
       <div className="w-full">
         <JobTypeList
+          onView={handleView}
           onEdit={handleEdit}
-          onDelete={handleDelete}
           onCreate={handleCreate}
           refresh={refreshTrigger}
         />

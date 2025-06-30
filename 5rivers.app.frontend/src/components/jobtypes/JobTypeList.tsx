@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { jobTypeApi, companyApi } from "@/src/lib/api";
 import { Company, JobType } from "@/src/types/entities";
 import { Button } from "../ui/button";
-import { Pencil, Trash2, Plus, Search, Loader2, Eye } from "lucide-react";
+import { Pencil, Trash2, Plus, Loader2 } from "lucide-react";
 import { ConfirmDialog } from "../common/Modal";
 import { toast } from "sonner";
 
@@ -51,7 +51,7 @@ export function JobTypeList({
           companyId: companyId || undefined,
           dispatchType: dispatchType || undefined,
         }),
-        page === 1 ? companyApi.fetchAll() : Promise.resolve(companies),
+        page === 1 ? companyApi.fetchAll({ pageSize: 10000 }) : Promise.resolve(companies),
       ]);
 
       if (page === 1) {

@@ -53,10 +53,10 @@ export function JobForm({ job, onSuccess, onCancel }: JobFormProps) {
   useEffect(() => {
     setDropdownLoading(true);
     Promise.all([
-      jobTypeApi.fetchAll(),
-      driverApi.fetchAll(),
-      unitApi.fetchAll(),
-      dispatcherApi.fetchAll(),
+      jobTypeApi.fetchAll({ pageSize: 10000 }),
+      driverApi.fetchAll({ pageSize: 10000 }),
+      unitApi.fetchAll({ pageSize: 10000 }),
+      dispatcherApi.fetchAll({ pageSize: 10000 }),
     ])
       .then(
         ([

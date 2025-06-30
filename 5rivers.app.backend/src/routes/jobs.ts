@@ -8,6 +8,7 @@ import {
   updateJob,
   deleteJob,
   togglePaymentReceived,
+  toggleDriverPaid,
 } from "../controllers/jobsController";
 
 const upload = multer(); // memory storage, no files saved unless handled in controller
@@ -19,5 +20,6 @@ jobRoutes.post("/", upload.any(), createJob); // allow files and fields
 jobRoutes.put("/:id", upload.any(), updateJob); // allow files and fields
 jobRoutes.delete("/:id", deleteJob);
 jobRoutes.put("/:id/toggle-payment", togglePaymentReceived);
+jobRoutes.put("/:id/toggle-driver-paid", toggleDriverPaid);
 
 export default jobRoutes;

@@ -39,6 +39,28 @@
   --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
   --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
   --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+
+  /* shadcn/ui CSS variables */
+  --background: 0 0% 100%;
+  --foreground: 240 10% 3.9%;
+  --card: 0 0% 100%;
+  --card-foreground: 240 10% 3.9%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 240 10% 3.9%;
+  --primary: 240 5.9% 10%;
+  --primary-foreground: 0 0% 98%;
+  --secondary: 240 4.8% 95.9%;
+  --secondary-foreground: 240 5.9% 10%;
+  --muted: 240 4.8% 95.9%;
+  --muted-foreground: 240 3.8% 46.1%;
+  --accent: 240 4.8% 95.9%;
+  --accent-foreground: 240 5.9% 10%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 240 5.9% 90%;
+  --input: 240 5.9% 90%;
+  --ring: 240 10% 3.9%;
+  --radius: 0.5rem;
 }
 
 /* Dark mode variables */
@@ -52,6 +74,27 @@
     --color-text-secondary: #cbd5e1;
     --color-text-muted: #94a3b8;
     --gradient-surface: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+
+    /* shadcn/ui dark mode variables */
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 240 5.9% 10%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 240 4.9% 83.9%;
   }
 }
 
@@ -710,54 +753,28 @@ footer {
   margin-bottom: 16px !important;
 }
 
-/* Ultra-specific dropdown fixes for maximum visibility */
-.slide-over-form .space-y-1 button[data-radix-select-trigger] {
-  background: white !important;
-  color: #111827 !important;
-  border: 2px solid #374151 !important;
-  font-weight: 600 !important;
+/* Consistent slide-over view styling */
+.slide-over-view .view-field-label {
+  font-size: 0.75rem; /* text-xs */
+  font-weight: 600; /* font-semibold */
+  color: #6b7280; /* text-gray-500 - more readable than muted-foreground */
+  text-transform: uppercase;
+  letter-spacing: 0.05em; /* tracking-wider */
+  margin-bottom: 0.25rem; /* mb-1 */
+  display: block;
 }
 
-/* Target the FormField select components specifically */
-.slide-over-form .space-y-1 button[type="button"] {
-  background-color: white !important;
-  color: #111827 !important;
-  border: 2px solid #374151 !important;
-  font-weight: 600 !important;
-  text-shadow: none !important;
+.slide-over-view .view-field-value {
+  color: #111827; /* text-gray-900 - dark readable text */
+  font-size: 1rem; /* text-base */
+  line-height: 1.5; /* leading-normal */
+  margin-bottom: 0;
 }
 
-/* Make sure any span inside select buttons is dark */
-.slide-over-form button[data-radix-select-trigger] span,
-.slide-over-form button[role="combobox"] span {
-  color: #111827 !important;
-  font-weight: 600 !important;
-  opacity: 1 !important;
-  text-shadow: none !important;
+.slide-over-view .view-field-value.font-mono {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
 }
 
-/* Override any framework styles that might be making text light */
-.slide-over-form [data-radix-select-value] {
-  color: #111827 !important;
-  font-weight: 600 !important;
-  opacity: 1 !important;
-  text-shadow: none !important;
-}
-
-/* Placeholder text should be visible but lighter */
-.slide-over-form [data-radix-select-value][data-placeholder] {
-  color: #6b7280 !important;
-  font-weight: 500 !important;
-  opacity: 1 !important;
-}
-
-/* Force all text nodes to be dark */
-.slide-over-form button * {
-  color: inherit !important;
-}
-
-/* Debug styling - temporarily make all select elements have dark background to test */
-.slide-over-form button[data-radix-select-trigger] {
-  background: linear-gradient(to right, white, #f9fafb) !important;
-  border: 2px solid #1f2937 !important;
+.slide-over-view .view-field-value.whitespace-pre-wrap {
+  white-space: pre-wrap;
 }

@@ -50,7 +50,7 @@ export function DriverRateForm({
   useEffect(() => {
     setLoadingJobTypes(true);
     jobTypeApi
-      .fetchAll()
+      .fetchAll({ pageSize: 10000 })
       .then((response) => {
         // Handle paginated response format
         const jobTypesData = response.data || response;

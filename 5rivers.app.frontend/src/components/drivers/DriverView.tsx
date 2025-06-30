@@ -102,42 +102,42 @@ export function DriverView({
   ];
 
   return (
-    <div className="slide-over-form">
+    <div className="slide-over-form slide-over-view">
       <div className="form-section">
         <div className="grid grid-cols-1 gap-6">
           <div>
-            <div className="text-xs text-muted-foreground uppercase mb-1">
+            <div className="view-field-label">
               Name
             </div>
-            <div className="font-medium text-base">{driver.name}</div>
+            <div className="view-field-value font-medium">{driver.name}</div>
           </div>
 
           <div>
-            <div className="text-xs text-muted-foreground uppercase mb-1">
+            <div className="view-field-label">
               Email
             </div>
-            <div className="text-base">{driver.email || "—"}</div>
+            <div className="view-field-value">{driver.email || "—"}</div>
           </div>
 
           <div>
-            <div className="text-xs text-muted-foreground uppercase mb-1">
+            <div className="view-field-label">
               Phone
             </div>
-            <div className="text-base">{driver.phone || "—"}</div>
+            <div className="view-field-value">{driver.phone || "—"}</div>
           </div>
 
           <div>
-            <div className="text-xs text-muted-foreground uppercase mb-1">
+            <div className="view-field-label">
               Default Hourly Rate
             </div>
-            <div className="text-base">{formatCurrency(driver.hourlyRate)}</div>
+            <div className="view-field-value">{formatCurrency(driver.hourlyRate)}</div>
           </div>
 
           <div>
-            <div className="text-xs text-muted-foreground uppercase mb-1">
+            <div className="view-field-label">
               Active Jobs
             </div>
-            <div className="text-base">{driver.activeJobsCount || 0}</div>
+            <div className="view-field-value">{driver.activeJobsCount || 0}</div>
           </div>
 
           {driver.description && (

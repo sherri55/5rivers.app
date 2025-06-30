@@ -3,34 +3,16 @@
 import { useState, useEffect } from "react";
 import { JobList } from "@/src/components/jobs/JobList";
 import { JobForm } from "@/src/components/jobs/JobForm";
+import { JobView } from "@/src/components/jobs/JobView";
 import { ConfirmDialog } from "@/src/components/common/Modal";
 import { SlideOver } from "@/src/components/common/SlideOver";
 import { jobApi } from "@/src/lib/api";
 import { toast } from "sonner";
-
-interface Job {
-  jobId: string;
-  title?: string;
-  status: string;
-  priority: string;
-  jobTypeId?: string;
-  driverId?: string;
-  unitId?: string;
-  description?: string;
-  startLocation?: string;
-  endLocation?: string;
-  startTime?: string;
-  endTime?: string;
-  ticketIds?: string;
-  imageUrls?: string[];
-  rateOfJob?: number;
-  jobType?: { title: string };
-  driver?: { name: string };
-  unit?: { name: string };
-}
+import { Job } from "@/src/types/entities";
 
 export default function JobsPage() {
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  const [isViewOpen, setIsViewOpen] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingJob, setEditingJob] = useState<Job | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -59,10 +41,7 @@ export default function JobsPage() {
 
   const handleView = (job: Job) => {
     setSelectedJob(job);
-    // For now, we'll just show the edit form when viewing
-    // You could create a separate view modal/slideOver later if needed
-    setEditingJob(job);
-    setIsFormOpen(true);
+    setIsViewOpen(true);
   };
 
   const handleEdit = (job: Job) => {
@@ -70,7 +49,7 @@ export default function JobsPage() {
     setIsFormOpen(true);
   };
 
-  const handleDelete = async (job: Job) => {
+  const handleDelete = (job: Job) => {
     setSelectedJob(job);
     setConfirmDelete(true);
   };
@@ -113,13 +92,31 @@ export default function JobsPage() {
       {/* Main Content - Full Width */}
       <div className="w-full">
         <JobList
-          onEdit={handleEdit}
-          onDelete={handleDelete}
-          onCreate={handleCreate}
           onView={handleView}
+          onEdit={handleEdit}
+          onCreate={handleCreate}
           refresh={refreshTrigger}
         />
       </div>
+
+      {/* View SlideOver */}
+      <SlideOver
+        title="Job Details"
+        subtitle="View job information and progress"
+        isOpen={isViewOpen}
+        onClose={() => setIsViewOpen(false)}
+        size="lg"
+      >
+        {selectedJob && (
+          <JobView
+            job={selectedJob}
+            onEdit={() => handleEdit(selectedJob)}
+            onDelete={() => setConfirmDelete(true)}
+            onClose={() => setIsViewOpen(false)}
+            onUpdate={(updatedJob) => setSelectedJob(updatedJob as Job)}
+          />
+        )}
+      </SlideOver>
 
       {/* Create/Edit SlideOver */}
       <SlideOver
@@ -138,6 +135,10 @@ export default function JobsPage() {
           onSuccess={() => {
             setIsFormOpen(false);
             refresh();
+            if (editingJob) {
+              setSelectedJob(null);
+              setIsViewOpen(false);
+            }
           }}
           onCancel={() => setIsFormOpen(false)}
         />
