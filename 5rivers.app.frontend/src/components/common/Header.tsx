@@ -57,7 +57,7 @@ const Header: React.FC = () => {
               </div>
             </div>
             <Link
-              href="/gated"
+              href="/invoicing"
               className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 py-2 rounded-lg font-medium hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-md hover:shadow-lg"
             >
               Admin Portal
@@ -91,7 +91,7 @@ const Header: React.FC = () => {
               ))}
               <div className="pt-4 border-t border-slate-200">
                 <Link
-                  href="/gated"
+                  href="/invoicing"
                   onClick={() => setMenuOpen(false)}
                   className="block w-full text-center bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 py-3 rounded-lg font-medium transition-all duration-200"
                 >

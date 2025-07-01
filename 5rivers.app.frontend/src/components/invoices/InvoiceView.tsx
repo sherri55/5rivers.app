@@ -123,7 +123,7 @@ export function InvoiceView({
     // Navigate to jobs page with the selected job
     const searchParams = new URLSearchParams();
     searchParams.set('jobId', job.jobId);
-    router.push(`/gated/jobs?${searchParams.toString()}`);
+    router.push(`/invoicing/jobs?${searchParams.toString()}`);
   };
 
   const handleDownloadPdf = async () => {

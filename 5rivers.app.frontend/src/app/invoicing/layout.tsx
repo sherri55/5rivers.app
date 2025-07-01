@@ -1,7 +1,7 @@
 "use client";
 
 import "../globals.css";
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import {
   Truck,
@@ -17,29 +17,29 @@ import {
   User,
 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
-import AuthGuard from "@/src/components/common/AuthGuard";
+import { logoutUser } from "@/src/lib/api";
 
 const navItems = [
-  { icon: <LayoutDashboard size={20} />, label: "Dashboard", href: "/gated" },
+  { icon: <LayoutDashboard size={20} />, label: "Dashboard", href: "/invoicing" },
   {
     icon: <Building2 size={20} />,
     label: "Companies",
-    href: "/gated/companies",
+    href: "/invoicing/companies",
   },
   {
     icon: <Users size={20} />,
     label: "Dispatchers",
-    href: "/gated/dispatchers",
+    href: "/invoicing/dispatchers",
   },
-  { icon: <Users size={20} />, label: "Drivers", href: "/gated/drivers" },
-  { icon: <Truck size={20} />, label: "Units", href: "/gated/units" },
+  { icon: <Users size={20} />, label: "Drivers", href: "/invoicing/drivers" },
+  { icon: <Truck size={20} />, label: "Units", href: "/invoicing/units" },
   {
     icon: <Briefcase size={20} />,
     label: "Job Types",
-    href: "/gated/jobtypes",
+    href: "/invoicing/jobtypes",
   },
-  { icon: <Briefcase size={20} />, label: "Jobs", href: "/gated/jobs" },
-  { icon: <FileText size={20} />, label: "Invoices", href: "/gated/invoices" },
+  { icon: <Briefcase size={20} />, label: "Jobs", href: "/invoicing/jobs" },
+  { icon: <FileText size={20} />, label: "Invoices", href: "/invoicing/invoices" },
 ];
 
 function Sidebar({
@@ -53,8 +53,8 @@ function Sidebar({
 }) {
   const router = useRouter();
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
+  const handleLogout = async () => {
+    await logoutUser();
     router.push("/login");
   };
 
@@ -216,56 +216,44 @@ export default function RootLayout({
 }) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const router = useRouter();
-
-  useEffect(() => {
-    // Check for token in localStorage (or cookies if you prefer)
-    const token =
-      typeof window !== "undefined" ? localStorage.getItem("token") : null;
-    if (!token) {
-      router.replace("/login"); // Redirect to login if not authenticated
-    }
-  }, [router]);
 
   return (
-    <AuthGuard>
-      <html lang="en" className="h-full">
-        <head>
-          <meta name="viewport" content="width=device-width, initial-scale=1" />
-          <meta name="theme-color" content="#1e293b" />
-        </head>
-        <body className="bg-gradient-to-br from-slate-50 via-white to-slate-100 min-h-screen flex flex-col">
-          {/* Sidebar and mobile menu */}
-          <Sidebar
-            sidebarOpen={sidebarOpen}
-            setSidebarOpen={setSidebarOpen}
-            pathname={pathname}
-          />
-          
-          {/* Top header for mobile */}
-          <div className="sticky top-0 z-30 md:hidden pl-1 pt-1 sm:pl-3 sm:pt-3 bg-white/95 backdrop-blur-md border-b border-slate-200">
-            <button
-              className="-ml-0.5 -mt-0.5 h-12 w-12 inline-flex items-center justify-center rounded-lg text-slate-700 hover:text-blue-600 hover:bg-slate-100 transition-colors"
-              onClick={() => setSidebarOpen(true)}
-            >
-              <span className="sr-only">Open sidebar</span>
-              <Menu className="h-6 w-6" />
-            </button>
-          </div>
-          
-          {/* Main content */}
-          <div className="md:pl-72 flex flex-col flex-1">
-            <main className="flex-1">
-              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                <div className="animate-fade-in">
-                  {children}
-                </div>
+    <html lang="en" className="h-full">
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="theme-color" content="#1e293b" />
+      </head>
+      <body className="bg-gradient-to-br from-slate-50 via-white to-slate-100 min-h-screen flex flex-col">
+        {/* Sidebar and mobile menu */}
+        <Sidebar
+          sidebarOpen={sidebarOpen}
+          setSidebarOpen={setSidebarOpen}
+          pathname={pathname}
+        />
+        
+        {/* Top header for mobile */}
+        <div className="sticky top-0 z-30 md:hidden pl-1 pt-1 sm:pl-3 sm:pt-3 bg-white/95 backdrop-blur-md border-b border-slate-200">
+          <button
+            className="-ml-0.5 -mt-0.5 h-12 w-12 inline-flex items-center justify-center rounded-lg text-slate-700 hover:text-blue-600 hover:bg-slate-100 transition-colors"
+            onClick={() => setSidebarOpen(true)}
+          >
+            <span className="sr-only">Open sidebar</span>
+            <Menu className="h-6 w-6" />
+          </button>
+        </div>
+        
+        {/* Main content */}
+        <div className="md:pl-72 flex flex-col flex-1">
+          <main className="flex-1">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+              <div className="animate-fade-in">
+                {children}
               </div>
-            </main>
-            <Footer />
-          </div>
-        </body>
-      </html>
-    </AuthGuard>
+            </div>
+          </main>
+          <Footer />
+        </div>
+      </body>
+    </html>
   );
 }

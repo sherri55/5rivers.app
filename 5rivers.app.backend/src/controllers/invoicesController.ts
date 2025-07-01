@@ -164,8 +164,8 @@ export const createInvoice = async (req: Request, res: Response) => {
         ? Number(dispatchPercent)
         : dispatcher.commissionPercent;
     const commission = subTotal * (percent / 100);
-    const hst = (subTotal + commission) * 0.13; // 13% HST
-    const total = subTotal + commission + hst;
+    const hst = subTotal * 0.13; // 13% HST on subtotal only
+    const total = subTotal + hst - commission; // Total = (Subtotal + HST) - Commission
     // Create invoice
     const invoice = await prisma.invoice.create({
       data: {
@@ -272,8 +272,8 @@ export const updateInvoice = async (req: Request, res: Response) => {
         ? Number(dispatchPercent)
         : dispatcher.commissionPercent;
     const commission = subTotal * (percent / 100);
-    const hst = (subTotal + commission) * 0.13;
-    const total = subTotal + commission + hst;
+    const hst = subTotal * 0.13; // 13% HST on subtotal only
+    const total = subTotal + hst - commission; // Total = (Subtotal + HST) - Commission
     // Update invoice
     const invoice = await prisma.invoice.update({
       where: { invoiceId: id },
@@ -459,7 +459,7 @@ export const downloadInvoicePdf = async (req: Request, res: Response) => {
           text: job.jobType?.rateOfJob ? `$${job.jobType.rateOfJob}` : "",
           style: "tableCell",
         },
-        { text: job.jobGrossAmount?.toFixed(2) || "", style: "tableCell" },
+        { text: job.jobGrossAmount ? `$${job.jobGrossAmount.toFixed(2)}` : "", style: "tableCell" },
       ];
     });
 
@@ -511,117 +511,129 @@ export const downloadInvoicePdf = async (req: Request, res: Response) => {
             tableHeader,
             ...tableRows,
             [
-              { text: "", colSpan: 8, border: [false, false, false, false] },
-              {},
-              {},
-              {},
-              {},
-              {},
-              {},
+              { text: "", border: [false, false, false, false], fillColor: null },
+              { text: "", border: [false, false, false, false], fillColor: null },
+              { text: "", border: [false, false, false, false], fillColor: null },
+              { text: "", border: [false, false, false, false], fillColor: null },
+              { text: "", border: [false, false, false, false], fillColor: null },
+              { text: "", border: [false, false, false, false], fillColor: null },
+              { text: "", border: [false, false, false, false], fillColor: null },
               {
                 text: "SUBTOTAL",
-                style: "totalsLabel",
+                fontSize: 11,
+                bold: true,
+                color: "black",
                 alignment: "right",
                 border: [false, true, false, false],
+                fillColor: null
               },
               {
                 text: `$${Number(invoice.subTotal).toFixed(2)}`,
-                style: "totalsValue",
+                fontSize: 11,
+                color: "black",
                 alignment: "right",
                 border: [false, true, false, false],
+                fillColor: null
               },
             ],
             [
-              { text: "", colSpan: 8, border: [false, false, false, false] },
-              {},
-              {},
-              {},
-              {},
-              {},
-              {},
+              { text: "", border: [false, false, false, false], fillColor: null },
+              { text: "", border: [false, false, false, false], fillColor: null },
+              { text: "", border: [false, false, false, false], fillColor: null },
+              { text: "", border: [false, false, false, false], fillColor: null },
+              { text: "", border: [false, false, false, false], fillColor: null },
+              { text: "", border: [false, false, false, false], fillColor: null },
+              { text: "", border: [false, false, false, false], fillColor: null },
               {
-                text: `DISPATCH ${
-                  invoice.dispatchPercent?.toFixed(2) || ""
-                }%`,
-                style: "totalsLabel",
+                text: "HST (13%)",
+                fontSize: 11,
+                bold: true,
+                color: "black",
                 alignment: "right",
                 border: [false, false, false, false],
-              },
-              {
-                text: `$${Number(invoice.commission).toFixed(2)}`,
-                style: "totalsValue",
-                alignment: "right",
-                border: [false, false, false, false],
-              },
-            ],
-            [
-              { text: "", colSpan: 8, border: [false, false, false, false] },
-              {},
-              {},
-              {},
-              {},
-              {},
-              {},
-              {
-                text: "COMM.",
-                style: "totalsLabel",
-                alignment: "right",
-                border: [false, false, false, false],
-              },
-              {
-                text: `$${Number(invoice.commission).toFixed(2)}`,
-                style: "totalsValue",
-                alignment: "right",
-                border: [false, false, false, false],
-              },
-            ],
-            [
-              { text: "", colSpan: 8, border: [false, false, false, false] },
-              {},
-              {},
-              {},
-              {},
-              {},
-              {},
-              {
-                text: "HST",
-                style: "totalsLabel",
-                alignment: "right",
-                border: [false, false, false, false],
+                fillColor: null
               },
               {
                 text: `$${Number(invoice.hst).toFixed(2)}`,
-                style: "totalsValue",
+                fontSize: 11,
+                color: "black",
                 alignment: "right",
                 border: [false, false, false, false],
+                fillColor: null
               },
             ],
             [
-              { text: "", colSpan: 8, border: [false, false, false, false] },
-              {},
-              {},
-              {},
-              {},
-              {},
-              {},
+              { text: "", border: [false, false, false, false], fillColor: null },
+              { text: "", border: [false, false, false, false], fillColor: null },
+              { text: "", border: [false, false, false, false], fillColor: null },
+              { text: "", border: [false, false, false, false], fillColor: null },
+              { text: "", border: [false, false, false, false], fillColor: null },
+              { text: "", border: [false, false, false, false], fillColor: null },
+              { text: "", border: [false, false, false, false], fillColor: null },
+              {
+                text: `COMM. (${
+                  invoice.dispatchPercent?.toFixed(1) || "0"
+                }%)`,
+                fontSize: 11,
+                bold: true,
+                color: "maroon",
+                alignment: "right",
+                border: [false, false, false, false],
+                fillColor: null
+              },
+              {
+                text: `- $${Number(invoice.commission).toFixed(2)}`,
+                fontSize: 11,
+                color: "maroon",
+                alignment: "right",
+                border: [false, false, false, false],
+                fillColor: null
+              },
+            ],            
+            [
+              { text: "", border: [false, false, false, false], fillColor: null },
+              { text: "", border: [false, false, false, false], fillColor: null },
+              { text: "", border: [false, false, false, false], fillColor: null },
+              { text: "", border: [false, false, false, false], fillColor: null },
+              { text: "", border: [false, false, false, false], fillColor: null },
+              { text: "", border: [false, false, false, false], fillColor: null },
+              { text: "", border: [false, false, false, false], fillColor: null },
               {
                 text: "TOTAL",
-                style: "totalsLabelBold",
+                fontSize: 12,
+                bold: true,
+                color: "black",
                 alignment: "right",
                 border: [false, true, false, false],
+                fillColor: null
               },
               {
                 text: `$${Number(invoice.total).toFixed(2)}`,
-                style: "totalsValueBold",
+                fontSize: 12,
+                bold: true,
+                color: "black",
                 alignment: "right",
                 border: [false, true, false, false],
+                fillColor: null
               },
             ],
           ],
         },
         layout: {
-          fillColor: function (rowIndex: number) {
-            return rowIndex === 0 ? "#f2f2f2" : null;
+          fillColor: function (rowIndex: number, node: any, columnIndex: number) {
+            // Header row with professional blue-gray
+            if (rowIndex === 0) {
+              return "#4a5568"; // Professional dark blue-gray
+            }
+            // Alternating row colors for data rows only (exclude summary rows)
+            const totalRows = node.table.body.length;
+            const summaryRowStart = totalRows - 4; // Last 4 rows are summary rows
+            if (rowIndex < summaryRowStart) {
+              // Start with light (odd rows), then darker (even rows)
+              return rowIndex % 2 === 1 ? "#f7fafc" : "#e2e8f0";
+            }
+            // Summary rows: return null to use explicit fillColor from cell definition
+            return null;
           },
           hLineWidth: function (i: number) {
             return i === 1 ? 2 : 0.5;
@@ -763,56 +775,59 @@ export const downloadInvoicePdf = async (req: Request, res: Response) => {
         return currentNode.pageBreak === 'before';
       },
       styles: {
-        companyName: { fontSize: 20, bold: true, margin: [0, 0, 0, 6] },
-        companyInfo: { fontSize: 10, margin: [0, 0, 0, 10] },
+        companyName: { fontSize: 20, bold: true, margin: [0, 0, 0, 6], color: "black" },
+        companyInfo: { fontSize: 10, margin: [0, 0, 0, 10], color: "black" },
         invoiceTitle: {
           fontSize: 18,
           bold: true,
-          color: "#222",
+          color: "black",
           margin: [0, 0, 0, 10],
         },
-        invoiceInfo: { fontSize: 11, margin: [0, 0, 0, 10] },
+        invoiceInfo: { fontSize: 11, margin: [0, 0, 0, 10], color: "black" },
         mainTable: { margin: [0, 5, 0, 15] },
         tableHeaderCell: {
           bold: true,
           fontSize: 11,
-          color: "black",
-          fillColor: "#f2f2f2",
+          color: "white",
+          fillColor: "#4a5568",
           alignment: "center",
         },
         tableCell: {
           fontSize: 10,
-          color: "#222",
+          color: "black",
           alignment: "left",
           margin: [0, 2, 0, 2],
           noWrap: false,
         },
-        totalsLabel: { fontSize: 11, alignment: "right", color: "#222" },
-        totalsValue: { fontSize: 11, alignment: "right", color: "#222" },
+        totalsLabel: { 
+          fontSize: 11, 
+          alignment: "right", 
+          color: "black",
+          bold: true
+        },
+        totalsValue: { 
+          fontSize: 11, 
+          alignment: "right", 
+          color: "black",
+          bold: false
+        },
         totalsLabelBold: {
           fontSize: 12,
           bold: true,
           alignment: "right",
-          color: "#222",
+          color: "black",
         },
         totalsValueBold: {
           fontSize: 12,
           bold: true,
           alignment: "right",
-          color: "#222",
+          color: "black",
         },
       },
       defaultStyle: {
-        font: "Roboto",
-      },
-      fonts: {
-        Roboto: {
-          normal: "Roboto-Regular.ttf",
-          bold: "Roboto-Medium.ttf",
-          italics: "Roboto-Italic.ttf",
-          bolditalics: "Roboto-MediumItalic.ttf",
-        },
-      },
+        fontSize: 10,
+        color: "black"
+      }
     };
 
     const pdfDocGenerator = pdfMake.createPdf(docDefinition as any);

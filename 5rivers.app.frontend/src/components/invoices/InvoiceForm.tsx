@@ -253,8 +253,8 @@ export function InvoiceForm({
     );
     setSubTotal(sub);
     const comm = commission ? sub * (parseFloat(commission) / 100) : 0;
-    const hst = (sub + comm) * 0.13;
-    setTotal(sub + comm + hst);
+    const hst = sub * 0.13; // HST on subtotal only
+    setTotal(sub + hst - comm); // Total = (Subtotal + HST) - Commission
   }, [selectedJobIds, jobs, commission]);
 
   const validate = () => {
@@ -423,7 +423,7 @@ export function InvoiceForm({
             <div className="flex justify-between items-center">
               <span className="text-sm font-medium text-gray-600">HST (13%)</span>
               <span className="text-base font-semibold text-gray-900">
-                ${((subTotal + (commission ? subTotal * (parseFloat(commission) / 100) : 0)) * 0.13).toFixed(2)}
+                ${(subTotal * 0.13).toFixed(2)}
               </span>
             </div>
             

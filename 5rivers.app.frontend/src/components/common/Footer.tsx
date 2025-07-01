@@ -32,7 +32,7 @@ const Footer: React.FC = () => (
               { label: "Services", href: "/services" },
               { label: "About", href: "/about" },
               { label: "Contact", href: "/contact" },
-              { label: "Admin Portal", href: "/gated" },
+              { label: "Admin Portal", href: "/invoicing" },
             ].map((link) => (
               <Link
                 key={link.href}

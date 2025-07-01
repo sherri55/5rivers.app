@@ -1,6 +1,6 @@
 "use client";
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { loginUser } from "@/src/lib/api";
 import Link from "next/link";
 import { Truck, Eye, EyeOff, Lock, User } from "lucide-react";
@@ -12,6 +12,7 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,7 +20,14 @@ export default function LoginPage() {
     setError("");
     try {
       await loginUser(loginId, password);
-      router.replace("/gated");
+      
+      // Check if there's a redirect parameter
+      const redirectUrl = searchParams.get('redirect');
+      if (redirectUrl && redirectUrl.startsWith('/invoicing')) {
+        router.replace(redirectUrl);
+      } else {
+        router.replace("/invoicing");
+      }
     } catch (err: any) {
       setError(err.message || "Login failed");
     } finally {

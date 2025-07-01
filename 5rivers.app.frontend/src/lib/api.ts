@@ -5,14 +5,29 @@ import { Company, Unit, Driver, Dispatcher } from "@/src/types/entities";
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:9999";
 
 // Generic API request handlers
+function getAuthHeaders(): Record<string, string> {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  return {
+    'Content-Type': 'application/json',
+    ...(token && { Authorization: `Bearer ${token}` })
+  };
+}
+
 async function fetchData(endpoint: string) {
-  const res = await fetch(`${API_URL}/${endpoint}`);
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  const res = await fetch(`${API_URL}/${endpoint}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {}
+  });
   if (!res.ok) throw new Error(`Failed to fetch from ${endpoint}`);
   return res.json();
 }
 
 async function deleteData(endpoint: string, id: string) {
-  const res = await fetch(`${API_URL}/${endpoint}/${id}`, { method: "DELETE" });
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  const res = await fetch(`${API_URL}/${endpoint}/${id}`, { 
+    method: "DELETE",
+    headers: token ? { Authorization: `Bearer ${token}` } : {}
+  });
   if (!res.ok) throw new Error(`Failed to delete from ${endpoint}`);
   return res.json();
 }
@@ -20,7 +35,7 @@ async function deleteData(endpoint: string, id: string) {
 async function createData<T>(endpoint: string, data: T) {
   const res = await fetch(`${API_URL}/${endpoint}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: getAuthHeaders(),
     body: JSON.stringify(data),
   });
   if (!res.ok) throw new Error(`Failed to create in ${endpoint}`);
@@ -30,7 +45,7 @@ async function createData<T>(endpoint: string, data: T) {
 async function updateData<T>(endpoint: string, id: string, data: T) {
   const res = await fetch(`${API_URL}/${endpoint}/${id}`, {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: getAuthHeaders(),
     body: JSON.stringify(data),
   });
   if (!res.ok) throw new Error(`Failed to update in ${endpoint}`);
@@ -348,8 +363,22 @@ export async function loginUser(
   });
   if (!res.ok) throw new Error("Invalid credentials");
   const { token } = await res.json();
+  
+  // Store token in localStorage for client-side access
   localStorage.setItem("token", token);
+  
+  // Set httpOnly cookie for middleware authentication
+  document.cookie = `authToken=${token}; path=/; secure; samesite=strict`;
+  
   return token;
+}
+
+export async function logoutUser(): Promise<void> {
+  // Clear localStorage
+  localStorage.removeItem("token");
+  
+  // Clear httpOnly cookie
+  document.cookie = 'authToken=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; secure; samesite=strict';
 }
 
 // Driver Rates API
