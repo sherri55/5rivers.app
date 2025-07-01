@@ -62,7 +62,7 @@ function Sidebar({
     <>
       {/* Desktop Sidebar */}
       <div className="hidden md:flex md:w-72 md:flex-col md:fixed md:inset-y-0 z-40">
-        <div className="flex-1 flex flex-col min-h-0 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 shadow-xl">
+        <div className="flex-1 flex flex-col min-h-0 bg-white border-r border-slate-200 shadow-xl">
           <div className="flex-1 flex flex-col pt-6 pb-4 overflow-y-auto">
             {/* Logo */}
             <div className="flex items-center justify-center flex-shrink-0 px-6 mb-8">
@@ -71,8 +71,8 @@ function Sidebar({
                   <Truck className="h-6 w-6 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-xl font-bold text-white">5Rivers</h1>
-                  <p className="text-xs text-slate-300 -mt-1">Admin Portal</p>
+                  <h1 className="text-xl font-bold text-slate-900">5Rivers</h1>
+                  <p className="text-xs text-slate-600 -mt-1">Admin Portal</p>
                 </div>
               </div>
             </div>
@@ -88,12 +88,12 @@ function Sidebar({
                     className={`group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200 ${
                       isActive
                         ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg"
-                        : "text-slate-300 hover:bg-slate-700/50 hover:text-white"
+                        : "text-slate-700 hover:bg-slate-100 hover:text-slate-900"
                     }`}
                   >
                     <div
                       className={`mr-3 transition-colors ${
-                        isActive ? "text-white" : "text-slate-400 group-hover:text-white"
+                        isActive ? "text-white" : "text-slate-500 group-hover:text-slate-700"
                       }`}
                     >
                       {item.icon}
@@ -105,18 +105,18 @@ function Sidebar({
             </nav>
 
             {/* User Section */}
-            <div className="flex-shrink-0 px-4 py-4 border-t border-slate-700">
-              <div className="flex items-center space-x-3 px-4 py-3 rounded-xl bg-slate-800/50">
-                <div className="p-2 bg-slate-700 rounded-lg">
-                  <User className="h-4 w-4 text-slate-300" />
+            <div className="flex-shrink-0 px-4 py-4 border-t border-slate-200">
+              <div className="flex items-center space-x-3 px-4 py-3 rounded-xl bg-slate-50">
+                <div className="p-2 bg-slate-200 rounded-lg">
+                  <User className="h-4 w-4 text-slate-600" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-white truncate">Admin User</p>
-                  <p className="text-xs text-slate-400 truncate">admin@5rivers.ca</p>
+                  <p className="text-sm font-medium text-slate-900 truncate">Admin User</p>
+                  <p className="text-xs text-slate-600 truncate">admin@5rivers.ca</p>
                 </div>
                 <button
                   onClick={handleLogout}
-                  className="p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-700 transition-colors"
+                  className="p-2 text-slate-500 hover:text-slate-700 rounded-lg hover:bg-slate-200 transition-colors"
                   title="Logout"
                 >
                   <LogOut className="h-4 w-4" />
@@ -133,9 +133,9 @@ function Sidebar({
           sidebarOpen ? "block" : "hidden"
         }`}
       >
-        <div className="fixed inset-0 bg-slate-900/75 backdrop-blur-sm"></div>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm"></div>
         <div className="fixed inset-0 flex z-40">
-          <div className="relative flex-1 flex flex-col max-w-xs w-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+          <div className="relative flex-1 flex flex-col max-w-xs w-full bg-white">
             <div className="absolute top-0 right-0 -mr-12 pt-2">
               <button
                 className="ml-1 flex items-center justify-center h-10 w-10 rounded-full focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white"
@@ -152,8 +152,8 @@ function Sidebar({
                     <Truck className="h-6 w-6 text-white" />
                   </div>
                   <div>
-                    <h1 className="text-xl font-bold text-white">5Rivers</h1>
-                    <p className="text-xs text-slate-300 -mt-1">Admin Portal</p>
+                    <h1 className="text-xl font-bold text-slate-900">5Rivers</h1>
+                    <p className="text-xs text-slate-600 -mt-1">Admin Portal</p>
                   </div>
                 </div>
               </div>
@@ -167,13 +167,13 @@ function Sidebar({
                       className={`group flex items-center px-4 py-3 text-base font-medium rounded-xl transition-all duration-200 ${
                         isActive
                           ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg"
-                          : "text-slate-300 hover:bg-slate-700/50 hover:text-white"
+                          : "text-slate-700 hover:bg-slate-100 hover:text-slate-900"
                       }`}
                       onClick={() => setSidebarOpen(false)}
                     >
                       <div
                         className={`mr-4 transition-colors ${
-                          isActive ? "text-white" : "text-slate-400 group-hover:text-white"
+                          isActive ? "text-white" : "text-slate-500 group-hover:text-slate-700"
                         }`}
                       >
                         {item.icon}

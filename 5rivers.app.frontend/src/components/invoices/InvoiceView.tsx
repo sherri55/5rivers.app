@@ -244,14 +244,14 @@ export function InvoiceView({
             
             {invoice.hst !== undefined && (
               <div className="flex justify-between items-center">
-                <span className="text-sm font-medium text-gray-600 dark:text-gray-400">HST (13%)</span>
-                <span className="text-base font-semibold text-gray-900 dark:text-gray-100">{formatCurrency(invoice.hst)}</span>
+                <span className="text-sm font-medium text-gray-600">HST (13%)</span>
+                <span className="text-base font-semibold text-gray-900">{formatCurrency(invoice.hst)}</span>
               </div>
             )}
             
-            <div className="flex justify-between items-center pt-3 border-t border-gray-300 dark:border-gray-600">
-              <span className="text-lg font-semibold text-gray-900 dark:text-gray-100">Total</span>
-              <span className="text-xl font-bold text-green-600 dark:text-green-500 flex items-center gap-1">
+            <div className="flex justify-between items-center pt-3 border-t border-gray-300">
+              <span className="text-lg font-semibold text-gray-900">Total</span>
+              <span className="text-xl font-bold text-green-600 flex items-center gap-1">
                 <DollarSign className="h-5 w-5" />
                 {formatCurrency(invoice.total)}
               </span>
@@ -260,42 +260,42 @@ export function InvoiceView({
         </div>
 
         {/* Jobs Section */}
-        <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+        <div className="border-t border-gray-200 pt-4">
           <label className="view-field-label mb-3 flex items-center gap-2">
             <Briefcase className="h-4 w-4" />
             Jobs Included ({jobs.length})
           </label>
           
           {loadingJobs ? (
-            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+            <div className="text-center py-8 text-gray-500">
               Loading jobs...
             </div>
           ) : jobs.length === 0 ? (
-            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+            <div className="text-center py-8 text-gray-500">
               No jobs found for this invoice.
             </div>
           ) : (
-            <div className="space-y-3 max-h-64 overflow-y-auto bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+            <div className="space-y-3 max-h-64 overflow-y-auto bg-gray-50 border border-gray-200 rounded-lg p-4">
               {jobs.map((job) => (
                 <div
                   key={job.jobId}
-                  className="p-3 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 cursor-pointer transition-colors group"
+                  className="p-3 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors group"
                   onClick={() => handleJobClick(job)}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                        <span className="text-sm font-medium text-gray-900">
                           {formatDate(job.jobDate)}
                         </span>
                         {job.unit?.name && (
-                          <span className="text-xs bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-200 px-2 py-1 rounded-full">
+                          <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
                             {job.unit.name}
                           </span>
                         )}
                       </div>
                       
-                      <div className="text-sm text-gray-600 dark:text-gray-400">
+                      <div className="text-sm text-gray-600">
                         {job.driver?.name && (
                           <span className="mr-3">Driver: {job.driver.name}</span>
                         )}
@@ -305,7 +305,7 @@ export function InvoiceView({
                       </div>
                       
                       {job.jobType && (
-                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        <div className="text-xs text-gray-500 mt-1">
                           {job.jobType.title}
                           {job.jobType.startLocation && job.jobType.endLocation && (
                             <span> • {job.jobType.startLocation} to {job.jobType.endLocation}</span>
@@ -315,10 +315,10 @@ export function InvoiceView({
                     </div>
                     
                     <div className="flex items-center gap-2">
-                      <span className="font-medium text-emerald-600 dark:text-emerald-500">
+                      <span className="font-medium text-emerald-600">
                         {formatCurrency(job.jobGrossAmount)}
                       </span>
-                      <ArrowRight className="h-4 w-4 text-gray-400 dark:text-gray-500 group-hover:text-gray-600 dark:group-hover:text-gray-300 transition-colors" />
+                      <ArrowRight className="h-4 w-4 text-gray-400 group-hover:text-gray-600 transition-colors" />
                     </div>
                   </div>
                 </div>
@@ -329,8 +329,8 @@ export function InvoiceView({
 
         <div className="space-y-2">
           <label className="view-field-label">Invoice Summary</label>
-          <div className="view-field-value bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 p-4 rounded-lg">
-            <div className="text-sm text-emerald-800 dark:text-emerald-200">
+          <div className="view-field-value bg-emerald-50 border border-emerald-200 p-4 rounded-lg">
+            <div className="text-sm text-emerald-800">
               Invoice <strong>{invoice.invoiceNumber}</strong> was created on <strong>{formatDate(invoice.invoiceDate)}</strong>
               {invoice.billedTo && (
                 <span> for <strong>{invoice.billedTo}</strong></span>
@@ -351,7 +351,7 @@ export function InvoiceView({
       </div>
 
       {/* Action Buttons */}
-      <div className="flex justify-between items-center pt-6 border-t border-gray-200 dark:border-gray-700">
+      <div className="flex justify-between items-center pt-6 border-t border-gray-200">
         <Button 
           type="button" 
           variant="outline" 

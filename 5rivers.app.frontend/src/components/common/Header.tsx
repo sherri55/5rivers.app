@@ -49,11 +49,11 @@ const Header: React.FC = () => {
             <div className="flex items-center space-x-4 text-sm text-slate-600">
               <div className="flex items-center space-x-1">
                 <Phone className="h-4 w-4" />
-                <span>(519) 555-0123</span>
+                <span>+1 (226) 700-5268</span>
               </div>
               <div className="flex items-center space-x-1">
                 <Mail className="h-4 w-4" />
-                <span>info@5rivers.ca</span>
+                <span>info@5riverstruckinginc.ca</span>
               </div>
             </div>
             <Link

@@ -28,7 +28,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 p-4">
       {/* Background Pattern */}
       <div className="absolute inset-0 bg-grid-pattern opacity-10"></div>
       
@@ -40,21 +40,21 @@ export default function LoginPage() {
               <Truck className="h-8 w-8 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-white">5 Rivers Trucking</h1>
-              <p className="text-slate-300 text-sm">Admin Portal</p>
+              <h1 className="text-2xl font-bold text-slate-900">5 Rivers Trucking</h1>
+              <p className="text-slate-600 text-sm">Admin Portal</p>
             </div>
           </Link>
         </div>
 
         {/* Login Form */}
-        <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl shadow-2xl p-8">
+        <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl p-8">
           <div className="text-center mb-6">
-            <h2 className="text-xl font-semibold text-white mb-2">Welcome Back</h2>
-            <p className="text-slate-300 text-sm">Please sign in to your account</p>
+            <h2 className="text-xl font-semibold text-slate-900 mb-2">Welcome Back</h2>
+            <p className="text-slate-600 text-sm">Please sign in to your account</p>
           </div>
 
           {error && (
-            <div className="mb-6 p-4 bg-red-500/20 border border-red-500/30 rounded-xl text-red-200 text-sm">
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
               {error}
             </div>
           )}
@@ -62,7 +62,7 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Email/User ID Field */}
             <div>
-              <label className="block text-sm font-medium text-slate-200 mb-2">
+              <label className="block text-sm font-medium text-slate-700 mb-2">
                 Email or User ID
               </label>
               <div className="relative">
@@ -71,7 +71,7 @@ export default function LoginPage() {
                 </div>
                 <input
                   type="text"
-                  className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  className="w-full pl-10 pr-4 py-3 bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                   placeholder="Enter your email or user ID"
                   value={loginId}
                   onChange={(e) => setLoginId(e.target.value)}
@@ -83,7 +83,7 @@ export default function LoginPage() {
 
             {/* Password Field */}
             <div>
-              <label className="block text-sm font-medium text-slate-200 mb-2">
+              <label className="block text-sm font-medium text-slate-700 mb-2">
                 Password
               </label>
               <div className="relative">
@@ -92,7 +92,7 @@ export default function LoginPage() {
                 </div>
                 <input
                   type={showPassword ? "text" : "password"}
-                  className="w-full pl-10 pr-12 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  className="w-full pl-10 pr-12 py-3 bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                   placeholder="Enter your password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -105,9 +105,9 @@ export default function LoginPage() {
                   onClick={() => setShowPassword(!showPassword)}
                 >
                   {showPassword ? (
-                    <EyeOff className="h-5 w-5 text-slate-400 hover:text-slate-300" />
+                    <EyeOff className="h-5 w-5 text-slate-400 hover:text-slate-600" />
                   ) : (
-                    <Eye className="h-5 w-5 text-slate-400 hover:text-slate-300" />
+                    <Eye className="h-5 w-5 text-slate-400 hover:text-slate-600" />
                   )}
                 </button>
               </div>
@@ -117,7 +117,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white py-3 px-4 rounded-xl font-semibold hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-transparent transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white py-3 px-4 rounded-xl font-semibold hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-white transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? (
                 <div className="flex items-center justify-center space-x-2">
@@ -134,7 +134,7 @@ export default function LoginPage() {
           <div className="mt-6 text-center">
             <Link
               href="/"
-              className="text-sm text-slate-300 hover:text-white transition-colors"
+              className="text-sm text-slate-600 hover:text-slate-900 transition-colors"
             >
               ← Back to website
             </Link>
@@ -143,11 +143,11 @@ export default function LoginPage() {
 
         {/* Bottom Text */}
         <div className="text-center mt-6">
-          <p className="text-slate-400 text-sm">
+          <p className="text-slate-600 text-sm">
             Need help? Contact{" "}
             <a
               href="mailto:admin@5riverstruckinginc.ca"
-              className="text-blue-400 hover:text-blue-300 transition-colors"
+              className="text-blue-600 hover:text-blue-700 transition-colors"
             >
               admin@5riverstruckinginc.ca
             </a>
