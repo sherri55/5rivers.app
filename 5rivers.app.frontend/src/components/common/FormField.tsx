@@ -46,19 +46,12 @@ export function FormField({
   step,
 }: FormFieldProps) {
   return (
-    <div className="space-y-1" style={{ marginBottom: '16px' }}>
+    <div className="space-y-2 mb-4">
       <Label
         htmlFor={id}
-        className={
+        className={`block text-sm font-medium text-gray-700 ${
           required ? "after:content-['*'] after:text-red-500 after:ml-0.5" : ""
-        }
-        style={{ 
-          display: 'block', 
-          fontWeight: '500', 
-          color: '#374151', 
-          marginBottom: '4px',
-          fontSize: '14px'
-        }}
+        }`}
       >
         {label}
       </Label>
@@ -70,62 +63,22 @@ export function FormField({
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
           required={required}
-          className="mt-1"
-          style={{
-            width: '100%',
-            padding: '8px 12px',
-            border: '1px solid #ccc',
-            borderRadius: '4px',
-            fontSize: '14px',
-            backgroundColor: 'white',
-            color: '#333',
-            minHeight: '80px'
-          }}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 min-h-[80px] resize-vertical"
         />
       ) : type === "select" ? (
         <Select value={value?.toString()} onValueChange={onChange}>
-          <SelectTrigger 
-            className="mt-1"
-            style={{
-              width: '100%',
-              padding: '8px 12px',
-              border: '2px solid #374151',
-              borderRadius: '6px',
-              fontSize: '14px',
-              fontWeight: '500',
-              backgroundColor: 'white',
-              color: '#111827',
-              minHeight: '40px',
-              boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
-            }}
-          >
+          <SelectTrigger className="w-full px-3 py-2 h-10 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 font-medium">
             <SelectValue 
-              placeholder={placeholder} 
-              style={{
-                color: '#111827',
-                fontWeight: '500'
-              }}
+              placeholder={placeholder}
+              className="text-gray-900 font-medium"
             />
           </SelectTrigger>
-          <SelectContent 
-            className="max-h-60 overflow-y-auto"
-            style={{
-              backgroundColor: 'white',
-              border: '1px solid #d1d5db',
-              borderRadius: '8px',
-              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
-              zIndex: 99999
-            }}
-          >
+          <SelectContent className="max-h-60 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-lg z-50">
             {options.map((option) => (
               <SelectItem 
                 key={option.value} 
                 value={option.value}
-                style={{
-                  color: '#111827',
-                  fontWeight: '500',
-                  padding: '10px 12px'
-                }}
+                className="text-gray-900 font-medium px-3 py-2 hover:bg-gray-50 focus:bg-blue-50 cursor-pointer"
               >
                 {option.label}
               </SelectItem>
@@ -151,25 +104,12 @@ export function FormField({
           min={min}
           max={max}
           step={step}
-          className="mt-1"
-          style={{
-            width: '100%',
-            padding: '8px 12px',
-            border: '1px solid #ccc',
-            borderRadius: '4px',
-            fontSize: '14px',
-            backgroundColor: 'white',
-            color: '#333',
-            minHeight: '40px'
-          }}
+          className="w-full px-3 py-2 h-10 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 placeholder-gray-500"
         />
       )}
 
       {error && (
-        <p 
-          className="text-destructive text-sm mt-1"
-          style={{ color: '#dc2626', fontSize: '12px', marginTop: '4px' }}
-        >
+        <p className="text-red-600 text-xs font-medium mt-1">
           {error}
         </p>
       )}

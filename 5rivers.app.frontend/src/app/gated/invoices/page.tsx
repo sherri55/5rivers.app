@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { InvoiceList } from "@/src/components/invoices/InvoiceList";
 import { InvoiceForm } from "@/src/components/invoices/InvoiceForm";
+import { InvoiceView } from "@/src/components/invoices/InvoiceView";
 import { ConfirmDialog } from "@/src/components/common/Modal";
 import { SlideOver } from "@/src/components/common/SlideOver";
 import { invoiceApi } from "@/src/lib/api";
@@ -11,6 +12,7 @@ import { Invoice } from "@/src/types/entities";
 
 export default function InvoicesPage() {
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [isViewOpen, setIsViewOpen] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -37,12 +39,17 @@ export default function InvoicesPage() {
     setIsFormOpen(true);
   };
 
+  const handleView = (invoice: Invoice) => {
+    setSelectedInvoice(invoice);
+    setIsViewOpen(true);
+  };
+
   const handleEdit = (invoice: Invoice) => {
     setEditingInvoice(invoice);
     setIsFormOpen(true);
   };
 
-  const handleDelete = async (invoice: Invoice) => {
+  const handleDelete = (invoice: Invoice) => {
     setSelectedInvoice(invoice);
     setConfirmDelete(true);
   };
@@ -85,12 +92,31 @@ export default function InvoicesPage() {
       {/* Main Content - Full Width */}
       <div className="w-full">
         <InvoiceList
+          onView={handleView}
           onEdit={handleEdit}
           onDelete={handleDelete}
           onCreate={handleCreate}
           refresh={refreshTrigger}
         />
       </div>
+
+      {/* View SlideOver */}
+      <SlideOver
+        title="Invoice Details"
+        subtitle="View invoice information and included jobs"
+        isOpen={isViewOpen}
+        onClose={() => setIsViewOpen(false)}
+        size="lg"
+      >
+        {selectedInvoice && (
+          <InvoiceView
+            invoice={selectedInvoice}
+            onEdit={() => handleEdit(selectedInvoice)}
+            onDelete={() => setConfirmDelete(true)}
+            onClose={() => setIsViewOpen(false)}
+          />
+        )}
+      </SlideOver>
 
       {/* Create/Edit SlideOver */}
       <SlideOver
@@ -109,6 +135,10 @@ export default function InvoicesPage() {
           onSuccess={() => {
             setIsFormOpen(false);
             refresh();
+            if (editingInvoice) {
+              setSelectedInvoice(null);
+              setIsViewOpen(false);
+            }
           }}
           onCancel={() => setIsFormOpen(false)}
         />

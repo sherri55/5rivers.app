@@ -22,6 +22,7 @@ interface Dispatcher {
 }
 
 interface InvoiceListProps {
+  onView: (invoice: Invoice) => void;
   onEdit: (invoice: Invoice) => void;
   onDelete: (invoice: Invoice) => void;
   onCreate: () => void;
@@ -29,6 +30,7 @@ interface InvoiceListProps {
 }
 
 export function InvoiceList({
+  onView,
   onEdit,
   onDelete,
   onCreate,
@@ -294,7 +296,7 @@ export function InvoiceList({
               <div
                 key={invoice.invoiceId}
                 className="py-3 px-4 rounded-lg flex items-center justify-between hover:bg-muted cursor-pointer border border-border"
-                onClick={() => {/* Remove click handler for now */}}
+                onClick={() => onView(invoice)}
               >
                 <div className="flex items-center gap-3 flex-1">
                   {/* Status indicator */}

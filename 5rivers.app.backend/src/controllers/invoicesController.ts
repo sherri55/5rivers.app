@@ -51,7 +51,7 @@ export const getInvoices = async (req: Request, res: Response) => {
     // Fetch invoices with pagination
     const invoices = await prisma.invoice.findMany({
       where,
-      include: { dispatcher: true, invoiceLines: true, jobs: true },
+      include: { dispatcher: true, invoiceLines: true },
       orderBy: { invoiceDate: 'desc' },
       skip: (page - 1) * pageSize,
       take: pageSize,
@@ -74,7 +74,7 @@ export const getInvoiceById = async (req: Request, res: Response) => {
   try {
     const invoice = await prisma.invoice.findUnique({
       where: { invoiceId: req.params.id },
-      include: { dispatcher: true, invoiceLines: true, jobs: true },
+      include: { dispatcher: true, invoiceLines: true },
     });
     res.json(invoice);
   } catch (error) {
@@ -186,17 +186,13 @@ export const createInvoice = async (req: Request, res: Response) => {
             lineAmount: job.jobGrossAmount || 0,
           })),
         },
-        jobs: {
-          connect: jobs.map((job) => ({ jobId: job.jobId })),
-        },
       },
-      include: { dispatcher: true, invoiceLines: true, jobs: true },
+      include: { dispatcher: true, invoiceLines: true },
     });
-    // Update jobs to reference invoiceId
-    await prisma.job.updateMany({
-      where: { jobId: { in: jobIds } },
-      data: { invoiceId: invoice.invoiceId, invoiceStatus: "Invoiced" },
-    });
+    
+    // Note: We no longer update Job.invoiceId since we're using InvoiceLines only
+    // If you need to track which jobs are invoiced, you can query through InvoiceLines
+    
     res.status(201).json(invoice);
   } catch (err: any) {
     console.error("Error in createInvoice:", err);
@@ -300,22 +296,12 @@ export const updateInvoice = async (req: Request, res: Response) => {
             lineAmount: job.jobGrossAmount || 0,
           })),
         },
-        jobs: { set: jobs.map((job) => ({ jobId: job.jobId })) },
       },
-      include: { dispatcher: true, invoiceLines: true, jobs: true },
+      include: { dispatcher: true, invoiceLines: true },
     });
-    // Only update jobs' invoiceStatus if status was provided
-    if (req.body.status !== undefined) {
-      await prisma.job.updateMany({
-        where: { jobId: { in: jobIds } },
-        data: { invoiceId: invoice.invoiceId, invoiceStatus: status },
-      });
-    } else {
-      await prisma.job.updateMany({
-        where: { jobId: { in: jobIds } },
-        data: { invoiceId: invoice.invoiceId },
-      });
-    }
+    
+    // Note: We no longer update Job.invoiceId since we're using InvoiceLines only
+    
     res.json(invoice);
   } catch (err: any) {
     console.error("Error in updateInvoice:", err);
@@ -363,16 +349,23 @@ export const downloadInvoicePdf = async (req: Request, res: Response) => {
       where: { invoiceId: id },
       include: {
         dispatcher: true,
-        jobs: {
+        invoiceLines: {
           include: {
-            driver: true,
-            unit: true,
-            jobType: { include: { company: true } },
-          },
-        },
+            job: {
+              include: {
+                driver: true,
+                unit: true,
+                jobType: { include: { company: true } },
+              }
+            }
+          }
+        }
       },
     });
     if (!invoice) return res.status(404).json({ error: "Invoice not found" });
+
+    // Extract jobs from invoiceLines
+    const jobs = invoice.invoiceLines.map(line => line.job);
 
     // Table header
     const tableHeader = [
@@ -388,7 +381,7 @@ export const downloadInvoicePdf = async (req: Request, res: Response) => {
     ];
 
     // Table rows (NO images in table)
-    const tableRows = invoice.jobs.map((job: any) => {
+    const tableRows = jobs.map((job: any) => {
       let value = "";
       const dispatchType =
         job.jobType?.dispatchType || job.jobType?.type || job.jobType?.title;
@@ -409,18 +402,22 @@ export const downloadInvoicePdf = async (req: Request, res: Response) => {
         } else if (dispatchType.toLowerCase() === "tonnage") {
           let tonnage = 0;
           let weights: number[] = [];
-          if (Array.isArray(job.weight)) {
-            weights = job.weight.map((w: any) => parseFloat(w) || 0);
-          } else if (typeof job.weight === "string") {
-            try {
-              const arr = JSON.parse(job.weight);
-              if (Array.isArray(arr)) {
-                weights = arr.map((w) => parseFloat(w) || 0);
-              } else {
-                weights = [parseFloat(arr) || 0];
+          if (job.weight) {
+            if (Array.isArray(job.weight)) {
+              weights = job.weight.map((w: any) => parseFloat(w) || 0);
+            } else if (typeof job.weight === "string") {
+              try {
+                const arr = JSON.parse(job.weight);
+                if (Array.isArray(arr)) {
+                  weights = arr.map((w) => parseFloat(w) || 0);
+                } else {
+                  weights = [parseFloat(arr) || 0];
+                }
+              } catch {
+                weights = [parseFloat(job.weight) || 0];
               }
-            } catch {
-              weights = [parseFloat(job.weight) || 0];
+            } else if (typeof job.weight === "number") {
+              weights = [job.weight];
             }
           }
           tonnage = weights.reduce((sum, w) => sum + w, 0);
@@ -655,19 +652,27 @@ export const downloadInvoicePdf = async (req: Request, res: Response) => {
       },
     ];
 
-    // --- Add a single 'Tickets' page after the table, then all job images (no page breaks) ---
+    // --- Add images section only if there are images ---
     let allImageEntries: { absPath: string }[] = [];
-    for (const job of invoice.jobs) {
+    for (const job of jobs) {
       let imageUrls: string[] = [];
       if (job.imageUrls) {
         if (typeof job.imageUrls === "string") {
           try {
-            imageUrls = JSON.parse(job.imageUrls);
+            const parsed = JSON.parse(job.imageUrls);
+            if (Array.isArray(parsed)) {
+              imageUrls = parsed;
+            }
           } catch {
+            // If JSON parsing fails, treat as empty array
             imageUrls = [];
           }
         } else if (Array.isArray(job.imageUrls)) {
           imageUrls = job.imageUrls;
+        } else {
+          // Handle any other data type by converting to empty array
+          console.warn(`Unexpected imageUrls type for job ${job.jobId}:`, typeof job.imageUrls);
+          imageUrls = [];
         }
       }
       for (const imgRelPath of imageUrls) {
@@ -681,16 +686,20 @@ export const downloadInvoicePdf = async (req: Request, res: Response) => {
         }
       }
     }
+    
+    // Only add images section if there are actually images
     if (allImageEntries.length > 0) {
-      // Add 'Tickets' page only if not already at top (pdfmake will handle this)
+      // Add 'Tickets' page header
       content.push({
         text: "Tickets",
         fontSize: 40,
         bold: true,
         alignment: "center",
         pageBreak: "before",
-        margin: [0, 200, 0, 0],
+        margin: [0, 100, 0, 50],
       });
+      
+      // Add all images
       for (let i = 0; i < allImageEntries.length; i++) {
         const { absPath } = allImageEntries[i];
         try {
@@ -718,22 +727,41 @@ export const downloadInvoicePdf = async (req: Request, res: Response) => {
             width: resizeOptions.width || undefined,
             height: resizeOptions.height || undefined,
             alignment: "center",
-            margin: [0, 20, 0, 20],
+            margin: [0, 10, 0, 10],
           });
-        } catch {
+        } catch (error) {
+          console.warn(`Failed to process image ${absPath}:`, error);
           continue;
         }
       }
-      // Remove any trailing empty content (pdfmake bug workaround)
-      while (content.length > 0 && content[content.length - 1] && content[content.length - 1].text === "") {
+    }
+
+    // Final cleanup to prevent empty pages
+    // Remove any trailing empty or problematic content
+    while (content.length > 0) {
+      const lastItem = content[content.length - 1];
+      if (!lastItem || 
+          (typeof lastItem === 'object' && 
+           (!lastItem.text && !lastItem.image && !lastItem.table) ||
+           (lastItem.text === "") ||
+           (lastItem.margin && Array.isArray(lastItem.margin) && lastItem.margin.every((m: any) => m === 0)))) {
         content.pop();
+      } else {
+        break;
       }
     }
 
     const docDefinition = {
-      pageOrientation: "landscape",
+      pageOrientation: "landscape" as const,
       pageMargins: [30, 60, 30, 60],
       content,
+      pageBreakBefore: function(currentNode: any, followingNodesOnPage: any, nodesOnNextPage: any, previousNodesOnPage: any) {
+        // Prevent unnecessary page breaks
+        if (currentNode.pageBreak === 'before' && previousNodesOnPage.length === 0) {
+          return false;
+        }
+        return currentNode.pageBreak === 'before';
+      },
       styles: {
         companyName: { fontSize: 20, bold: true, margin: [0, 0, 0, 6] },
         companyInfo: { fontSize: 10, margin: [0, 0, 0, 10] },
@@ -792,7 +820,7 @@ export const downloadInvoicePdf = async (req: Request, res: Response) => {
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader(
         "Content-Disposition",
-        `attachment; filename=invoice-${invoice.invoiceNumber || id}.pdf`
+        `attachment; filename=${invoice.invoiceNumber || id}.pdf`
       );
       res.end(buffer);
     });
@@ -819,33 +847,53 @@ export const getInvoiceJobs = async (req: Request, res: Response) => {
     const month = req.query.month ? parseInt(req.query.month as string) : undefined;
     const year = req.query.year ? parseInt(req.query.year as string) : undefined;
 
-    // Build filter
-    const where: any = { invoiceId: id };
-    if (dispatcherId) where.dispatcherId = dispatcherId;
+    // Build filter for jobs through InvoiceLine
+    const invoiceLineWhere: any = { invoiceId: id };
+    
+    // Build job filter conditions
+    const jobWhere: any = {};
+    if (dispatcherId) jobWhere.dispatcherId = dispatcherId;
     if (month && year) {
       // Filter jobs by month/year
-      where.jobDate = {
+      jobWhere.jobDate = {
         gte: parseLocalDate(`${year}-${String(month).padStart(2, '0')}-01`),
         lt: parseLocalDate(`${year}-${String(month + 1).padStart(2, '0')}-01`),
       };
     } else if (year) {
-      where.jobDate = {
+      jobWhere.jobDate = {
         gte: parseLocalDate(`${year}-01-01`),
         lt: parseLocalDate(`${year + 1}-01-01`),
       };
     }
 
-    // Count total jobs for pagination
-    const total = await prisma.job.count({ where });
+    // Count total jobs through InvoiceLines
+    const total = await prisma.invoiceLine.count({
+      where: {
+        ...invoiceLineWhere,
+        job: jobWhere
+      }
+    });
 
-    // Fetch jobs, sorted reverse chronologically
-    const jobs = await prisma.job.findMany({
-      where,
-      orderBy: { jobDate: 'desc' },
+    // Fetch jobs through InvoiceLines, sorted reverse chronologically
+    const invoiceLines = await prisma.invoiceLine.findMany({
+      where: {
+        ...invoiceLineWhere,
+        job: jobWhere
+      },
       skip: (page - 1) * pageSize,
       take: pageSize,
-      include: { driver: true, unit: true, jobType: true },
+      include: {
+        job: {
+          include: { driver: true, unit: true, jobType: true, dispatcher: true }
+        }
+      },
+      orderBy: {
+        job: { jobDate: 'desc' }
+      }
     });
+
+    // Extract jobs from InvoiceLines
+    const jobs = invoiceLines.map(line => line.job);
 
     // Group jobs by month/year
     const grouped: Record<string, any[]> = {};

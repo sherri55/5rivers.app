@@ -781,7 +781,7 @@ const downloadInvoicePdf = async (req, res) => {
         const pdfDocGenerator = pdfmake_1.default.createPdf(docDefinition);
         pdfDocGenerator.getBuffer((buffer) => {
             res.setHeader("Content-Type", "application/pdf");
-            res.setHeader("Content-Disposition", `attachment; filename=invoice-${invoice.invoiceNumber || id}.pdf`);
+            res.setHeader("Content-Disposition", `attachment; filename=${invoice.invoiceNumber || id}.pdf`);
             res.end(buffer);
         });
     }

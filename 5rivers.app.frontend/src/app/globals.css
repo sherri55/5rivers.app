@@ -63,41 +63,6 @@
   --radius: 0.5rem;
 }
 
-/* Dark mode variables */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-background: #0f172a;
-    --color-surface: #1e293b;
-    --color-surface-hover: #334155;
-    --color-border: #334155;
-    --color-text-primary: #f8fafc;
-    --color-text-secondary: #cbd5e1;
-    --color-text-muted: #94a3b8;
-    --gradient-surface: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-
-    /* shadcn/ui dark mode variables */
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 240 10% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 240 10% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 240 5.9% 10%;
-    --secondary: 240 3.7% 15.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
-    --accent: 240 3.7% 15.9%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 240 4.9% 83.9%;
-  }
-}
-
 body {
   font-family: 'Proxima Nova', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   color: var(--color-text-primary);
@@ -474,16 +439,66 @@ footer {
   outline: none;
 }
 
-/* Placeholder text */
-.slide-over-form input::placeholder,
-.slide-over-form textarea::placeholder {
-  color: #9ca3af !important;
+/* Regular HTML select styling improvements */
+.slide-over-form select {
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=US-ASCII,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 5'%3e%3cpath fill='%23666' d='M2 0L0 2h4zm0 5L0 3h4z'/%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 12px;
+  padding-right: 40px !important;
 }
 
-/* Required asterisk styling */
-.slide-over-form label::after {
-  color: #dc2626;
-  margin-left: 2px;
+.slide-over-form select:focus {
+  background-image: url("data:image/svg+xml;charset=US-ASCII,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 5'%3e%3cpath fill='%232563eb' d='M2 0L0 2h4zm0 5L0 3h4z'/%3e%3c/svg%3e");
+}
+
+/* Option styling for better readability */
+.slide-over-form select option {
+  color: #111827 !important;
+  background-color: white !important;
+  padding: 8px 12px !important;
+  font-size: 14px !important;
+}
+
+.slide-over-form select option:hover,
+.slide-over-form select option:focus {
+  background-color: #f3f4f6 !important;
+}
+
+/* Improve form field spacing */
+.slide-over-form .form-section > div {
+  margin-bottom: 20px !important;
+}
+
+.slide-over-form .form-section > div:last-child {
+  margin-bottom: 0 !important;
+}
+
+/* Status indicators */
+.status-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.status-badge.pending {
+  background-color: #fef3c7;
+  color: #92400e;
+}
+
+.status-badge.raised {
+  background-color: #dbeafe;
+  color: #1e40af;
+}
+
+.status-badge.received {
+  background-color: #d1fae5;
+  color: #065f46;
 }
 
 /* Debug CSS for slide-over forms - temporary for visibility */
@@ -757,7 +772,7 @@ footer {
 .slide-over-view .view-field-label {
   font-size: 0.75rem; /* text-xs */
   font-weight: 600; /* font-semibold */
-  color: #6b7280; /* text-gray-500 - more readable than muted-foreground */
+  color: #64748b; /* Consistent muted text */
   text-transform: uppercase;
   letter-spacing: 0.05em; /* tracking-wider */
   margin-bottom: 0.25rem; /* mb-1 */
@@ -765,10 +780,11 @@ footer {
 }
 
 .slide-over-view .view-field-value {
-  color: #111827; /* text-gray-900 - dark readable text */
+  color: #0f172a; /* Dark text for readability */
   font-size: 1rem; /* text-base */
   line-height: 1.5; /* leading-normal */
   margin-bottom: 0;
+  font-weight: 500; /* Slightly bolder for better readability */
 }
 
 .slide-over-view .view-field-value.font-mono {
@@ -776,5 +792,32 @@ footer {
 }
 
 .slide-over-view .view-field-value.whitespace-pre-wrap {
+  white-space: pre-wrap;
+}
+
+/* Global view field classes for consistent styling */
+.view-field-label {
+  font-size: 0.75rem; /* text-xs */
+  font-weight: 600; /* font-semibold */
+  color: #64748b; /* Consistent muted text */
+  text-transform: uppercase;
+  letter-spacing: 0.05em; /* tracking-wider */
+  margin-bottom: 0.25rem; /* mb-1 */
+  display: block;
+}
+
+.view-field-value {
+  color: #0f172a; /* Dark text for readability */
+  font-size: 1rem; /* text-base */
+  line-height: 1.5; /* leading-normal */
+  margin-bottom: 0;
+  font-weight: 500; /* Slightly bolder for better readability */
+}
+
+.view-field-value.font-mono {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+}
+
+.view-field-value.whitespace-pre-wrap {
   white-space: pre-wrap;
 }

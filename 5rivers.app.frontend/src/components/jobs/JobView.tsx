@@ -261,29 +261,49 @@ export function JobView({
             </div>
           )}
 
-          {job.imageUrls && job.imageUrls.length > 0 && (
-            <div>
-              <div className="view-field-label">
-                Images
+          {(() => {
+            // Parse imageUrls safely
+            let imageUrls: string[] = [];
+            if (job.imageUrls) {
+              if (Array.isArray(job.imageUrls)) {
+                imageUrls = job.imageUrls;
+              } else if (typeof job.imageUrls === "string") {
+                try {
+                  const parsed = JSON.parse(job.imageUrls);
+                  if (Array.isArray(parsed)) {
+                    imageUrls = parsed;
+                  }
+                } catch {
+                  // If JSON parsing fails, treat as empty array
+                  imageUrls = [];
+                }
+              }
+            }
+            
+            return imageUrls.length > 0 ? (
+              <div>
+                <div className="view-field-label">
+                  Images
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {imageUrls.map((url, index) => (
+                    <a
+                      key={index}
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <img
+                        src={url}
+                        alt={`Job image ${index + 1}`}
+                        className="w-24 h-24 object-cover rounded border"
+                      />
+                    </a>
+                  ))}
+                </div>
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                {job.imageUrls.map((url, index) => (
-                  <a
-                    key={index}
-                    href={url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <img
-                      src={url}
-                      alt={`Job image ${index + 1}`}
-                      className="w-24 h-24 object-cover rounded border"
-                    />
-                  </a>
-                ))}
-              </div>
-            </div>
-          )}
+            ) : null;
+          })()}
         </div>
       </div>
 

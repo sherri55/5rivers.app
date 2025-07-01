@@ -63,11 +63,11 @@ export function InvoiceForm({
   // Helper for react-select options
   const jobOptions = jobs.map((j) => ({
     value: j.jobId,
-    label: `${j.jobDate ? j.jobDate.slice(0, 10) : ""} - ${
-      j.unit?.name || j.unitId || "?"
-    } - ${j.driver?.name || j.driverId || "?"} - ${
-      j.jobType?.dispatchType || "?"
-    } - ${j.jobType?.startLocation || "?"} to ${j.jobType?.endLocation || "?"}`,
+    label: `${j.jobDate ? new Date(j.jobDate).toLocaleDateString() : 'No Date'} • ${
+      j.unit?.name || 'Unit #' + j.unitId || 'No Unit'
+    } • ${j.driver?.name || 'Driver #' + j.driverId || 'No Driver'} • $${
+      (j.jobGrossAmount || 0).toFixed(2)
+    }`,
   }));
 
   // Fetch dispatchers on mount
@@ -102,12 +102,18 @@ export function InvoiceForm({
 
   // Sync selectedJobIds with invoice.jobs after jobs are loaded
   useEffect(() => {
-    if (invoice && invoice.jobs && jobs.length > 0) {
-      // Only select jobs that are present in the loaded jobs list
-      const validJobIds = invoice.jobs
-        .map((j: any) => j.jobId)
-        .filter((id: string) => jobs.some((job) => job.jobId === id));
-      setSelectedJobIds(validJobIds);
+    if (invoice && jobs.length > 0) {
+      // For editing: get job IDs from the invoice
+      if (invoice.jobs && Array.isArray(invoice.jobs)) {
+        // If invoice has jobs directly
+        const validJobIds = invoice.jobs
+          .map((j: any) => j.jobId)
+          .filter((id: string) => jobs.some((job) => job.jobId === id));
+        setSelectedJobIds(validJobIds);
+      } else if (invoice.invoiceId) {
+        // If we need to fetch jobs from the API (already handled in the jobs loading useEffect)
+        // The selectedJobIds will be set when the invoice jobs are loaded
+      }
     } else if (!invoice) {
       setSelectedJobIds([]);
     }
@@ -116,25 +122,113 @@ export function InvoiceForm({
   // Fetch jobs for selected dispatcher
   useEffect(() => {
     if (dispatcherId) {
-      jobApi.fetchAll({ pageSize: 10000 }).then((response: { data?: any[] } | any[]) => {
-        // Handle paginated response format
-        const allJobs = response.data || response;
-        let filtered;
-        if (invoice && invoice.invoiceId) {
-          // Include jobs for this dispatcher that are either not invoiced or belong to this invoice
-          filtered = allJobs.filter(
-            (j: any) =>
-              j.dispatcherId === dispatcherId &&
-              (!j.invoiceId || j.invoiceId === invoice.invoiceId)
-          );
-        } else {
-          // Only jobs for this dispatcher and not already invoiced
-          filtered = allJobs.filter(
-            (j: any) => j.dispatcherId === dispatcherId && !j.invoiceId
-          );
+      const loadJobs = async () => {
+        try {
+          // Fetch all jobs for this dispatcher
+          const response = await jobApi.fetchAll({ pageSize: 10000 });
+          const allJobs = response.data || response;
+          
+          let availableJobs;
+          let invoiceJobs: Job[] = [];
+          
+          if (invoice && invoice.invoiceId) {
+            // For editing: fetch jobs that are already in this invoice
+            try {
+              const invoiceJobsResponse = await invoiceApi.fetchJobs(invoice.invoiceId, { pageSize: 1000 });
+              // Extract jobs from the grouped data structure
+              if (invoiceJobsResponse.groups) {
+                Object.values(invoiceJobsResponse.groups).forEach((monthJobs: any[]) => {
+                  if (Array.isArray(monthJobs)) {
+                    invoiceJobs.push(...monthJobs);
+                  }
+                });
+              }
+            } catch (error) {
+              console.error('Error fetching existing invoice jobs:', error);
+            }
+            
+            // Get list of all jobs that are already invoiced (through InvoiceLines)
+            // We'll need to check this differently now
+            const invoicedJobIds = new Set<string>();
+            
+            // For now, we'll assume that if a job appears in any invoice's jobs, it's invoiced
+            // This is a simplified approach - in a real scenario, you might want to 
+            // query all InvoiceLines to get truly invoiced jobs
+            try {
+              const allInvoicesResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/invoices?pageSize=10000`);
+              if (allInvoicesResponse.ok) {
+                const allInvoicesData = await allInvoicesResponse.json();
+                const allInvoices = allInvoicesData.data || [];
+                
+                for (const inv of allInvoices) {
+                  if (inv.invoiceLines && inv.invoiceId !== invoice.invoiceId) {
+                    inv.invoiceLines.forEach((line: any) => {
+                      invoicedJobIds.add(line.jobId);
+                    });
+                  }
+                }
+              }
+            } catch (error) {
+              console.error('Error fetching invoiced jobs:', error);
+            }
+            
+            // Include jobs for this dispatcher that are either not invoiced or belong to this invoice
+            availableJobs = allJobs.filter(
+              (j: any) =>
+                j.dispatcherId === dispatcherId &&
+                (!invoicedJobIds.has(j.jobId) || invoiceJobs.some(invJob => invJob.jobId === j.jobId))
+            );
+            
+            // Merge invoice jobs with available jobs (in case some jobs are not in the filtered list)
+            const jobIds = new Set(availableJobs.map((j: any) => j.jobId));
+            invoiceJobs.forEach((job) => {
+              if (!jobIds.has(job.jobId)) {
+                availableJobs.push(job);
+              }
+            });
+          } else {
+            // For creating: get all invoiced job IDs first
+            const invoicedJobIds = new Set<string>();
+            
+            try {
+              const allInvoicesResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/invoices?pageSize=10000`);
+              if (allInvoicesResponse.ok) {
+                const allInvoicesData = await allInvoicesResponse.json();
+                const allInvoices = allInvoicesData.data || [];
+                
+                for (const inv of allInvoices) {
+                  if (inv.invoiceLines) {
+                    inv.invoiceLines.forEach((line: any) => {
+                      invoicedJobIds.add(line.jobId);
+                    });
+                  }
+                }
+              }
+            } catch (error) {
+              console.error('Error fetching invoiced jobs:', error);
+            }
+            
+            // Only jobs for this dispatcher and not already invoiced
+            availableJobs = allJobs.filter(
+              (j: any) => j.dispatcherId === dispatcherId && !invoicedJobIds.has(j.jobId)
+            );
+          }
+          
+          setJobs(availableJobs);
+          
+          // If editing and we loaded invoice jobs, set the selected job IDs
+          if (invoice && invoice.invoiceId && invoiceJobs.length > 0) {
+            const invoiceJobIds = invoiceJobs.map(job => job.jobId);
+            setSelectedJobIds(invoiceJobIds);
+          }
+        } catch (error) {
+          console.error('Error fetching jobs:', error);
+          toast.error("Failed to load jobs");
         }
-        setJobs(filtered);
-      });
+      };
+      
+      loadJobs();
+      
       // Fetch dispatcher details
       dispatcherApi.getById(dispatcherId).then((d: Dispatcher) => {
         setBilledTo(d.name || "");
@@ -205,9 +299,9 @@ export function InvoiceForm({
   };
 
   return (
-    <div className="slide-over-form">
-      <form onSubmit={handleSubmit}>
-        <div className="form-section">
+    <div className="p-6 space-y-6 max-w-4xl mx-auto">
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="space-y-4">
           <FormField
             id="invoiceDate"
             label="Date"
@@ -217,13 +311,14 @@ export function InvoiceForm({
             required
             error={errors.invoiceDate}
           />
-          <div>
-            <label className="block text-sm font-medium mb-1">Dispatcher</label>
+          
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">Dispatcher</label>
             <select
               id="dispatcherId"
               value={dispatcherId}
               onChange={(e) => setDispatcherId(e.target.value)}
-              className="w-full border rounded px-2 py-1"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
               required
             >
               <option value="">Select dispatcher</option>
@@ -234,9 +329,10 @@ export function InvoiceForm({
               ))}
             </select>
             {errors.dispatcherId && (
-              <div className="text-red-500 text-xs">{errors.dispatcherId}</div>
+              <p className="text-red-600 text-xs font-medium">{errors.dispatcherId}</p>
             )}
           </div>
+
           <FormField
             id="billedTo"
             label="Billed To"
@@ -246,6 +342,7 @@ export function InvoiceForm({
             required
             error={errors.billedTo}
           />
+          
           <FormField
             id="billedEmail"
             label="Billed Email"
@@ -256,6 +353,7 @@ export function InvoiceForm({
             required
             error={errors.billedEmail}
           />
+          
           <FormField
             id="commission"
             label="Commission (%)"
@@ -265,89 +363,101 @@ export function InvoiceForm({
             placeholder="Auto-filled from dispatcher"
             required
           />
-          <div>
-            <label className="block text-sm font-medium mb-1">Jobs</label>
-            <Select
-              isMulti
-              options={jobOptions}
-              value={jobOptions.filter((opt) => selectedJobIds.includes(opt.value))}
-              onChange={(selected) =>
-            setSelectedJobIds(selected.map((opt) => opt.value))
-              }
-              classNamePrefix="react-select"
-              placeholder="Select jobs..."
-            />
+          
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">
+              Jobs for Selected Dispatcher
+              {jobs.length > 0 && (
+                <span className="text-xs text-gray-500 ml-2 font-normal">
+                  ({jobs.length} available)
+                </span>
+              )}
+            </label>
+            <div className="relative">
+              <Select
+                isMulti
+                options={jobOptions}
+                value={jobOptions.filter((opt) => selectedJobIds.includes(opt.value))}
+                onChange={(selected) =>
+                  setSelectedJobIds(selected ? selected.map((opt) => opt.value) : [])
+                }
+                className="react-select-container"
+                classNamePrefix="react-select"
+                placeholder={jobs.length === 0 ? "Select a dispatcher first..." : "Select jobs to include in invoice..."}
+                isDisabled={jobs.length === 0}
+                noOptionsMessage={() => "No available jobs for this dispatcher"}
+              />
+            </div>
             {errors.jobs && (
-              <div className="text-red-500 text-xs">{errors.jobs}</div>
+              <p className="text-red-600 text-xs font-medium">{errors.jobs}</p>
             )}
           </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Status</label>
+          
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">Status</label>
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value)}
-              className="w-full border rounded px-2 py-1"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
             >
               <option value="pending">Pending</option>
               <option value="raised">Raised</option>
               <option value="received">Received</option>
             </select>
           </div>
-          <div className="flex gap-4">
-            <div>
-              <label className="block text-xs text-muted-foreground">
-                Subtotal
-              </label>
-              <div className="font-semibold">${subTotal.toFixed(2)}</div>
+          
+          {/* Summary Section */}
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-3">
+            <div className="flex justify-between items-center">
+              <span className="text-sm font-medium text-gray-600">Subtotal</span>
+              <span className="text-base font-semibold text-gray-900">${subTotal.toFixed(2)}</span>
             </div>
-            <div>
-              <label className="block text-xs text-muted-foreground">
-                Total (incl. 13% HST)
-              </label>
-              <div className="font-semibold">${total.toFixed(2)}</div>
+            
+            <div className="flex justify-between items-center">
+              <span className="text-sm font-medium text-gray-600">Commission ({commission}%)</span>
+              <span className="text-base font-semibold text-gray-900">
+                ${commission ? (subTotal * (parseFloat(commission) / 100)).toFixed(2) : '0.00'}
+              </span>
+            </div>
+            
+            <div className="flex justify-between items-center">
+              <span className="text-sm font-medium text-gray-600">HST (13%)</span>
+              <span className="text-base font-semibold text-gray-900">
+                ${((subTotal + (commission ? subTotal * (parseFloat(commission) / 100) : 0)) * 0.13).toFixed(2)}
+              </span>
+            </div>
+            
+            <div className="flex justify-between items-center pt-3 border-t border-gray-300">
+              <span className="text-lg font-semibold text-gray-900">Total</span>
+              <span className="text-xl font-bold text-green-600">${total.toFixed(2)}</span>
             </div>
           </div>
         </div>
 
-        <div className="form-actions sticky">
-          <div className="btn-group">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onCancel}
-              disabled={loading}
-              style={{
-                backgroundColor: 'white',
-                border: '1px solid #d1d5db',
-                color: '#374151',
-                padding: '8px 16px',
-                borderRadius: '6px',
-                cursor: 'pointer'
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              disabled={loading}
-              style={{
-                backgroundColor: invoice ? '#f97316' : '#2563eb',
-                color: 'white',
-                border: 'none',
-                padding: '8px 16px',
-                borderRadius: '6px',
-                cursor: 'pointer'
-              }}
-            >
-              {loading
-                ? invoice
-                  ? "Updating..."
-                  : "Creating..."
-                : invoice
-                ? "Update Invoice"
-                : "Create Invoice"}
-            </Button>
-          </div>
+        {/* Action Buttons */}
+        <div className="flex justify-end space-x-3 pt-6 border-t border-gray-200">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onCancel}
+            disabled={loading}
+          >
+            Cancel
+          </Button>
+          
+          <Button
+            type="submit"
+            disabled={loading}
+            variant={invoice ? "destructive" : "default"}
+          >
+            {loading
+              ? invoice
+                ? "Updating..."
+                : "Creating..."
+              : invoice
+              ? "Update Invoice"
+              : "Create Invoice"}
+          </Button>
         </div>
       </form>
     </div>
