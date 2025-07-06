@@ -32,13 +32,55 @@ A modern GraphQL API built with Apollo Server, TypeScript, and Neo4j for the 5Ri
    cp .env.example .env
    ```
    
-   Edit `.env` with your Neo4j connection details:
-   ```
-   NEO4J_URI=neo4j://localhost:7687
-   NEO4J_USERNAME=neo4j
-   NEO4J_PASSWORD=your_password
-   NEO4J_DATABASE=neo4j
-   ```
+   Edit `.env` with your configuration:
+
+### Environment Variables
+
+The application uses the following environment variables:
+
+#### Server Configuration
+```env
+PORT=4001                        # Server port (default: 4001)
+NODE_ENV=development             # Environment: development|production|test
+```
+
+#### CORS Configuration
+```env
+ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3001
+```
+
+#### Neo4j Database
+```env
+NEO4J_URI=neo4j://localhost:7687  # Neo4j connection string
+NEO4J_USERNAME=neo4j             # Database username
+NEO4J_PASSWORD=your_password     # Database password
+NEO4J_DATABASE=neo4j             # Database name
+```
+
+#### GraphQL Configuration
+```env
+GRAPHQL_INTROSPECTION=true       # Enable GraphQL introspection (default: true in dev)
+GRAPHQL_PLAYGROUND=true          # Enable GraphQL playground (default: true in dev)
+GRAPHQL_CORS=true               # Enable CORS for GraphQL (default: true)
+```
+
+#### Security Settings
+```env
+BCRYPT_ROUNDS=12                # Password hashing rounds (default: 12)
+```
+
+#### Rate Limiting
+```env
+RATE_LIMIT_WINDOW_MS=900000     # Rate limit window in ms (default: 15 minutes)
+RATE_LIMIT_MAX_REQUESTS=100     # Max requests per window (default: 100)
+```
+
+#### Logging
+```env
+LOG_LEVEL=info                  # Logging level: error|warn|info|debug
+```
+
+All variables have sensible defaults, so you only need to set the ones you want to customize.
 
 3. **Start development server:**
    ```bash

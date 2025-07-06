@@ -17,6 +17,7 @@ export const typeDefs = `
     updatedAt: Date!
     # Relationships
     jobTypes: [JobType!]!
+    jobs: [Job!]!
   }
 
   type Driver {
@@ -84,7 +85,8 @@ export const typeDefs = `
     loads: Int
     startTime: String
     endTime: String
-    ticketIds: String
+    amount: Float
+    ticketIds: [String]
     paymentReceived: Boolean!
     driverPaid: Boolean!
     imageUrls: String
@@ -171,6 +173,95 @@ export const typeDefs = `
     phone: String
   }
 
+  input CreateDriverInput {
+    name: String!
+    description: String
+    email: String!
+    phone: String
+    hourlyRate: Float!
+  }
+
+  input UpdateDriverInput {
+    id: ID!
+    name: String
+    description: String
+    email: String
+    phone: String
+    hourlyRate: Float
+  }
+
+  input CreateDispatcherInput {
+    name: String!
+    description: String
+    email: String!
+    phone: String
+    commissionPercent: Float!
+  }
+
+  input UpdateDispatcherInput {
+    id: ID!
+    name: String
+    description: String
+    email: String
+    phone: String
+    commissionPercent: Float
+  }
+
+  input CreateUnitInput {
+    name: String!
+    description: String
+    color: String
+    plateNumber: String
+    vin: String
+  }
+
+  input UpdateUnitInput {
+    id: ID!
+    name: String
+    description: String
+    color: String
+    plateNumber: String
+    vin: String
+  }
+
+  input CreateJobTypeInput {
+    title: String!
+    startLocation: String
+    endLocation: String
+    dispatchType: String!
+    rateOfJob: Float!
+    companyId: ID
+  }
+
+  input UpdateJobTypeInput {
+    id: ID!
+    title: String
+    startLocation: String
+    endLocation: String
+    dispatchType: String
+    rateOfJob: Float
+    companyId: ID
+  }
+
+  input CreateInvoiceInput {
+    invoiceNumber: String!
+    invoiceDate: Date!
+    status: String!
+    billedTo: String
+    billedEmail: String
+    dispatcherId: ID!
+    jobIds: [ID!]!
+  }
+
+  input UpdateInvoiceInput {
+    id: ID!
+    invoiceNumber: String
+    invoiceDate: Date
+    status: String
+    billedTo: String
+    billedEmail: String
+  }
+
   input CreateJobInput {
     jobDate: String!
     jobGrossAmount: Float
@@ -182,6 +273,25 @@ export const typeDefs = `
     loads: Int
     startTime: String
     endTime: String
+  }
+
+  input UpdateJobInput {
+    id: ID!
+    jobDate: String
+    jobTypeId: ID
+    driverId: ID
+    dispatcherId: ID
+    unitId: ID
+    weight: String
+    loads: Int
+    startTime: String
+    endTime: String
+    amount: Float
+    invoiceStatus: String
+    paymentReceived: Boolean
+    driverPaid: Boolean
+    ticketIds: [String]
+    imageUrls: String
   }
 
   input JobFilters {
@@ -311,13 +421,40 @@ export const typeDefs = `
     updateCompany(input: UpdateCompanyInput!): Company!
     deleteCompany(id: ID!): Boolean!
 
+    # Driver mutations
+    createDriver(input: CreateDriverInput!): Driver!
+    updateDriver(input: UpdateDriverInput!): Driver!
+    deleteDriver(id: ID!): Boolean!
+
+    # Dispatcher mutations
+    createDispatcher(input: CreateDispatcherInput!): Dispatcher!
+    updateDispatcher(input: UpdateDispatcherInput!): Dispatcher!
+    deleteDispatcher(id: ID!): Boolean!
+
+    # Unit mutations
+    createUnit(input: CreateUnitInput!): Unit!
+    updateUnit(input: UpdateUnitInput!): Unit!
+    deleteUnit(id: ID!): Boolean!
+
+    # JobType mutations
+    createJobType(input: CreateJobTypeInput!): JobType!
+    updateJobType(input: UpdateJobTypeInput!): JobType!
+    deleteJobType(id: ID!): Boolean!
+
+    # Invoice mutations
+    createInvoice(input: CreateInvoiceInput!): Invoice!
+    updateInvoice(input: UpdateInvoiceInput!): Invoice!
+    deleteInvoice(id: ID!): Boolean!
+
     # Job mutations
     createJob(input: CreateJobInput!): Job!
+    updateJob(input: UpdateJobInput!): Job!
     updateJobStatus(id: ID!, status: String!): Job!
     markJobPaid(id: ID!, driverPaid: Boolean!, paymentReceived: Boolean!): Job!
     
     # Quick mutations for common operations
     assignJobToDriver(jobId: ID!, driverId: ID!): Job!
+    assignJobToDispatcher(jobId: ID!, dispatcherId: ID!): Job!
     assignJobToUnit(jobId: ID!, unitId: ID!): Job!
   }
 `;

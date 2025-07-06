@@ -9,7 +9,7 @@ export class Neo4jService {
       config.neo4j.uri,
       neo4j.auth.basic(config.neo4j.username, config.neo4j.password),
       {
-        disableLosslessIntegers: true,
+        disableLosslessIntegers: true, // Convert Neo4j integers to JavaScript numbers
       }
     );
   }

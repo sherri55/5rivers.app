@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { neo4jService } from '../database/neo4j';
+import neo4j from 'neo4j-driver';
 import {
   Company,
   CreateCompanyInput,
@@ -15,9 +16,9 @@ export class CompanyService {
     filters?: CompanyFilters,
     pagination?: PaginationInput
   ): Promise<CompanyConnection> {
-    const page = pagination?.page || 1;
-    const limit = pagination?.limit || 10;
-    const offset = pagination?.offset || (page - 1) * limit;
+    const page = Math.max(1, Math.floor(pagination?.page || 1));
+    const limit = Math.max(1, Math.floor(pagination?.limit || 10));
+    const offset = Math.max(0, Math.floor(pagination?.offset || (page - 1) * limit));
 
     // Build the WHERE clause dynamically
     const whereConditions: string[] = [];
@@ -76,9 +77,16 @@ export class CompanyService {
       RETURN count(c) as totalCount
     `;
 
+    // Ensure all numeric parameters are integers for Neo4j  
+    const queryParameters = {
+      ...parameters,
+      limit: neo4j.int(Math.floor(limit)),
+      offset: neo4j.int(Math.floor(offset))
+    };
+
     const [companiesResult, countResult] = await Promise.all([
-      neo4jService.runQuery(companiesQuery, parameters),
-      neo4jService.runQuery(countQuery, parameters),
+      neo4jService.runQuery(companiesQuery, queryParameters),
+      neo4jService.runQuery(countQuery, queryParameters),
     ]);
 
     const companies: Company[] = companiesResult.map((record: any) => ({

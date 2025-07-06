@@ -28,7 +28,7 @@ async function startServer() {
   const server = new ApolloServer<GraphQLContext>({
     typeDefs,
     resolvers,
-    introspection: config.server.environment !== 'production',
+    introspection: config.graphql.introspectionEnabled,
     includeStacktraceInErrorResponses: config.server.environment !== 'production',
   });
 
