@@ -59,23 +59,75 @@ export class CalculationService {
              j.endTime as endTime,
              j.loads as loads,
              j.weight as weight,
+             j.amount as fixedAmount,
+             jt.id as jobTypeId,
              jt.rateOfJob as rate,
              jt.dispatchType as type
     `, { jobId });
 
     if (jobResult.length === 0) return 0;
 
-    const { startTime, endTime, loads, weight, rate, type } = jobResult[0];
+    const { startTime, endTime, loads, weight, fixedAmount, jobTypeId, rate, type } = jobResult[0];
     
-    // Calculate hours if time is provided
-    let hours = 0;
-    if (startTime && endTime) {
-      const start = new Date(`1970-01-01T${startTime}`);
-      const end = new Date(`1970-01-01T${endTime}`);
-      hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+    switch (type?.toLowerCase()) {
+      case 'hourly':
+        // Calculate hours if time is provided
+        let hours = 0;
+        if (startTime && endTime) {
+          try {
+            // Handle different time formats
+            let start: Date, end: Date;
+            
+            // If it's a full datetime string
+            if (startTime.includes('T') || startTime.includes(' ')) {
+              start = new Date(startTime);
+              end = new Date(endTime);
+            } else {
+              // If it's just time (HH:MM:SS or HH:MM), assume today's date
+              const today = new Date().toISOString().split('T')[0];
+              start = new Date(`${today}T${startTime}`);
+              end = new Date(`${today}T${endTime}`);
+              
+              // Handle overnight jobs (end time is next day)
+              if (end < start) {
+                end.setDate(end.getDate() + 1);
+              }
+            }
+            
+            if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+              hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+            }
+          } catch (error) {
+            console.warn(`Error calculating hours for job ${jobId}:`, error);
+          }
+        }
+        return Math.max(0, hours * (parseFloat(rate) || 0));
+      
+      case 'load':
+        return Math.max(0, (parseInt(loads) || 0) * (parseFloat(rate) || 0));
+      
+      case 'tonnage':
+        // Handle weight as either a single value or space-separated values
+        let totalWeight = 0;
+        if (weight) {
+          if (typeof weight === 'string') {
+            // Split by spaces and sum all weight values
+            const weights = weight.split(' ').map(w => parseFloat(w.trim())).filter(w => !isNaN(w));
+            totalWeight = weights.reduce((sum, w) => sum + w, 0);
+          } else {
+            totalWeight = parseFloat(weight) || 0;
+          }
+        }
+        return Math.max(0, totalWeight * (parseFloat(rate) || 0));
+      
+      case 'fixed':
+        // For fixed jobs, use the stored amount or fall back to the job type rate
+        return parseFloat(fixedAmount) || parseFloat(rate) || 0;
+      
+      default:
+        console.warn(`Unknown dispatch type for job ${jobId}: ${type}`);
+        return 0;
     }
-
-    return this.calculateJobGrossAmount('', hours, loads, parseFloat(weight || '0'));
   }
 
   // ===============================
@@ -103,8 +155,14 @@ export class CalculationService {
       let hours = 0;
       if (job.startTime && job.endTime) {
         const start = new Date(`1970-01-01T${job.startTime}`);
-        const end = new Date(`1970-01-01T${job.endTime}`);
-        hours = Math.max(0, (end.getTime() - start.getTime()) / (1000 * 60 * 60));
+        let end = new Date(`1970-01-01T${job.endTime}`);
+        
+        // Handle overnight jobs (end time is next day)
+        if (end < start) {
+          end.setDate(end.getDate() + 1);
+        }
+        
+        hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
       }
 
       // Calculate job amount based on type
@@ -356,8 +414,13 @@ export class CalculationService {
       const [startHour, startMin] = job.startTime.split(':').map(Number);
       const [endHour, endMin] = job.endTime.split(':').map(Number);
       
-      const startMinutes = startHour * 60 + startMin;
-      const endMinutes = endHour * 60 + endMin;
+      let startMinutes = startHour * 60 + startMin;
+      let endMinutes = endHour * 60 + endMin;
+      
+      // Handle overnight jobs (end time is next day)
+      if (endMinutes < startMinutes) {
+        endMinutes += 24 * 60; // Add 24 hours in minutes
+      }
       
       const totalMinutes = endMinutes - startMinutes;
       return totalMinutes > 0 ? totalMinutes / 60 : null;
