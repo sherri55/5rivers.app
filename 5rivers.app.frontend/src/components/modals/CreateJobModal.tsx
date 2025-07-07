@@ -3,58 +3,94 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
+import { useQuery, useMutation } from "@apollo/client"
+import { GET_COMPANIES } from "@/lib/graphql/companies"
+import { GET_JOB_TYPES } from "@/lib/graphql/jobTypes"
+import { GET_DRIVERS } from "@/lib/graphql/drivers"
+import { CREATE_JOB } from "@/lib/graphql/jobs"
 
 interface CreateJobModalProps {
   trigger: React.ReactNode
+  onSuccess?: () => void
 }
 
-export const CreateJobModal = ({ trigger }: CreateJobModalProps) => {
+export const CreateJobModal = ({ trigger, onSuccess }: CreateJobModalProps) => {
   const [open, setOpen] = useState(false)
   const { toast } = useToast()
+  
+  // GraphQL queries for form data
+  const { data: companiesData } = useQuery(GET_COMPANIES)
+  const { data: jobTypesData } = useQuery(GET_JOB_TYPES)
+  const { data: driversData } = useQuery(GET_DRIVERS)
+  
+  // GraphQL mutation for creating job
+  const [createJob, { loading: creating }] = useMutation(CREATE_JOB, {
+    onCompleted: (data) => {
+      toast({
+        title: "Job Created",
+        description: `Job ${data.createJob.id} has been created successfully.`,
+      })
+      setOpen(false)
+      setFormData({
+        companyId: "",
+        jobTypeId: "",
+        driverId: "",
+        jobDate: "",
+        startTime: "",
+        endTime: "",
+        weight: [""],
+        loads: "",
+        jobGrossAmount: ""
+      })
+      onSuccess?.()
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive"
+      })
+    }
+  })
+  
   const [formData, setFormData] = useState({
-    company: "",
-    jobType: "",
-    origin: "",
-    destination: "",
-    pickupDate: "",
-    deliveryDate: "",
-    amount: "",
-    priority: "Standard",
-    truckType: "",
-    driver: "",
-    specialInstructions: "",
-    cargoDetails: ""
+    companyId: "",
+    jobTypeId: "",
+    driverId: "",
+    jobDate: "",
+    startTime: "",
+    endTime: "",
+    weight: [""],
+    loads: "",
+    jobGrossAmount: ""
   })
 
-  const companies = ["ABC Logistics Inc.", "Global Freight Solutions", "Rapid Transport Co.", "Quick Transport LLC"]
-  const jobTypes = ["Local Delivery", "Long Haul", "Hazmat Transport", "Construction Materials", "Refrigerated Goods", "Expedited Delivery"]
-  const truckTypes = ["Box Truck", "Semi-Trailer", "Flatbed", "Tanker", "Reefer", "Sprinter Van"]
-  const drivers = ["John Smith", "Sarah Johnson", "Mike Wilson", "Lisa Brown"]
+  const companies = companiesData?.companies?.nodes || []
+  const allJobTypes = jobTypesData?.jobTypes || []
+  const drivers = driversData?.drivers || []
+  
+  // Filter job types based on selected company
+  const availableJobTypes = formData.companyId 
+    ? allJobTypes.filter((jt: any) => jt.company?.id === formData.companyId)
+    : allJobTypes
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    toast({
-      title: "Job Created",
-      description: `New job from ${formData.origin} to ${formData.destination} has been created.`,
-    })
-    setOpen(false)
-    setFormData({
-      company: "",
-      jobType: "",
-      origin: "",
-      destination: "",
-      pickupDate: "",
-      deliveryDate: "",
-      amount: "",
-      priority: "Standard",
-      truckType: "",
-      driver: "",
-      specialInstructions: "",
-      cargoDetails: ""
-    })
+    
+    const jobInput = {
+      jobDate: formData.jobDate,
+      jobTypeId: formData.jobTypeId || undefined,
+      driverId: formData.driverId || undefined,
+      startTime: formData.startTime || undefined,
+      endTime: formData.endTime || undefined,
+      weight: formData.weight.filter(w => w).map(w => parseFloat(w)),
+      loads: formData.loads ? parseInt(formData.loads) : undefined,
+      jobGrossAmount: formData.jobGrossAmount ? parseFloat(formData.jobGrossAmount) : undefined
+    }
+    
+    await createJob({ variables: { input: jobInput } })
   }
 
   return (
@@ -70,26 +106,26 @@ export const CreateJobModal = ({ trigger }: CreateJobModalProps) => {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="company">Company *</Label>
-              <Select value={formData.company || undefined} onValueChange={(value) => setFormData({...formData, company: value})}>
+              <Select value={formData.companyId || undefined} onValueChange={(value) => setFormData({...formData, companyId: value, jobTypeId: ""})}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select company" />
                 </SelectTrigger>
                 <SelectContent>
-                  {companies.map((company) => (
-                    <SelectItem key={company} value={company}>{company}</SelectItem>
+                  {companies.map((company: any) => (
+                    <SelectItem key={company.id} value={company.id}>{company.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="jobType">Job Type *</Label>
-              <Select value={formData.jobType || undefined} onValueChange={(value) => setFormData({...formData, jobType: value})}>
+              <Select value={formData.jobTypeId || undefined} onValueChange={(value) => setFormData({...formData, jobTypeId: value})}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select job type" />
                 </SelectTrigger>
                 <SelectContent>
-                  {jobTypes.map((type) => (
-                    <SelectItem key={type} value={type}>{type}</SelectItem>
+                  {availableJobTypes.map((type: any) => (
+                    <SelectItem key={type.id} value={type.id}>{type.title}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -98,129 +134,92 @@ export const CreateJobModal = ({ trigger }: CreateJobModalProps) => {
           
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="origin">Origin *</Label>
+              <Label htmlFor="jobDate">Job Date *</Label>
               <Input
-                id="origin"
-                value={formData.origin}
-                onChange={(e) => setFormData({...formData, origin: e.target.value})}
-                placeholder="Pickup location"
+                id="jobDate"
+                type="date"
+                value={formData.jobDate}
+                onChange={(e) => setFormData({...formData, jobDate: e.target.value})}
                 required
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="destination">Destination *</Label>
-              <Input
-                id="destination"
-                value={formData.destination}
-                onChange={(e) => setFormData({...formData, destination: e.target.value})}
-                placeholder="Delivery location"
-                required
-              />
+              <Label htmlFor="driver">Driver</Label>
+              <Select value={formData.driverId || undefined} onValueChange={(value) => setFormData({...formData, driverId: value})}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select driver" />
+                </SelectTrigger>
+                <SelectContent>
+                  {drivers.map((driver: any) => (
+                    <SelectItem key={driver.id} value={driver.id}>{driver.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
           
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="pickupDate">Pickup Date *</Label>
+              <Label htmlFor="startTime">Start Time</Label>
               <Input
-                id="pickupDate"
-                type="datetime-local"
-                value={formData.pickupDate}
-                onChange={(e) => setFormData({...formData, pickupDate: e.target.value})}
-                required
+                id="startTime"
+                type="time"
+                value={formData.startTime}
+                onChange={(e) => setFormData({...formData, startTime: e.target.value})}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="deliveryDate">Delivery Date *</Label>
+              <Label htmlFor="endTime">End Time</Label>
               <Input
-                id="deliveryDate"
-                type="datetime-local"
-                value={formData.deliveryDate}
-                onChange={(e) => setFormData({...formData, deliveryDate: e.target.value})}
-                required
+                id="endTime"
+                type="time"
+                value={formData.endTime}
+                onChange={(e) => setFormData({...formData, endTime: e.target.value})}
               />
             </div>
           </div>
           
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="amount">Amount *</Label>
+              <Label htmlFor="weight">Weight (tons)</Label>
               <Input
-                id="amount"
-                value={formData.amount}
-                onChange={(e) => setFormData({...formData, amount: e.target.value})}
-                placeholder="$2,500.00"
-                required
+                id="weight"
+                type="number"
+                step="0.01"
+                value={formData.weight[0] || ""}
+                onChange={(e) => setFormData({...formData, weight: [e.target.value]})}
+                placeholder="0.00"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="priority">Priority</Label>
-              <Select value={formData.priority} onValueChange={(value) => setFormData({...formData, priority: value})}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Standard">Standard</SelectItem>
-                  <SelectItem value="High">High</SelectItem>
-                  <SelectItem value="Urgent">Urgent</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label htmlFor="loads">Loads</Label>
+              <Input
+                id="loads"
+                type="number"
+                value={formData.loads}
+                onChange={(e) => setFormData({...formData, loads: e.target.value})}
+                placeholder="1"
+              />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="truckType">Truck Type</Label>
-              <Select value={formData.truckType || undefined} onValueChange={(value) => setFormData({...formData, truckType: value})}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select truck" />
-                </SelectTrigger>
-                <SelectContent>
-                  {truckTypes.map((type) => (
-                    <SelectItem key={type} value={type}>{type}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label htmlFor="amount">Gross Amount</Label>
+              <Input
+                id="amount"
+                type="number"
+                step="0.01"
+                value={formData.jobGrossAmount}
+                onChange={(e) => setFormData({...formData, jobGrossAmount: e.target.value})}
+                placeholder="2500.00"
+              />
             </div>
-          </div>
-          
-          <div className="space-y-2">
-            <Label htmlFor="driver">Assign Driver (Optional)</Label>
-            <Select value={formData.driver || undefined} onValueChange={(value) => setFormData({...formData, driver: value})}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select driver" />
-              </SelectTrigger>
-              <SelectContent>
-                {drivers.map((driver) => (
-                  <SelectItem key={driver} value={driver}>{driver}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          
-          <div className="space-y-2">
-            <Label htmlFor="cargoDetails">Cargo Details</Label>
-            <Textarea
-              id="cargoDetails"
-              value={formData.cargoDetails}
-              onChange={(e) => setFormData({...formData, cargoDetails: e.target.value})}
-              placeholder="Description of cargo, weight, dimensions, etc."
-            />
-          </div>
-          
-          <div className="space-y-2">
-            <Label htmlFor="specialInstructions">Special Instructions</Label>
-            <Textarea
-              id="specialInstructions"
-              value={formData.specialInstructions}
-              onChange={(e) => setFormData({...formData, specialInstructions: e.target.value})}
-              placeholder="Any special handling or delivery instructions"
-            />
           </div>
           
           <div className="flex gap-3 pt-4">
             <Button type="button" variant="outline" onClick={() => setOpen(false)} className="flex-1">
               Cancel
             </Button>
-            <Button type="submit" className="flex-1">
-              Create Job
+            <Button type="submit" className="flex-1" disabled={creating}>
+              {creating ? "Creating..." : "Create Job"}
             </Button>
           </div>
         </form>

@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { useQuery } from "@apollo/client"
+import { useQuery, useMutation } from "@apollo/client"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -16,9 +16,11 @@ import {
   DollarSign,
   Building,
   User,
-  Mail
+  Mail,
+  Download
 } from "lucide-react"
-import { GET_INVOICE } from "@/lib/graphql/invoices"
+import { GET_INVOICE, DOWNLOAD_INVOICE_PDF } from "@/lib/graphql/invoices"
+import { useToast } from "@/hooks/use-toast"
 
 interface InvoiceViewModalProps {
   invoiceId?: string
@@ -27,13 +29,63 @@ interface InvoiceViewModalProps {
 
 export function InvoiceViewModal({ invoiceId, trigger }: InvoiceViewModalProps) {
   const [isOpen, setIsOpen] = useState(false)
+  const { toast } = useToast()
   
   const { data, loading, error } = useQuery(GET_INVOICE, {
     variables: { id: invoiceId },
     skip: !isOpen || !invoiceId
   })
 
+  const [downloadInvoicePDF, { loading: downloadLoading }] = useMutation(DOWNLOAD_INVOICE_PDF)
+
   const invoice = data?.invoice
+
+  const handleDownloadPDF = async () => {
+    try {
+      const result = await downloadInvoicePDF({
+        variables: { invoiceId }
+      })
+
+      if (result.data?.downloadInvoicePDF?.success) {
+        // Convert base64 to blob and download
+        const base64Data = result.data.downloadInvoicePDF.data
+        const filename = result.data.downloadInvoicePDF.filename || `${invoice?.invoiceNumber || 'invoice'}.pdf`
+        
+        // Create blob from base64
+        const byteCharacters = atob(base64Data)
+        const byteNumbers = new Array(byteCharacters.length)
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i)
+        }
+        const byteArray = new Uint8Array(byteNumbers)
+        const blob = new Blob([byteArray], { type: 'application/pdf' })
+        
+        // Create download link
+        const url = window.URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = filename
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        window.URL.revokeObjectURL(url)
+        
+        toast({
+          title: "Success",
+          description: "Invoice PDF downloaded successfully",
+        })
+      } else {
+        throw new Error(result.data?.downloadInvoicePDF?.error || 'Failed to generate PDF')
+      }
+    } catch (error) {
+      console.error('Error downloading PDF:', error)
+      toast({
+        title: "Error",
+        description: "Failed to download invoice PDF",
+        variant: "destructive",
+      })
+    }
+  }
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -42,10 +94,23 @@ export function InvoiceViewModal({ invoiceId, trigger }: InvoiceViewModalProps) 
       </DialogTrigger>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-foreground">
-            <Receipt className="h-5 w-5 text-primary" />
-            Invoice Details
-          </DialogTitle>
+          <div className="flex items-center justify-between">
+            <DialogTitle className="flex items-center gap-2 text-foreground">
+              <Receipt className="h-5 w-5 text-primary" />
+              Invoice Details
+            </DialogTitle>
+            {invoice && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDownloadPDF}
+                disabled={downloadLoading}
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Download PDF
+              </Button>
+            )}
+          </div>
         </DialogHeader>
         
         {!invoiceId && (
@@ -169,7 +234,7 @@ export function InvoiceViewModal({ invoiceId, trigger }: InvoiceViewModalProps) 
                           </div>
                           <div className="text-right">
                             <div className="text-lg font-semibold text-primary bg-primary/10 px-3 py-1 rounded">
-                              ${(jobEntry.amount || jobEntry.job?.calculatedAmount || 0).toFixed(2)}
+                              ${(jobEntry.job?.calculatedAmount || jobEntry.amount || 0).toFixed(2)}
                             </div>
                             {jobEntry.invoicedAt && (
                               <div className="text-xs text-muted-foreground mt-1">
@@ -207,7 +272,7 @@ export function InvoiceViewModal({ invoiceId, trigger }: InvoiceViewModalProps) 
                       <span className="font-medium">Total from {invoice.jobs.length} job{invoice.jobs.length > 1 ? 's' : ''}:</span>
                       <span className="font-semibold text-lg text-primary">
                         ${invoice.jobs.reduce((sum: number, jobEntry: any) => 
-                          sum + (jobEntry.amount || jobEntry.job?.calculatedAmount || 0), 0
+                          sum + (jobEntry.job?.calculatedAmount || jobEntry.amount || 0), 0
                         ).toFixed(2)}
                       </span>
                     </div>
@@ -215,6 +280,17 @@ export function InvoiceViewModal({ invoiceId, trigger }: InvoiceViewModalProps) 
                 </CardContent>
               </Card>
             )}
+
+            {/* Actions */}
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => setIsOpen(false)}>
+                Close
+              </Button>
+              <Button size="sm" onClick={handleDownloadPDF}>
+                <Download className="w-4 h-4 mr-2" />
+                Download PDF
+              </Button>
+            </div>
           </div>
         )}
       </DialogContent>

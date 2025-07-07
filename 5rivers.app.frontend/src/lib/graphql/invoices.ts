@@ -21,6 +21,7 @@ export const GET_INVOICES = gql`
         job {
           id
           jobDate
+          calculatedAmount
           jobType {
             id
             title
@@ -157,5 +158,16 @@ export const UPDATE_INVOICE = gql`
 export const DELETE_INVOICE = gql`
   mutation DeleteInvoice($id: ID!) {
     deleteInvoice(id: $id)
+  }
+`
+
+export const DOWNLOAD_INVOICE_PDF = gql`
+  mutation DownloadInvoicePDF($invoiceId: ID!) {
+    downloadInvoicePDF(invoiceId: $invoiceId) {
+      success
+      data
+      filename
+      error
+    }
   }
 `

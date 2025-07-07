@@ -16,6 +16,9 @@
     "inspect": "ts-node src/scripts/inspect-data.ts",
     "inspect-sqlite": "ts-node src/scripts/inspect-sqlite-data.ts",
     "test-connection": "ts-node src/scripts/test-connection.ts",
+    "test-consistency": "ts-node src/scripts/test-amount-consistency.ts",
+    "validate-amounts": "ts-node src/scripts/validate-job-amounts.ts",
+    "migrate-weights": "ts-node src/scripts/migrate-weights-to-array.ts",
     "lint": "eslint src/**/*.ts",
     "test": "jest"
   },
@@ -41,11 +44,13 @@
     "graphql-scalars": "^1.22.4",
     "neo4j-driver": "^5.17.0",
     "node-fetch": "^3.3.2",
+    "pdfmake": "^0.2.20",
     "sqlite3": "^5.1.7",
     "uuid": "^9.0.1"
   },
   "devDependencies": {
     "@types/node": "^20.11.17",
+    "@types/pdfmake": "^0.2.11",
     "@types/uuid": "^9.0.8",
     "@typescript-eslint/eslint-plugin": "^6.21.0",
     "@typescript-eslint/parser": "^6.21.0",

@@ -294,7 +294,7 @@ export const EditInvoiceModal = ({ trigger, invoiceId, onSuccess }: EditInvoiceM
                         </div>
                         <div className="text-right">
                           <div className="font-semibold text-primary">
-                            {formatCurrency(jobEntry.amount || 0)}
+                            {formatCurrency(jobEntry.job?.calculatedAmount || jobEntry.amount || 0)}
                           </div>
                         </div>
                       </div>

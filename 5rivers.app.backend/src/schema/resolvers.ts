@@ -2,6 +2,7 @@ import { DateTimeResolver } from 'graphql-scalars';
 import { GraphQLContext } from '../types/context';
 import { companyService } from '../services/companyService';
 import CalculationService from '../services/calculationService';
+import PDFService from '../services/pdfService';
 import neo4j from 'neo4j-driver';
 import {
   CreateCompanyInput,
@@ -73,6 +74,50 @@ const parseTicketIds = (ticketIds: any): string[] => {
   }
 };
 
+// Helper function to convert weight from string/mixed to float array format for backward compatibility
+const parseWeights = (weight: any): number[] => {
+  if (!weight) return [];
+  
+  // Already an array of numbers
+  if (Array.isArray(weight)) {
+    return weight.map((w: any) => parseFloat(w) || 0).filter((w: number) => !isNaN(w));
+  }
+  
+  // If it's a number
+  if (typeof weight === 'number') {
+    return [weight];
+  }
+  
+  // If it's a string, parse it
+  if (typeof weight === 'string') {
+    // Try to parse as JSON array first
+    if (weight.trim().startsWith('[') && weight.trim().endsWith(']')) {
+      try {
+        const parsed = JSON.parse(weight);
+        if (Array.isArray(parsed)) {
+          return parsed.map((w: any) => parseFloat(w) || 0).filter((w: number) => !isNaN(w));
+        }
+      } catch {
+        // Fall through to space-separated parsing
+      }
+    }
+    
+    // Split by spaces and parse each weight
+    return weight.split(' ')
+      .map((w: string) => parseFloat(w.trim()) || 0)
+      .filter((w: number) => !isNaN(w));
+  }
+  
+  // Try to parse as string
+  try {
+    const numValue = parseFloat(String(weight));
+    return isNaN(numValue) ? [] : [numValue];
+  } catch (error) {
+    console.warn(`Could not parse weight: ${weight}`, error);
+    return [];
+  }
+};
+
 export const resolvers = {
   Date: DateTimeResolver,
 
@@ -99,6 +144,7 @@ export const resolvers = {
       const result = await context.neo4jService.runQuery(query, { companyId: parent.id });
       return result.map((record: any) => ({
         ...record.j.properties,
+        weight: parseWeights(record.j.properties.weight), // Convert string/mixed to array
         ticketIds: parseTicketIds(record.j.properties.ticketIds), // Convert string to array
         createdAt: new Date(record.j.properties.createdAt),
         updatedAt: new Date(record.j.properties.updatedAt),
@@ -116,6 +162,7 @@ export const resolvers = {
       const result = await context.neo4jService.runQuery(query, { driverId: parent.id });
       return result.map((record: any) => ({
         ...record.j.properties,
+        weight: parseWeights(record.j.properties.weight), // Convert string/mixed to array
         ticketIds: parseTicketIds(record.j.properties.ticketIds), // Convert string to array
         createdAt: new Date(record.j.properties.createdAt),
         updatedAt: new Date(record.j.properties.updatedAt),
@@ -595,27 +642,203 @@ export const resolvers = {
     // Dashboard/Analytics
     dashboardStats: async (
       _parent: any,
-      _args: any,
+      args: { year?: number; month?: number },
       context: GraphQLContext
     ) => {
-      // Placeholder implementation - you can expand this with real analytics
-      return {
-        jobStats: {
+      try {
+        // Get current date components or use provided ones
+        const now = new Date();
+        const currentYear = args.year || now.getFullYear();
+        const currentMonth = args.month || (now.getMonth() + 1); // JavaScript months are 0-indexed
+        
+        // Get previous month components
+        const previousDate = new Date(currentYear, currentMonth - 2); // -2 because month is 1-indexed
+        const previousYear = previousDate.getFullYear();
+        const previousMonth = previousDate.getMonth() + 1;
+
+        // Helper function to get monthly stats
+        const getMonthlyStats = async (year: number, month: number) => {
+          const startDate = `${year}-${month.toString().padStart(2, '0')}-01`;
+          const endDate = month === 12 
+            ? `${year + 1}-01-01` 
+            : `${year}-${(month + 1).toString().padStart(2, '0')}-01`;
+
+          // Get job stats for the month
+          const jobStatsQuery = `
+            MATCH (j:Job)
+            WHERE j.jobDate >= $startDate AND j.jobDate < $endDate
+            RETURN 
+              count(j) as totalJobs,
+              sum(j.calculatedAmount) as totalAmount,
+              avg(j.calculatedAmount) as averageJobValue
+          `;
+
+          // Get dispatcher count
+          const dispatcherQuery = `
+            MATCH (d:Dispatcher)
+            OPTIONAL MATCH (d)-[:DISPATCHED]->(j:Job)
+            WHERE j.jobDate >= $startDate AND j.jobDate < $endDate
+            RETURN count(DISTINCT d) as totalDispatchers
+          `;
+
+          // Get driver count
+          const driverQuery = `
+            MATCH (dr:Driver)
+            OPTIONAL MATCH (dr)-[:DROVE]->(j:Job)
+            WHERE j.jobDate >= $startDate AND j.jobDate < $endDate
+            RETURN count(DISTINCT dr) as totalDrivers
+          `;
+
+          // Get invoice count
+          const invoiceQuery = `
+            MATCH (i:Invoice)
+            WHERE i.invoiceDate >= $startDate AND i.invoiceDate < $endDate
+            RETURN count(i) as totalInvoices
+          `;
+
+          const [jobResult, dispatcherResult, driverResult, invoiceResult] = await Promise.all([
+            context.neo4jService.runQuery(jobStatsQuery, { startDate, endDate }),
+            context.neo4jService.runQuery(dispatcherQuery, { startDate, endDate }),
+            context.neo4jService.runQuery(driverQuery, { startDate, endDate }),
+            context.neo4jService.runQuery(invoiceQuery, { startDate, endDate })
+          ]);
+
+          const jobStats = jobResult[0] || {};
+          const dispatcherStats = dispatcherResult[0] || {};
+          const driverStats = driverResult[0] || {};
+          const invoiceStats = invoiceResult[0] || {};
+
+          return {
+            totalJobs: jobStats.totalJobs?.low || jobStats.totalJobs || 0,
+            totalDispatchers: dispatcherStats.totalDispatchers?.low || dispatcherStats.totalDispatchers || 0,
+            totalDrivers: driverStats.totalDrivers?.low || driverStats.totalDrivers || 0,
+            totalInvoices: invoiceStats.totalInvoices?.low || invoiceStats.totalInvoices || 0,
+            totalAmount: jobStats.totalAmount || 0,
+            averageJobValue: jobStats.averageJobValue || 0
+          };
+        };
+
+        // Get current and previous month stats
+        const [currentStats, previousStats] = await Promise.all([
+          getMonthlyStats(currentYear, currentMonth),
+          getMonthlyStats(previousYear, previousMonth)
+        ]);
+
+        // Calculate percentage changes
+        const calculatePercentageChange = (current: number, previous: number) => {
+          if (previous === 0) return current > 0 ? 100 : 0;
+          return ((current - previous) / previous) * 100;
+        };
+
+        const monthlyComparison = {
+          current: currentStats,
+          previous: previousStats,
+          percentageChange: calculatePercentageChange(currentStats.totalAmount, previousStats.totalAmount),
+          jobsChange: currentStats.totalJobs - previousStats.totalJobs,
+          amountChange: currentStats.totalAmount - previousStats.totalAmount
+        };
+
+        // Get overall stats
+        const overallStatsQuery = `
+          MATCH (j:Job)
+          OPTIONAL MATCH (d:Dispatcher)
+          OPTIONAL MATCH (dr:Driver)
+          OPTIONAL MATCH (i:Invoice)
+          OPTIONAL MATCH (c:Company)
+          RETURN 
+            count(DISTINCT j) as totalJobs,
+            count(DISTINCT d) as totalDispatchers,
+            count(DISTINCT dr) as totalDrivers,
+            count(DISTINCT i) as totalInvoices,
+            count(DISTINCT c) as totalCompanies,
+            sum(j.calculatedAmount) as totalAmount,
+            avg(j.calculatedAmount) as averageJobValue
+        `;
+
+        const overallResult = await context.neo4jService.runQuery(overallStatsQuery, {});
+        const overallData = overallResult[0] || {};
+
+        const overallStats = {
+          totalJobs: overallData.totalJobs?.low || overallData.totalJobs || 0,
+          totalDispatchers: overallData.totalDispatchers?.low || overallData.totalDispatchers || 0,
+          totalDrivers: overallData.totalDrivers?.low || overallData.totalDrivers || 0,
+          totalInvoices: overallData.totalInvoices?.low || overallData.totalInvoices || 0,
+          totalCompanies: overallData.totalCompanies?.low || overallData.totalCompanies || 0,
+          totalAmount: overallData.totalAmount || 0,
+          averageJobValue: overallData.averageJobValue || 0
+        };
+
+        // Get recent jobs (last 10)
+        const recentJobsQuery = `
+          MATCH (j:Job)
+          OPTIONAL MATCH (j)-[:BELONGS_TO]->(jt:JobType)
+          OPTIONAL MATCH (jt)-[:BELONGS_TO]->(c:Company)
+          OPTIONAL MATCH (j)-[:DROVE]-(dr:Driver)
+          OPTIONAL MATCH (j)-[:DISPATCHED]-(d:Dispatcher)
+          RETURN j, jt, c, dr, d
+          ORDER BY j.jobDate DESC, j.createdAt DESC
+          LIMIT 10
+        `;
+
+        const recentJobsResult = await context.neo4jService.runQuery(recentJobsQuery, {});
+        const recentJobs = recentJobsResult.map((record: any) => ({
+          ...record.j.properties,
+          ticketIds: parseTicketIds(record.j.properties.ticketIds),
+          weight: Array.isArray(record.j.properties.weight) 
+            ? record.j.properties.weight 
+            : record.j.properties.weight ? [parseFloat(record.j.properties.weight)] : [],
+          createdAt: new Date(record.j.properties.createdAt),
+          updatedAt: new Date(record.j.properties.updatedAt),
+          jobType: record.jt ? {
+            ...record.jt.properties,
+            company: record.c ? record.c.properties : null
+          } : null,
+          driver: record.dr ? record.dr.properties : null,
+          dispatcher: record.d ? record.d.properties : null
+        }));
+
+        // Get top companies by job volume
+        const topCompaniesQuery = `
+          MATCH (c:Company)<-[:BELONGS_TO]-(jt:JobType)<-[:BELONGS_TO]-(j:Job)
+          RETURN c, count(j) as jobCount
+          ORDER BY jobCount DESC
+          LIMIT 5
+        `;
+
+        const topCompaniesResult = await context.neo4jService.runQuery(topCompaniesQuery, {});
+        const topCompanies = topCompaniesResult.map((record: any) => record.c.properties);
+
+        return {
+          monthlyComparison,
+          overallStats,
+          recentJobs,
+          topCompanies
+        };
+      } catch (error) {
+        console.error('Error fetching dashboard stats:', error);
+        // Return default values in case of error
+        const defaultStats = {
           totalJobs: 0,
-          totalRevenue: 0,
-          averageJobValue: 0,
-          pendingJobs: 0,
-          completedJobs: 0,
-        },
-        driverStats: {
+          totalDispatchers: 0,
           totalDrivers: 0,
-          activeDrivers: 0,
-          totalHours: 0,
-          totalEarnings: 0,
-        },
-        recentJobs: [],
-        topCompanies: [],
-      };
+          totalInvoices: 0,
+          totalAmount: 0,
+          averageJobValue: 0
+        };
+
+        return {
+          monthlyComparison: {
+            current: { ...defaultStats, totalCompanies: 0 },
+            previous: { ...defaultStats, totalCompanies: 0 },
+            percentageChange: 0,
+            jobsChange: 0,
+            amountChange: 0
+          },
+          overallStats: { ...defaultStats, totalCompanies: 0 },
+          recentJobs: [],
+          topCompanies: []
+        };
+      }
     },
 
     // Search jobs
@@ -808,6 +1031,18 @@ export const resolvers = {
         );
       }
 
+      // Calculate and set the calculatedAmount for the job
+      try {
+        const calculatedAmount = await CalculationService.calculateJobAmount(jobId);
+        await context.neo4jService.runQuery(
+          `MATCH (j:Job {id: $jobId})
+           SET j.calculatedAmount = $calculatedAmount`,
+          { jobId, calculatedAmount }
+        );
+      } catch (error) {
+        console.warn(`Warning: Could not calculate amount for new job ${jobId}:`, error);
+      }
+
       return {
         ...result[0].j.properties,
         createdAt: new Date(result[0].j.properties.createdAt),
@@ -936,6 +1171,18 @@ export const resolvers = {
            CREATE (j)-[:USES_UNIT]->(u)`,
           { id, unitId: updates.unitId }
         );
+      }
+
+      // Recalculate and update the calculatedAmount after any job update
+      try {
+        const calculatedAmount = await CalculationService.calculateJobAmount(id);
+        await context.neo4jService.runQuery(
+          `MATCH (j:Job {id: $id})
+           SET j.calculatedAmount = $calculatedAmount`,
+          { id, calculatedAmount }
+        );
+      } catch (error) {
+        console.warn(`Warning: Could not recalculate amount for job ${id}:`, error);
       }
 
       return {
@@ -1080,6 +1327,71 @@ export const resolvers = {
         updatedAt: new Date(result[0].j.properties.updatedAt),
       };
     },
+
+    downloadInvoicePDF: async (_parent: any, args: { invoiceId: string }, context: GraphQLContext) => {
+      try {
+        const pdfService = new PDFService();
+        const pdfBuffer = await pdfService.generateInvoicePDF(args.invoiceId);
+        await pdfService.close();
+        
+        // Return base64 encoded PDF
+        return {
+          success: true,
+          data: pdfBuffer.toString('base64'),
+          filename: `invoice-${args.invoiceId}.pdf`
+        };
+      } catch (error) {
+        console.error('Error generating invoice PDF:', error);
+        return {
+          success: false,
+          error: 'Failed to generate PDF'
+        };
+      }
+    },
+
+    validateAndFixJobAmounts: async (_parent: any, args: { invoiceId?: string }, context: GraphQLContext) => {
+      try {
+        const { JobAmountValidationService } = await import('../services/jobAmountValidationService');
+        const validationService = new JobAmountValidationService();
+        
+        if (args.invoiceId) {
+          const result = await validationService.validateInvoiceJobAmounts(args.invoiceId);
+          await validationService.close();
+          return {
+            success: true,
+            message: `Validated ${result.totalJobs} jobs, fixed ${result.fixedJobs} discrepancies`,
+            data: result
+          };
+        } else {
+          // Validate all jobs (limit to prevent timeouts)
+          const query = `
+            MATCH (j:Job)-[r:INVOICED_IN]->(i:Invoice)
+            RETURN j.id as jobId
+            LIMIT 100
+          `;
+          const jobs = await context.neo4jService.runQuery(query);
+          
+          let fixedCount = 0;
+          for (const job of jobs) {
+            const validation = await validationService.validateAndFixJobAmount(job.jobId);
+            if (validation.wasFixed) fixedCount++;
+          }
+          
+          await validationService.close();
+          return {
+            success: true,
+            message: `Validated ${jobs.length} jobs, fixed ${fixedCount} discrepancies`,
+            data: { totalJobs: jobs.length, fixedJobs: fixedCount }
+          };
+        }
+      } catch (error) {
+        console.error('Error validating job amounts:', error);
+        return {
+          success: false,
+          error: 'Failed to validate job amounts'
+        };
+      }
+    },
   },
 
   // Field resolvers for simplified Invoice structure
@@ -1091,11 +1403,43 @@ export const resolvers = {
         ORDER BY j.jobDate
       `;
       const result = await context.neo4jService.runQuery(query, { invoiceId: parent.id });
-      return result.map((record: any) => ({
-        job: record.j.properties,
-        amount: record.amount,
-        invoicedAt: record.invoicedAt
-      }));
+      
+      // Import validation service to ensure amounts are correct
+      const { JobAmountValidationService } = await import('../services/jobAmountValidationService');
+      const validationService = new JobAmountValidationService();
+      
+      const jobs = [];
+      
+      for (const record of result) {
+        try {
+          // Validate and fix the job amount if needed
+          const validation = await validationService.validateAndFixJobAmount(record.j.properties.id);
+          
+          if (validation.wasFixed) {
+            console.log(`✅ Fixed job amount discrepancy for job ${record.j.properties.id} in invoice ${parent.id}`);
+          }
+          
+          jobs.push({
+            job: {
+              ...record.j.properties,
+              calculatedAmount: validation.calculatedAmount
+            },
+            amount: validation.calculatedAmount, // Always use calculated amount
+            invoicedAt: record.invoicedAt
+          });
+        } catch (error) {
+          console.warn(`Error validating job ${record.j.properties.id}:`, error);
+          // Fall back to original data
+          jobs.push({
+            job: record.j.properties,
+            amount: record.amount,
+            invoicedAt: record.invoicedAt
+          });
+        }
+      }
+      
+      await validationService.close();
+      return jobs;
     },
 
     dispatcher: async (parent: any, _args: any, context: GraphQLContext) => {
@@ -1163,7 +1507,18 @@ export const resolvers = {
     },
 
     calculatedAmount: async (parent: any, _args: any, _context: GraphQLContext) => {
-      return await CalculationService.calculateJobAmount(parent.id);
+      // Use validation service to ensure the amount is correct and consistent
+      try {
+        const { JobAmountValidationService } = await import('../services/jobAmountValidationService');
+        const validationService = new JobAmountValidationService();
+        const validation = await validationService.validateAndFixJobAmount(parent.id);
+        await validationService.close();
+        return validation.calculatedAmount;
+      } catch (error) {
+        console.warn(`Error validating job amount for ${parent.id}:`, error);
+        // Fall back to direct calculation
+        return await CalculationService.calculateJobAmount(parent.id);
+      }
     },
 
     calculatedHours: async (parent: any, _args: any, _context: GraphQLContext) => {

@@ -145,7 +145,19 @@ export function JobEditModal({ job, trigger, onSuccess }: JobEditModalProps) {
               </div>
               <div>
                 <span className="text-muted-foreground">Weight:</span>
-                <span className="ml-2 font-medium">{job?.weight || 'Not specified'}</span>
+                <span className="ml-2 font-medium">
+                  {(() => {
+                    if (Array.isArray(job?.weight)) {
+                      const total = job.weight.reduce((sum: number, w: number) => sum + w, 0);
+                      return job.weight.length > 1 
+                        ? `${job.weight.join(' + ')} = ${total.toFixed(2)} tons`
+                        : `${total.toFixed(2)} tons`;
+                    } else if (job?.weight) {
+                      return `${job.weight} tons`;
+                    }
+                    return 'Not specified';
+                  })()}
+                </span>
               </div>
               <div>
                 <span className="text-muted-foreground">Loads:</span>

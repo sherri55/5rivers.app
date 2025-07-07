@@ -110,7 +110,19 @@ export function JobDetailModal({ job, trigger }: JobDetailModalProps) {
                   <Weight className="h-4 w-4 text-muted-foreground" />
                   <div>
                     <p className="text-sm font-medium">Weight</p>
-                    <p className="text-sm text-muted-foreground">{job?.weight || 'Not specified'}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {(() => {
+                        if (Array.isArray(job?.weight)) {
+                          const total = job.weight.reduce((sum: number, w: number) => sum + w, 0);
+                          return job.weight.length > 1 
+                            ? `${job.weight.join(' + ')} = ${total.toFixed(2)} tons`
+                            : `${total.toFixed(2)} tons`;
+                        } else if (job?.weight) {
+                          return `${job.weight} tons`;
+                        }
+                        return 'Not specified';
+                      })()}
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">

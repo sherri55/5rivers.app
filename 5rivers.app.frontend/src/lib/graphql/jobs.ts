@@ -24,6 +24,8 @@ export const GET_JOBS = gql`
         jobType {
           id
           title
+          rateOfJob
+          dispatchType
           company {
             id
             name

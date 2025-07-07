@@ -1,17 +1,21 @@
-import { useState } from "react"
-import { useQuery } from "@apollo/client"
+import { useState, useEffect } from "react"
+import { useQuery, useMutation, useApolloClient } from "@apollo/client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Search, Plus, FileText, User, Eye, Edit, DollarSign } from "lucide-react"
-import { GET_INVOICES } from "@/lib/graphql/invoices"
+import { Search, Plus, FileText, User, Eye, Edit, DollarSign, Download, AlertTriangle } from "lucide-react"
+import { GET_INVOICES, DOWNLOAD_INVOICE_PDF } from "@/lib/graphql/invoices"
 import { CreateInvoiceModal } from "@/components/modals/CreateInvoiceModal"
 import { InvoiceViewModal } from "@/components/modals/InvoiceViewModal"
 import { EditInvoiceModal } from "@/components/modals/EditInvoiceModal"
+import { useToast } from "@/hooks/use-toast"
+import { validateJobAmounts, formatCurrencyWithValidation } from "@/lib/validation/jobAmountValidation"
 
 export function Invoices() {
   const [searchTerm, setSearchTerm] = useState("")
+  const { toast } = useToast()
+  const apolloClient = useApolloClient()
   
   const { data, loading, error, refetch } = useQuery(GET_INVOICES, {
     variables: {
@@ -23,7 +27,37 @@ export function Invoices() {
     }
   })
 
+  const [downloadInvoicePDF, { loading: downloadLoading }] = useMutation(DOWNLOAD_INVOICE_PDF)
+
   const invoices = data?.invoices || []
+
+  // Auto-validate job amounts when data loads
+  useEffect(() => {
+    if (invoices.length > 0) {
+      // Check for any amount discrepancies and auto-fix them
+      const hasDiscrepancies = invoices.some((invoice: any) => 
+        invoice.jobs?.some((jobEntry: any) => {
+          const calculatedAmount = jobEntry.job?.calculatedAmount
+          const relationshipAmount = jobEntry.amount
+          return calculatedAmount !== undefined && 
+                 Math.abs((relationshipAmount || 0) - calculatedAmount) > 0.01
+        })
+      )
+
+      if (hasDiscrepancies) {
+        console.log('🔍 Amount discrepancies detected, validating and fixing...')
+        validateJobAmounts(null, apolloClient).then((result) => {
+          if (result.fixedJobs > 0) {
+            toast({
+              title: "Job Amounts Updated",
+              description: `Fixed ${result.fixedJobs} job amount discrepancies for accuracy.`,
+            })
+            refetch() // Refresh data after fixes
+          }
+        })
+      }
+    }
+  }, [invoices, apolloClient, toast, refetch])
   const filteredInvoices = invoices.filter((invoice: any) =>
     invoice.invoiceNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     invoice.billedTo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -64,6 +98,53 @@ export function Invoices() {
         return 'bg-red-100 text-red-800'
       default:
         return 'bg-gray-100 text-gray-800'
+    }
+  }
+
+  const handleDownloadPDF = async (invoiceId: string, invoiceNumber: string) => {
+    try {
+      const result = await downloadInvoicePDF({
+        variables: { invoiceId }
+      })
+
+      if (result.data?.downloadInvoicePDF?.success) {
+        // Convert base64 to blob and download
+        const base64Data = result.data.downloadInvoicePDF.data
+        const filename = result.data.downloadInvoicePDF.filename || `${invoiceNumber}.pdf`
+        
+        // Create blob from base64
+        const byteCharacters = atob(base64Data)
+        const byteNumbers = new Array(byteCharacters.length)
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i)
+        }
+        const byteArray = new Uint8Array(byteNumbers)
+        const blob = new Blob([byteArray], { type: 'application/pdf' })
+        
+        // Create download link
+        const url = window.URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = filename
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        window.URL.revokeObjectURL(url)
+        
+        toast({
+          title: "Success",
+          description: "Invoice PDF downloaded successfully",
+        })
+      } else {
+        throw new Error(result.data?.downloadInvoicePDF?.error || 'Failed to generate PDF')
+      }
+    } catch (error) {
+      console.error('Error downloading PDF:', error)
+      toast({
+        title: "Error",
+        description: "Failed to download invoice PDF",
+        variant: "destructive",
+      })
     }
   }
 
@@ -111,6 +192,42 @@ export function Invoices() {
             className="pl-8"
           />
         </div>
+        
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={async () => {
+            toast({
+              title: "Validating Job Amounts",
+              description: "Checking and fixing any amount discrepancies...",
+            })
+            const result = await validateJobAmounts(null, apolloClient)
+            if (result.success) {
+              if (result.fixedJobs > 0) {
+                toast({
+                  title: "Validation Complete",
+                  description: `Fixed ${result.fixedJobs} job amount discrepancies.`,
+                })
+                refetch()
+              } else {
+                toast({
+                  title: "Validation Complete",
+                  description: "All job amounts are accurate.",
+                })
+              }
+            } else {
+              toast({
+                title: "Validation Failed",
+                description: result.message || "Failed to validate job amounts.",
+                variant: "destructive",
+              })
+            }
+          }}
+          className="shrink-0"
+        >
+          <AlertTriangle className="h-4 w-4 mr-2" />
+          Validate Amounts
+        </Button>
       </div>
 
       {loading ? (
@@ -198,7 +315,19 @@ export function Invoices() {
                           </div>
                           <div className="flex items-center gap-1 text-primary font-semibold bg-primary/10 px-2 py-1 rounded">
                             <DollarSign className="h-3 w-3" />
-                            {formatCurrency(jobEntry.amount || jobEntry.job?.calculatedAmount || 0)}
+                            {(() => {
+                              const validation = formatCurrencyWithValidation(jobEntry, formatCurrency)
+                              return (
+                                <div className="flex items-center gap-1">
+                                  {validation.formattedAmount}
+                                  {validation.hasWarning && (
+                                    <AlertTriangle 
+                                      className="h-3 w-3 text-orange-500" 
+                                    />
+                                  )}
+                                </div>
+                              )
+                            })()}
                           </div>
                         </div>
                       ))}
@@ -210,8 +339,14 @@ export function Invoices() {
                 {invoice.calculations && (
                   <div className="pt-2 border-t">
                     <div className="flex justify-between items-center">
-                      <span className="text-sm text-muted-foreground">Total Amount</span>
+                      <span className="text-sm text-muted-foreground">Subtotal</span>
                       <span className="font-semibold text-lg text-primary">
+                        {formatCurrency(invoice.calculations.subTotal || 0)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-muted-foreground">Total (incl. taxes)</span>
+                      <span className="font-medium text-muted-foreground">
                         {formatCurrency(invoice.calculations.total || 0)}
                       </span>
                     </div>
@@ -239,6 +374,22 @@ export function Invoices() {
                     }
                     onSuccess={refetch}
                   />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => handleDownloadPDF(invoice.id, invoice.invoiceNumber)}
+                    disabled={downloadLoading}
+                  >
+                    {downloadLoading ? (
+                      <span className="animate-spin">⏳</span>
+                    ) : (
+                      <>
+                        <Download className="h-3 w-3 mr-1" />
+                        Download PDF
+                      </>
+                    )}
+                  </Button>
                 </div>
               </CardContent>
             </Card>

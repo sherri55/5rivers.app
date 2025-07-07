@@ -2,26 +2,44 @@ import { gql } from '@apollo/client'
 
 // Dashboard Queries
 export const GET_DASHBOARD_STATS = gql`
-  query GetDashboardStats {
-    dashboardStats {
-      jobStats {
-        totalJobs
-        totalRevenue
-        averageJobValue
-        pendingJobs
-        completedJobs
+  query GetDashboardStats($year: Int, $month: Int) {
+    dashboardStats(year: $year, month: $month) {
+      monthlyComparison {
+        current {
+          totalJobs
+          totalDispatchers
+          totalDrivers
+          totalInvoices
+          totalAmount
+          averageJobValue
+        }
+        previous {
+          totalJobs
+          totalDispatchers
+          totalDrivers
+          totalInvoices
+          totalAmount
+          averageJobValue
+        }
+        percentageChange
+        jobsChange
+        amountChange
       }
-      driverStats {
+      overallStats {
+        totalJobs
+        totalDispatchers
         totalDrivers
-        activeDrivers
-        totalHours
-        totalEarnings
+        totalInvoices
+        totalAmount
+        totalCompanies
+        averageJobValue
       }
       recentJobs {
         id
         jobDate
         calculatedAmount
         invoiceStatus
+        ticketIds
         jobType {
           id
           title
@@ -31,6 +49,10 @@ export const GET_DASHBOARD_STATS = gql`
           }
         }
         driver {
+          id
+          name
+        }
+        dispatcher {
           id
           name
         }

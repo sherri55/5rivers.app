@@ -107,15 +107,36 @@ export class CalculationService {
         return Math.max(0, (parseInt(loads) || 0) * (parseFloat(rate) || 0));
       
       case 'tonnage':
-        // Handle weight as either a single value or space-separated values
+        // Handle weight as an array of floats
         let totalWeight = 0;
         if (weight) {
-          if (typeof weight === 'string') {
-            // Split by spaces and sum all weight values
-            const weights = weight.split(' ').map(w => parseFloat(w.trim())).filter(w => !isNaN(w));
-            totalWeight = weights.reduce((sum, w) => sum + w, 0);
+          if (Array.isArray(weight)) {
+            // Already an array of numbers
+            totalWeight = weight.reduce((sum: number, w: number) => sum + (parseFloat(String(w)) || 0), 0);
+          } else if (typeof weight === 'string') {
+            // Legacy string format - parse for backward compatibility
+            if (weight.trim().startsWith('[') && weight.trim().endsWith(']')) {
+              try {
+                const weightsArray = JSON.parse(weight);
+                if (Array.isArray(weightsArray)) {
+                  totalWeight = weightsArray
+                    .map((w: any) => parseFloat(w))
+                    .filter((w: number) => !isNaN(w))
+                    .reduce((sum: number, w: number) => sum + w, 0);
+                }
+              } catch (error) {
+                console.warn(`Error parsing JSON weight array for job ${jobId}:`, error);
+                // Fall back to space-separated parsing
+                const weights = weight.split(' ').map(w => parseFloat(w.trim())).filter(w => !isNaN(w));
+                totalWeight = weights.reduce((sum, w) => sum + w, 0);
+              }
+            } else {
+              // Split by spaces and sum all weight values
+              const weights = weight.split(' ').map(w => parseFloat(w.trim())).filter(w => !isNaN(w));
+              totalWeight = weights.reduce((sum, w) => sum + w, 0);
+            }
           } else {
-            totalWeight = parseFloat(weight) || 0;
+            totalWeight = parseFloat(String(weight)) || 0;
           }
         }
         return Math.max(0, totalWeight * (parseFloat(rate) || 0));

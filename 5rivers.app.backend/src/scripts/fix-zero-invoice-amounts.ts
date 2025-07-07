@@ -1,34 +1,34 @@
 import { Neo4jService } from '../database/neo4j'
 import CalculationService from '../services/calculationService'
 
-async function fixNegativeInvoiceAmounts() {
+async function fixZeroAmounts() {
   const neo4j = new Neo4jService()
   
   try {
-    console.log('🔧 Fixing negative invoice amounts caused by overnight jobs...')
+    console.log('🔧 Fixing zero invoice amounts...')
     
-    // Find all invoice-job relationships with negative amounts (both relationship types)
-    const negativeAmountsQuery = `
+    // Find all invoice-job relationships with zero amounts
+    const zeroAmountsQuery = `
       MATCH (i:Invoice)-[rel:HAS_INVOICE|INVOICED_IN]-(j:Job)
-      WHERE rel.amount < 0
+      WHERE rel.amount = 0 OR rel.amount IS NULL
       RETURN i.id as invoiceId, i.invoiceNumber as invoiceNumber, 
              j.id as jobId, j.startTime as startTime, j.endTime as endTime,
              rel.amount as currentAmount, type(rel) as relationshipType
       ORDER BY i.invoiceNumber
     `
     
-    const negativeAmounts = await neo4j.runQuery(negativeAmountsQuery)
+    const zeroAmounts = await neo4j.runQuery(zeroAmountsQuery)
     
-    if (negativeAmounts.length === 0) {
-      console.log('✅ No negative amounts found')
+    if (zeroAmounts.length === 0) {
+      console.log('✅ No zero amounts found')
       return
     }
     
-    console.log(`📊 Found ${negativeAmounts.length} negative invoice amounts to fix:`)
+    console.log(`📊 Found ${zeroAmounts.length} zero invoice amounts to fix:`)
     
-    for (const record of negativeAmounts) {
+    for (const record of zeroAmounts) {
       console.log(`\n🔍 Processing job ${record.jobId.slice(-6)} in invoice ${record.invoiceNumber}:`)
-      console.log(`  Current amount: $${record.currentAmount} (${record.relationshipType})`)
+      console.log(`  Current amount: $${record.currentAmount || 0} (${record.relationshipType})`)
       console.log(`  Times: ${record.startTime} - ${record.endTime}`)
       
       // Recalculate the correct amount using the fixed calculation service
@@ -36,7 +36,7 @@ async function fixNegativeInvoiceAmounts() {
         const correctAmount = await CalculationService.calculateJobAmount(record.jobId)
         console.log(`  Calculated amount: $${correctAmount}`)
         
-        if (correctAmount !== record.currentAmount) {
+        if (correctAmount !== (record.currentAmount || 0)) {
           // Update the relationship amount - handle both relationship types
           const updateQuery = record.relationshipType === 'HAS_INVOICE' 
             ? `
@@ -56,7 +56,7 @@ async function fixNegativeInvoiceAmounts() {
             newAmount: correctAmount
           })
           
-          console.log(`  ✅ Updated amount from $${record.currentAmount} to $${correctAmount}`)
+          console.log(`  ✅ Updated amount from $${record.currentAmount || 0} to $${correctAmount}`)
         } else {
           console.log(`  ℹ️ Amount is already correct`)
         }
@@ -65,25 +65,13 @@ async function fixNegativeInvoiceAmounts() {
       }
     }
     
-    console.log('\n🔧 Rechecking for any remaining negative amounts...')
-    const remainingNegative = await neo4j.runQuery(negativeAmountsQuery)
-    
-    if (remainingNegative.length === 0) {
-      console.log('✅ All negative amounts have been fixed!')
-    } else {
-      console.log(`⚠️ ${remainingNegative.length} negative amounts still remain`)
-      for (const record of remainingNegative) {
-        console.log(`  Job ${record.jobId.slice(-6)}: $${record.currentAmount} (${record.startTime} - ${record.endTime})`)
-      }
-    }
-    
-    console.log('\n✅ Negative invoice amount fix completed')
+    console.log('\n✅ Zero invoice amount fix completed')
     
   } catch (error) {
-    console.error('❌ Error fixing negative invoice amounts:', error)
+    console.error('❌ Error fixing zero invoice amounts:', error)
   } finally {
     await neo4j.close()
   }
 }
 
-fixNegativeInvoiceAmounts()
+fixZeroAmounts()

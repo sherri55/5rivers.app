@@ -145,7 +145,17 @@ export function JobEditModal({ job, trigger, onSuccess }: JobEditModalProps) {
     driverId: job?.driver?.id || "none",
     dispatcherId: job?.dispatcher?.id || "none",
     unitId: job?.unit?.id || "none",
-    weight: job?.weight || "",
+    weight: (() => {
+      // Handle weight as array or convert from legacy string format
+      if (Array.isArray(job?.weight)) {
+        return job.weight.join(' '); // Convert array to space-separated string for form input
+      } else if (job?.weight && typeof job.weight === 'string') {
+        return job.weight; // Keep legacy string format
+      } else if (job?.weight && typeof job.weight === 'number') {
+        return job.weight.toString(); // Convert single number to string
+      }
+      return "";
+    })(),
     loads: job?.loads || 0,
     startTime: formatDateTimeLocal(job?.startTime || "", job?.jobDate),
     endTime: formatDateTimeLocal(job?.endTime || "", job?.jobDate),
@@ -225,11 +235,18 @@ export function JobEditModal({ job, trigger, onSuccess }: JobEditModalProps) {
       })
 
       // Initialize multi-value arrays
-      if (job.weight && typeof job.weight === 'string') {
-        const weights = job.weight.split(' ').filter((w: string) => w.trim() !== '')
-        setTonnageValues(weights)
+      if (Array.isArray(job.weight)) {
+        // New array format
+        setTonnageValues(job.weight.map((w: number) => w.toString()));
+      } else if (job.weight && typeof job.weight === 'string') {
+        // Legacy string format
+        const weights = job.weight.split(' ').filter((w: string) => w.trim() !== '');
+        setTonnageValues(weights);
+      } else if (job.weight && typeof job.weight === 'number') {
+        // Single number format
+        setTonnageValues([job.weight.toString()]);
       } else {
-        setTonnageValues([])
+        setTonnageValues([]);
       }
 
       // Handle ticket IDs - could be string, array, or null
@@ -303,7 +320,7 @@ export function JobEditModal({ job, trigger, onSuccess }: JobEditModalProps) {
         input.startTime = formData.startTime || null
         input.endTime = formData.endTime || null
       } else if (selectedJobType?.dispatchType?.toLowerCase() === "tonnage") {
-        input.weight = tonnageValues.join(' ') // Join tonnage values with spaces
+        input.weight = tonnageValues.map(v => parseFloat(v) || 0).filter(v => !isNaN(v)) // Send as array of floats
       } else if (selectedJobType?.dispatchType?.toLowerCase() === "load") {
         input.loads = parseInt(formData.loads.toString()) || 0
       }

@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Search, Plus, Calendar, DollarSign, Truck, User, List, ChevronLeft, ChevronRight, Eye, Edit, FileText, Receipt, Clock } from "lucide-react"
+import { Search, Plus, Calendar, DollarSign, Truck, User, List, ChevronLeft, ChevronRight, Eye, Edit, FileText, Receipt, Clock, AlertTriangle } from "lucide-react"
 import { GET_JOBS } from "@/lib/graphql/jobs"
 import { CreateJobModal } from "@/components/modals/CreateJobModal"
 import { JobDetailModal } from "@/components/modals/JobDetailModal"
@@ -33,6 +33,8 @@ interface Job {
   jobType?: {
     id: string
     title: string
+    rateOfJob?: number
+    dispatchType?: string
     company?: {
       id: string
       name: string
@@ -182,7 +184,9 @@ function CalendarView({ jobs, currentDate, onDateChange, onJobSuccess }: Calenda
                       <div
                         key={job.id}
                         className={`text-xs rounded-md p-1.5 border-l-2 transition-all ${
-                          job.paymentReceived && job.driverPaid 
+                          hasMissingRate(job)
+                            ? "bg-orange-50 border-orange-500 text-orange-800"
+                            : job.paymentReceived && job.driverPaid 
                             ? "bg-green-50 border-green-500 text-green-800" 
                             : job.paymentReceived 
                             ? "bg-blue-50 border-blue-500 text-blue-800"
@@ -190,9 +194,12 @@ function CalendarView({ jobs, currentDate, onDateChange, onJobSuccess }: Calenda
                         }`}
                         onClick={(e) => e.stopPropagation()}
                       >
-                        <div className="font-medium truncate text-xs" title={job.jobType?.title || 'Unknown Job'}>
-                          {job.jobType?.title?.substring(0, 20) || 'Unknown Job'}
+                        <div className="font-medium truncate text-xs flex items-center gap-1" title={job.jobType?.title || 'Unknown Job'}>
+                          <span>{job.jobType?.title?.substring(0, 20) || 'Unknown Job'}</span>
                           {(job.jobType?.title?.length || 0) > 20 && '...'}
+                          {hasMissingRate(job) && (
+                            <AlertTriangle className="h-2.5 w-2.5 text-orange-600 flex-shrink-0" />
+                          )}
                         </div>
                         
                         <div className="flex items-center justify-between mt-1">
@@ -245,13 +252,24 @@ function CalendarView({ jobs, currentDate, onDateChange, onJobSuccess }: Calenda
           
           <div className="space-y-3">
             {getSelectedDateJobs().map((job) => (
-              <Card key={job.id} className="hover:shadow-md transition-shadow">
+              <Card 
+                key={job.id} 
+                className={`hover:shadow-md transition-shadow ${
+                  hasMissingRate(job) ? 'border-orange-500 border-2' : ''
+                }`}
+              >
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
                         <div className={`w-3 h-3 rounded-full ${getStatusColor(job)}`} />
                         <h4 className="font-medium text-base">{job.jobType?.title || 'Unknown Job'}</h4>
+                        {hasMissingRate(job) && (
+                          <span className="inline-flex items-center gap-1 text-orange-600">
+                            <AlertTriangle className="h-3 w-3" />
+                            <span className="text-xs">No rate</span>
+                          </span>
+                        )}
                         <Badge variant="outline" className="text-xs">
                           {job.invoiceStatus}
                         </Badge>
@@ -432,6 +450,11 @@ function CalendarView({ jobs, currentDate, onDateChange, onJobSuccess }: Calenda
   )
 }
 
+// Utility function to check if a job has missing rate
+const hasMissingRate = (job: Job): boolean => {
+  return !job.jobType?.rateOfJob || job.jobType.rateOfJob <= 0
+}
+
 export function Jobs() {
   const [searchTerm, setSearchTerm] = useState("")
   const [activeView, setActiveView] = useState("list")
@@ -576,7 +599,12 @@ export function Jobs() {
                 </div>
                 <div className="grid gap-4">
                   {monthJobs.map((job: Job) => (
-                    <Card key={job.id} className="hover:shadow-md transition-shadow">
+                    <Card 
+                      key={job.id} 
+                      className={`hover:shadow-md transition-shadow ${
+                        hasMissingRate(job) ? 'border-orange-500 border-2' : ''
+                      }`}
+                    >
                       <CardHeader>
                         <div className="flex items-center justify-between">
                           <CardTitle className="flex items-center gap-2">
@@ -606,6 +634,12 @@ export function Jobs() {
                               <Calendar className="h-4 w-4 text-muted-foreground" />
                               <span className="text-sm">
                                 <span className="font-medium">Type:</span> {job.jobType.title}
+                                {hasMissingRate(job) && (
+                                  <span className="ml-2 inline-flex items-center gap-1 text-orange-600">
+                                    <AlertTriangle className="h-3 w-3" />
+                                    <span className="text-xs">No rate</span>
+                                  </span>
+                                )}
                               </span>
                             </div>
                           )}

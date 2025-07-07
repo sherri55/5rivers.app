@@ -81,7 +81,7 @@ export const typeDefs = `
     jobDate: String!
     # Core data only - no calculated jobGrossAmount
     invoiceStatus: String!
-    weight: String
+    weight: [Float]
     loads: Int
     startTime: String
     endTime: String
@@ -269,7 +269,7 @@ export const typeDefs = `
     driverId: ID
     dispatcherId: ID
     unitId: ID
-    weight: String
+    weight: [Float]
     loads: Int
     startTime: String
     endTime: String
@@ -282,7 +282,7 @@ export const typeDefs = `
     driverId: ID
     dispatcherId: ID
     unitId: ID
-    weight: String
+    weight: [Float]
     loads: Int
     startTime: String
     endTime: String
@@ -352,11 +352,61 @@ export const typeDefs = `
     totalEarnings: Float!
   }
 
+  type MonthlyStats {
+    totalJobs: Int!
+    totalDispatchers: Int!
+    totalDrivers: Int!
+    totalInvoices: Int!
+    totalAmount: Float!
+    averageJobValue: Float!
+  }
+
+  type MonthlyComparison {
+    current: MonthlyStats!
+    previous: MonthlyStats!
+    percentageChange: Float!
+    jobsChange: Int!
+    amountChange: Float!
+  }
+
+  type OverallStats {
+    totalJobs: Int!
+    totalDispatchers: Int!
+    totalDrivers: Int!
+    totalInvoices: Int!
+    totalAmount: Float!
+    totalCompanies: Int!
+    averageJobValue: Float!
+  }
+
   type DashboardStats {
-    jobStats: JobStats!
-    driverStats: DriverStats!
+    monthlyComparison: MonthlyComparison!
+    overallStats: OverallStats!
     recentJobs: [Job!]!
     topCompanies: [Company!]!
+  }
+
+  # PDF download response type
+  type PDFDownloadResponse {
+    success: Boolean!
+    data: String
+    filename: String
+    error: String
+  }
+
+  # Job amount validation response type
+  type JobAmountValidationResponse {
+    success: Boolean!
+    message: String
+    error: String
+    data: JobAmountValidationData
+  }
+
+  type JobAmountValidationData {
+    totalJobs: Int!
+    validJobs: Int
+    fixedJobs: Int!
+    errors: [String!]
   }
 
   type Query {
@@ -400,7 +450,7 @@ export const typeDefs = `
     invoice(id: ID!): Invoice
 
     # Analytics/Dashboard
-    dashboardStats: DashboardStats!
+    dashboardStats(year: Int, month: Int): DashboardStats!
     
     # Search across all companies
     searchCompanies(
@@ -456,5 +506,11 @@ export const typeDefs = `
     assignJobToDriver(jobId: ID!, driverId: ID!): Job!
     assignJobToDispatcher(jobId: ID!, dispatcherId: ID!): Job!
     assignJobToUnit(jobId: ID!, unitId: ID!): Job!
+    
+    # PDF download
+    downloadInvoicePDF(invoiceId: ID!): PDFDownloadResponse!
+    
+    # Job amount validation and fixing
+    validateAndFixJobAmounts(invoiceId: ID): JobAmountValidationResponse!
   }
 `;

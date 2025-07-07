@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { useQuery } from "@apollo/client"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -27,6 +27,19 @@ export function JobTypes() {
     jobType.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (jobType.company?.name && jobType.company.name.toLowerCase().includes(searchTerm.toLowerCase()))
   )
+
+  // Group job types by company
+  const jobTypesByCompany = filteredJobTypes.reduce((groups: any, jobType: any) => {
+    const companyName = jobType.company?.name || 'No Company'
+    if (!groups[companyName]) {
+      groups[companyName] = []
+    }
+    groups[companyName].push(jobType)
+    return groups
+  }, {})
+
+  // Sort companies alphabetically
+  const sortedCompanies = Object.keys(jobTypesByCompany).sort()
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -99,90 +112,108 @@ export function JobTypes() {
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredJobTypes.map((jobType: any) => (
-            <Card key={jobType.id} className="hover:shadow-lg transition-shadow duration-200">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <div className="p-2 jobtypes-gradient rounded-lg">
-                      <Briefcase className="h-4 w-4 text-white" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-lg">{jobType.title}</CardTitle>
-                      {jobType.company && (
-                        <CardDescription className="text-sm">{jobType.company.name}</CardDescription>
-                      )}
-                    </div>
+        <div className="space-y-8">
+          {sortedCompanies.map((companyName) => {
+            const companyJobTypes = jobTypesByCompany[companyName]
+            return (
+              <div key={companyName} className="space-y-4">
+                <div className="flex items-center space-x-3">
+                  <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+                    <Briefcase className="h-4 w-4 text-white" />
                   </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center space-x-2">
-                  <Truck className="h-4 w-4 text-orange-600" />
-                  <span className="text-sm font-medium">Dispatch:</span>
-                  <Badge variant="secondary" className="bg-orange-50 text-orange-700">
-                    {jobType.dispatchType}
-                  </Badge>
+                  <div>
+                    <h2 className="text-xl font-semibold text-foreground">{companyName}</h2>
+                    <p className="text-sm text-muted-foreground">
+                      {companyJobTypes.length} job type{companyJobTypes.length !== 1 ? 's' : ''}
+                    </p>
+                  </div>
                 </div>
                 
-                <div className="flex items-center space-x-2">
-                  <DollarSign className="h-4 w-4 text-green-600" />
-                  <span className="text-sm font-medium">Rate:</span>
-                  <Badge variant="secondary" className="bg-green-50 text-green-700">
-                    {formatCurrency(jobType.rateOfJob)}
-                  </Badge>
-                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pl-11">
+                  {companyJobTypes.map((jobType: any) => (
+                    <Card key={jobType.id} className="hover:shadow-lg transition-shadow duration-200">
+                      <CardHeader>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            <div className="p-2 jobtypes-gradient rounded-lg">
+                              <Briefcase className="h-4 w-4 text-white" />
+                            </div>
+                            <div>
+                              <CardTitle className="text-lg">{jobType.title}</CardTitle>
+                            </div>
+                          </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="flex items-center space-x-2">
+                          <Truck className="h-4 w-4 text-orange-600" />
+                          <span className="text-sm font-medium">Dispatch:</span>
+                          <Badge variant="secondary" className="bg-orange-50 text-orange-700">
+                            {jobType.dispatchType}
+                          </Badge>
+                        </div>
+                        
+                        <div className="flex items-center space-x-2">
+                          <DollarSign className="h-4 w-4 text-green-600" />
+                          <span className="text-sm font-medium">Rate:</span>
+                          <Badge variant="secondary" className="bg-green-50 text-green-700">
+                            {formatCurrency(jobType.rateOfJob)}
+                          </Badge>
+                        </div>
 
-                {(jobType.startLocation || jobType.endLocation) && (
-                  <div className="space-y-2">
-                    {jobType.startLocation && (
-                      <div className="flex items-center space-x-2 text-sm">
-                        <MapPin className="h-3 w-3 text-blue-600" />
-                        <span className="font-medium">From:</span>
-                        <span className="text-muted-foreground">{jobType.startLocation}</span>
-                      </div>
-                    )}
-                    {jobType.endLocation && (
-                      <div className="flex items-center space-x-2 text-sm">
-                        <MapPin className="h-3 w-3 text-red-600" />
-                        <span className="font-medium">To:</span>
-                        <span className="text-muted-foreground">{jobType.endLocation}</span>
-                      </div>
-                    )}
-                  </div>
-                )}
+                        {(jobType.startLocation || jobType.endLocation) && (
+                          <div className="space-y-2">
+                            {jobType.startLocation && (
+                              <div className="flex items-center space-x-2 text-sm">
+                                <MapPin className="h-3 w-3 text-blue-600" />
+                                <span className="font-medium">From:</span>
+                                <span className="text-muted-foreground">{jobType.startLocation}</span>
+                              </div>
+                            )}
+                            {jobType.endLocation && (
+                              <div className="flex items-center space-x-2 text-sm">
+                                <MapPin className="h-3 w-3 text-red-600" />
+                                <span className="font-medium">To:</span>
+                                <span className="text-muted-foreground">{jobType.endLocation}</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
 
-                <div className="flex items-center justify-between pt-2 border-t">
-                  <span className="text-xs text-muted-foreground">
-                    Added {new Date(jobType.createdAt).toLocaleDateString()}
-                  </span>
-                </div>
+                        <div className="flex items-center justify-between pt-2 border-t">
+                          <span className="text-xs text-muted-foreground">
+                            Added {new Date(jobType.createdAt).toLocaleDateString()}
+                          </span>
+                        </div>
 
-                <div className="flex gap-2 pt-2">
-                  <EditJobTypeModal
-                    trigger={
-                      <Button variant="outline" size="sm" className="flex-1">
-                        <Edit className="h-3 w-3 mr-1" />
-                        Edit
-                      </Button>
-                    }
-                    jobType={jobType}
-                    onSuccess={refetch}
-                  />
-                  <JobTypeJobsViewModal
-                    trigger={
-                      <Button variant="outline" size="sm" className="flex-1">
-                        <Eye className="h-3 w-3 mr-1" />
-                        View Jobs
-                      </Button>
-                    }
-                    jobType={jobType}
-                  />
+                        <div className="flex gap-2 pt-2">
+                          <EditJobTypeModal
+                            trigger={
+                              <Button variant="outline" size="sm" className="flex-1">
+                                <Edit className="h-3 w-3 mr-1" />
+                                Edit
+                              </Button>
+                            }
+                            jobType={jobType}
+                            onSuccess={refetch}
+                          />
+                          <JobTypeJobsViewModal
+                            trigger={
+                              <Button variant="outline" size="sm" className="flex-1">
+                                <Eye className="h-3 w-3 mr-1" />
+                                View Jobs
+                              </Button>
+                            }
+                            jobType={jobType}
+                          />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
                 </div>
-              </CardContent>
-            </Card>
-          ))}
+              </div>
+            )
+          })}
         </div>
       )}
 
