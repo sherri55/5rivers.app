@@ -3,6 +3,7 @@ import { GraphQLContext } from '../types/context';
 import { companyService } from '../services/companyService';
 import CalculationService from '../services/calculationService';
 import PDFService from '../services/pdfService';
+import { Neo4jService } from '../database/neo4j';
 import neo4j from 'neo4j-driver';
 import {
   CreateCompanyInput,
@@ -1392,6 +1393,207 @@ export const resolvers = {
         };
       }
     },
+
+    deleteDriver: async (
+      _parent: any,
+      args: { id: string },
+      _context: GraphQLContext
+    ) => {
+      const neo4jService = new Neo4jService();
+      try {
+        // First check if driver has jobs
+        const checkQuery = `
+          MATCH (d:Driver {id: $id})<-[:ASSIGNED_TO]-(:Job)
+          RETURN count(d) as jobCount
+        `;
+        const checkResult = await neo4jService.runQuery(checkQuery, { id: args.id });
+        
+        if (checkResult[0]?.jobCount > 0) {
+          throw new Error('Cannot delete driver who has assigned jobs');
+        }
+
+        // Delete the driver and all its relationships
+        const deleteQuery = `
+          MATCH (d:Driver {id: $id})
+          DETACH DELETE d
+          RETURN true as deleted
+        `;
+        
+        const result = await neo4jService.runQuery(deleteQuery, { id: args.id });
+        return result.length > 0;
+      } catch (error) {
+        console.error('Error deleting driver:', error);
+        throw error;
+      } finally {
+        await neo4jService.close();
+      }
+    },
+
+    deleteUnit: async (
+      _parent: any,
+      args: { id: string },
+      _context: GraphQLContext
+    ) => {
+      const neo4jService = new Neo4jService();
+      try {
+        // First check if unit has jobs
+        const checkQuery = `
+          MATCH (u:Unit {id: $id})<-[:USES_UNIT]-(:Job)
+          RETURN count(u) as jobCount
+        `;
+        const checkResult = await neo4jService.runQuery(checkQuery, { id: args.id });
+        
+        if (checkResult[0]?.jobCount > 0) {
+          throw new Error('Cannot delete unit that has assigned jobs');
+        }
+
+        // Delete the unit and all its relationships
+        const deleteQuery = `
+          MATCH (u:Unit {id: $id})
+          DETACH DELETE u
+          RETURN true as deleted
+        `;
+        
+        const result = await neo4jService.runQuery(deleteQuery, { id: args.id });
+        return result.length > 0;
+      } catch (error) {
+        console.error('Error deleting unit:', error);
+        throw error;
+      } finally {
+        await neo4jService.close();
+      }
+    },
+
+    deleteJobType: async (
+      _parent: any,
+      args: { id: string },
+      _context: GraphQLContext
+    ) => {
+      const neo4jService = new Neo4jService();
+      try {
+        // First check if job type has jobs
+        const checkQuery = `
+          MATCH (jt:JobType {id: $id})<-[:OF_TYPE]-(:Job)
+          RETURN count(jt) as jobCount
+        `;
+        const checkResult = await neo4jService.runQuery(checkQuery, { id: args.id });
+        
+        if (checkResult[0]?.jobCount > 0) {
+          throw new Error('Cannot delete job type that has associated jobs');
+        }
+
+        // Delete the job type and all its relationships
+        const deleteQuery = `
+          MATCH (jt:JobType {id: $id})
+          DETACH DELETE jt
+          RETURN true as deleted
+        `;
+        
+        const result = await neo4jService.runQuery(deleteQuery, { id: args.id });
+        return result.length > 0;
+      } catch (error) {
+        console.error('Error deleting job type:', error);
+        throw error;
+      } finally {
+        await neo4jService.close();
+      }
+    },
+
+    deleteDispatcher: async (
+      _parent: any,
+      args: { id: string },
+      _context: GraphQLContext
+    ) => {
+      const neo4jService = new Neo4jService();
+      try {
+        // First check if dispatcher has invoices
+        const checkQuery = `
+          MATCH (d:Dispatcher {id: $id})<-[:BILLED_BY]-(:Invoice)
+          RETURN count(d) as invoiceCount
+        `;
+        const checkResult = await neo4jService.runQuery(checkQuery, { id: args.id });
+        
+        if (checkResult[0]?.invoiceCount > 0) {
+          throw new Error('Cannot delete dispatcher who has created invoices');
+        }
+
+        // Delete the dispatcher and all its relationships
+        const deleteQuery = `
+          MATCH (d:Dispatcher {id: $id})
+          DETACH DELETE d
+          RETURN true as deleted
+        `;
+        
+        const result = await neo4jService.runQuery(deleteQuery, { id: args.id });
+        return result.length > 0;
+      } catch (error) {
+        console.error('Error deleting dispatcher:', error);
+        throw error;
+      } finally {
+        await neo4jService.close();
+      }
+    },
+
+    deleteInvoice: async (
+      _parent: any,
+      args: { id: string },
+      _context: GraphQLContext
+    ) => {
+      const neo4jService = new Neo4jService();
+      try {
+        // Delete invoice relationships first, then the invoice
+        const deleteQuery = `
+          MATCH (i:Invoice {id: $id})
+          OPTIONAL MATCH (i)<-[rel:INVOICED_IN]-(j:Job)
+          DELETE rel
+          DELETE i
+          RETURN true as deleted
+        `;
+        
+        const result = await neo4jService.runQuery(deleteQuery, { id: args.id });
+        return result.length > 0;
+      } catch (error) {
+        console.error('Error deleting invoice:', error);
+        throw error;
+      } finally {
+        await neo4jService.close();
+      }
+    },
+
+    deleteJob: async (
+      _parent: any,
+      args: { id: string },
+      _context: GraphQLContext
+    ) => {
+      const neo4jService = new Neo4jService();
+      try {
+        // First check if job is part of an invoice
+        const checkQuery = `
+          MATCH (j:Job {id: $id})-[:INVOICED_IN]->(:Invoice)
+          RETURN count(j) as invoiceCount
+        `;
+        const checkResult = await neo4jService.runQuery(checkQuery, { id: args.id });
+        
+        if (checkResult[0]?.invoiceCount > 0) {
+          throw new Error('Cannot delete job that is part of an invoice');
+        }
+
+        // Delete the job and all its relationships
+        const deleteQuery = `
+          MATCH (j:Job {id: $id})
+          DETACH DELETE j
+          RETURN true as deleted
+        `;
+        
+        const result = await neo4jService.runQuery(deleteQuery, { id: args.id });
+        return result.length > 0;
+      } catch (error) {
+        console.error('Error deleting job:', error);
+        throw error;
+      } finally {
+        await neo4jService.close();
+      }
+    },
   },
 
   // Field resolvers for simplified Invoice structure
@@ -1507,22 +1709,20 @@ export const resolvers = {
     },
 
     calculatedAmount: async (parent: any, _args: any, _context: GraphQLContext) => {
-      // Use validation service to ensure the amount is correct and consistent
       try {
-        const { JobAmountValidationService } = await import('../services/jobAmountValidationService');
-        const validationService = new JobAmountValidationService();
-        const validation = await validationService.validateAndFixJobAmount(parent.id);
-        await validationService.close();
-        return validation.calculatedAmount;
-      } catch (error) {
-        console.warn(`Error validating job amount for ${parent.id}:`, error);
-        // Fall back to direct calculation
         return await CalculationService.calculateJobAmount(parent.id);
+      } catch (error) {
+        console.warn(`Error calculating job amount for ${parent.id}:`, error);
+        return 0;
       }
     },
 
     calculatedHours: async (parent: any, _args: any, _context: GraphQLContext) => {
       return CalculationService.calculateJobHours(parent);
+    },
+
+    driverPay: async (parent: any, _args: any, _context: GraphQLContext) => {
+      return await CalculationService.calculateDriverPay(parent.id);
     },
   },
 };

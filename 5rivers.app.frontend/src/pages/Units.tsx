@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { useQuery } from "@apollo/client"
+import { useQuery, useMutation } from "@apollo/client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -8,9 +8,14 @@ import { AddUnitModal } from "@/components/modals/AddUnitModal"
 import { EditUnitModal } from "@/components/modals/EditUnitModal"
 import { UnitJobsViewModal } from "@/components/modals/UnitJobsViewModal"
 import { GET_UNITS } from "@/lib/graphql/units"
+import { DELETE_UNIT } from "@/lib/graphql/mutations"
+import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog"
+import { useToast } from "@/hooks/use-toast"
 
 export function Units() {
   const [searchTerm, setSearchTerm] = useState("")
+  const { toast } = useToast()
+  
   const { data, loading, error, refetch } = useQuery(GET_UNITS, {
     variables: {
       pagination: { 
@@ -20,6 +25,31 @@ export function Units() {
       }
     }
   })
+
+  const [deleteUnit] = useMutation(DELETE_UNIT, {
+    onCompleted: () => {
+      toast({
+        title: "Unit deleted",
+        description: "Unit has been deleted successfully.",
+      })
+      refetch()
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: `Failed to delete unit: ${error.message}`,
+        variant: "destructive"
+      })
+    },
+  })
+
+  const handleDeleteUnit = async (unitId: string) => {
+    try {
+      await deleteUnit({ variables: { id: unitId } })
+    } catch (error) {
+      console.error('Error deleting unit:', error)
+    }
+  }
 
   const units = data?.units || []
   const filteredUnits = units.filter((unit: any) =>
@@ -151,6 +181,11 @@ export function Units() {
                       </Button>
                     }
                     unit={unit}
+                  />
+                  <ConfirmDeleteDialog
+                    title="Delete Unit"
+                    description="Are you sure you want to delete this unit? This action cannot be undone and will fail if the unit has assigned jobs."
+                    onConfirm={() => handleDeleteUnit(unit.id)}
                   />
                 </div>
               </CardContent>

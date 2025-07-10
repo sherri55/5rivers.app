@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { useQuery } from "@apollo/client"
+import { useQuery, useMutation } from "@apollo/client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,9 +9,14 @@ import { AddDriverModal } from "@/components/modals/AddDriverModal"
 import { DriverEditModal } from "@/components/modals/DriverEditModal"
 import { DriverJobsViewModal } from "@/components/modals/DriverJobsViewModal"
 import { GET_DRIVERS } from "@/lib/graphql/drivers"
+import { DELETE_DRIVER } from "@/lib/graphql/mutations"
+import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog"
+import { useToast } from "@/hooks/use-toast"
 
 export function Drivers() {
   const [searchTerm, setSearchTerm] = useState("")
+  const { toast } = useToast()
+  
   const { data, loading, error, refetch } = useQuery(GET_DRIVERS, {
     variables: {
       pagination: { 
@@ -21,6 +26,31 @@ export function Drivers() {
       }
     }
   })
+
+  const [deleteDriver] = useMutation(DELETE_DRIVER, {
+    onCompleted: () => {
+      toast({
+        title: "Driver deleted",
+        description: "Driver has been deleted successfully.",
+      })
+      refetch()
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: `Failed to delete driver: ${error.message}`,
+        variant: "destructive"
+      })
+    },
+  })
+
+  const handleDeleteDriver = async (driverId: string) => {
+    try {
+      await deleteDriver({ variables: { id: driverId } })
+    } catch (error) {
+      console.error('Error deleting driver:', error)
+    }
+  }
 
   const drivers = data?.drivers || []
   const filteredDrivers = drivers.filter((driver: any) =>
@@ -158,6 +188,11 @@ export function Drivers() {
                         View Jobs
                       </Button>
                     } 
+                  />
+                  <ConfirmDeleteDialog
+                    title="Delete Driver"
+                    description="Are you sure you want to delete this driver? This action cannot be undone and will fail if the driver has assigned jobs."
+                    onConfirm={() => handleDeleteDriver(driver.id)}
                   />
                 </div>
               </CardContent>

@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { useQuery } from "@apollo/client"
+import { useQuery, useMutation } from "@apollo/client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,9 +9,14 @@ import { AddDispatcherModal } from "@/components/modals/AddDispatcherModal"
 import { EditDispatcherModal } from "@/components/modals/EditDispatcherModal"
 import { DispatcherJobsViewModal } from "@/components/modals/DispatcherJobsViewModal"
 import { GET_DISPATCHERS } from "@/lib/graphql/dispatchers"
+import { DELETE_DISPATCHER } from "@/lib/graphql/mutations"
+import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog"
+import { useToast } from "@/hooks/use-toast"
 
 export function Dispatchers() {
   const [searchTerm, setSearchTerm] = useState("")
+  const { toast } = useToast()
+  
   const { data, loading, error, refetch } = useQuery(GET_DISPATCHERS, {
     variables: {
       pagination: { 
@@ -21,6 +26,31 @@ export function Dispatchers() {
       }
     }
   })
+
+  const [deleteDispatcher] = useMutation(DELETE_DISPATCHER, {
+    onCompleted: () => {
+      toast({
+        title: "Dispatcher deleted",
+        description: "Dispatcher has been deleted successfully.",
+      })
+      refetch()
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: `Failed to delete dispatcher: ${error.message}`,
+        variant: "destructive"
+      })
+    },
+  })
+
+  const handleDeleteDispatcher = async (dispatcherId: string) => {
+    try {
+      await deleteDispatcher({ variables: { id: dispatcherId } })
+    } catch (error) {
+      console.error('Error deleting dispatcher:', error)
+    }
+  }
 
   const dispatchers = data?.dispatchers || []
   const filteredDispatchers = dispatchers.filter((dispatcher: any) =>
@@ -155,6 +185,11 @@ export function Dispatchers() {
                       </Button>
                     }
                     dispatcher={dispatcher}
+                  />
+                  <ConfirmDeleteDialog
+                    title="Delete Dispatcher"
+                    description="Are you sure you want to delete this dispatcher? This action cannot be undone and will fail if the dispatcher has created invoices."
+                    onConfirm={() => handleDeleteDispatcher(dispatcher.id)}
                   />
                 </div>
               </CardContent>

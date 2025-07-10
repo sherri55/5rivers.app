@@ -29,6 +29,7 @@ export interface DashboardJob {
   id: string;
   jobDate: string;
   calculatedAmount: number;
+  driverPay?: number;
   invoiceStatus: string;
   ticketIds: string[];
   jobType?: {

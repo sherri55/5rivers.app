@@ -318,6 +318,9 @@ export function Dashboard() {
                       <div className="flex items-center gap-3">
                         <div className="text-right">
                           <p className="text-sm font-medium text-foreground">{formatCurrency(job.calculatedAmount)}</p>
+                          <p className="text-xs text-muted-foreground">
+                            Driver pay: {job.driverPay ? formatCurrency(job.driverPay) : '$0'}
+                          </p>
                           <p className="text-xs text-muted-foreground">{job.jobType?.title || 'No Job Type'}</p>
                         </div>
                         <Eye className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />

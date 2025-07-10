@@ -366,6 +366,29 @@ export class CalculationService {
     return Math.round(totalEarnings * 100) / 100;
   }
 
+  /**
+   * Calculate driver pay for a specific job
+   */
+  static async calculateDriverPay(jobId: string): Promise<number> {
+    const result = await neo4jService.runQuery(`
+      MATCH (j:Job {id: $jobId})-[:ASSIGNED_TO]->(d:Driver)
+      RETURN d.hourlyRate as driverHourlyRate
+    `, { jobId });
+
+    if (result.length === 0) {
+      return 0; // No driver assigned or job not found
+    }
+
+    const driverHourlyRate = result[0].driverHourlyRate;
+    if (!driverHourlyRate) {
+      return 0; // No hourly rate set for driver
+    }
+
+    // Get the job amount and calculate driver pay as: (amount * hourlyRate) / 100
+    const jobAmount = await this.calculateJobAmount(jobId);
+    return (jobAmount * driverHourlyRate) / 100;
+  }
+
   // ===============================
   // ANALYTICS CALCULATIONS
   // ===============================

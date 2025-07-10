@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { useQuery } from "@apollo/client"
+import { useQuery, useMutation } from "@apollo/client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -13,11 +13,14 @@ import {
 } from "@/components/ui/dialog"
 import { Search, Plus, Calendar, DollarSign, Truck, User, List, ChevronLeft, ChevronRight, Eye, Edit, FileText, Receipt, Clock, AlertTriangle } from "lucide-react"
 import { GET_JOBS } from "@/lib/graphql/jobs"
+import { DELETE_JOB } from "@/lib/graphql/mutations"
 import { CreateJobModal } from "@/components/modals/CreateJobModal"
 import { JobDetailModal } from "@/components/modals/JobDetailModal"
 import { JobEditModal } from "@/components/modals/JobEditModal"
 import { JobTypeViewModal } from "@/components/modals/JobTypeViewModal"
 import { InvoiceViewModal } from "@/components/modals/InvoiceViewModal"
+import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog"
+import { useToast } from "@/hooks/use-toast"
 
 interface Job {
   id: string
@@ -30,6 +33,7 @@ interface Job {
   paymentReceived: boolean
   driverPaid: boolean
   calculatedAmount?: number
+  driverPay?: number
   jobType?: {
     id: string
     title: string
@@ -60,9 +64,10 @@ interface CalendarViewProps {
   currentDate: Date
   onDateChange: (date: Date) => void
   onJobSuccess: () => void
+  onDeleteJob: (jobId: string) => void
 }
 
-function CalendarView({ jobs, currentDate, onDateChange, onJobSuccess }: CalendarViewProps) {
+function CalendarView({ jobs, currentDate, onDateChange, onJobSuccess, onDeleteJob }: CalendarViewProps) {
   const [selectedDate, setSelectedDate] = useState<number | null>(null)
   const [showDateModal, setShowDateModal] = useState(false)
   
@@ -341,6 +346,11 @@ function CalendarView({ jobs, currentDate, onDateChange, onJobSuccess }: Calenda
                           invoiceId={job.invoice.id}
                         />
                       )}
+                      <ConfirmDeleteDialog
+                        title="Delete Job"
+                        description="Are you sure you want to delete this job? This action cannot be undone."
+                        onConfirm={() => onDeleteJob(job.id)}
+                      />
                     </div>
                   </div>
                 </CardContent>
@@ -434,6 +444,11 @@ function CalendarView({ jobs, currentDate, onDateChange, onJobSuccess }: Calenda
                         invoiceId={job.invoice?.id}
                       />
                     )}
+                    <ConfirmDeleteDialog
+                      title="Delete Job"
+                      description="Are you sure you want to delete this job? This action cannot be undone."
+                      onConfirm={() => onDeleteJob(job.id)}
+                    />
                   </div>
                 </div>
               ))}
@@ -459,6 +474,7 @@ export function Jobs() {
   const [searchTerm, setSearchTerm] = useState("")
   const [activeView, setActiveView] = useState("list")
   const [currentDate, setCurrentDate] = useState(new Date())
+  const { toast } = useToast()
   
   const { data, loading, error, refetch } = useQuery(GET_JOBS, {
     variables: {
@@ -469,6 +485,31 @@ export function Jobs() {
       }
     }
   })
+
+  const [deleteJob] = useMutation(DELETE_JOB, {
+    onCompleted: () => {
+      toast({
+        title: "Job deleted",
+        description: "Job has been deleted successfully.",
+      })
+      refetch()
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: `Failed to delete job: ${error.message}`,
+        variant: "destructive"
+      })
+    },
+  })
+
+  const handleDeleteJob = async (jobId: string) => {
+    try {
+      await deleteJob({ variables: { id: jobId } })
+    } catch (error) {
+      console.error('Error deleting job:', error)
+    }
+  }
 
   if (loading) return <div className="flex items-center justify-center h-64">Loading jobs...</div>
   if (error) return <div className="flex items-center justify-center h-64 text-destructive">Error loading jobs: {error.message}</div>
@@ -691,6 +732,14 @@ export function Jobs() {
                               </span>
                             </div>
                           )}
+                          {job.driverPay !== undefined && (
+                            <div className="flex items-center gap-2">
+                              <User className="h-4 w-4 text-muted-foreground" />
+                              <span className="text-sm">
+                                <span className="font-medium">Driver pay:</span> ${job.driverPay.toFixed(2)}
+                              </span>
+                            </div>
+                          )}
                           {job.jobType?.company && (
                             <div className="flex items-center gap-2">
                               <Calendar className="h-4 w-4 text-muted-foreground" />
@@ -731,6 +780,11 @@ export function Jobs() {
                                 invoiceId={job.invoice?.id}
                               />
                             )}
+                            <ConfirmDeleteDialog
+                              title="Delete Job"
+                              description="Are you sure you want to delete this job? This action cannot be undone."
+                              onConfirm={() => handleDeleteJob(job.id)}
+                            />
                           </div>
                         </div>
                       </CardContent>
@@ -748,6 +802,7 @@ export function Jobs() {
             currentDate={currentDate}
             onDateChange={setCurrentDate}
             onJobSuccess={handleSuccess}
+            onDeleteJob={handleDeleteJob}
           />
         </TabsContent>
       </Tabs>

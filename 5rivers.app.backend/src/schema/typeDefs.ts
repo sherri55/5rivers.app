@@ -101,6 +101,7 @@ export const typeDefs = `
     # Calculated fields (computed by resolvers)
     calculatedAmount: Float!
     calculatedHours: Float
+    driverPay: Float!
   }
 
   type Invoice {
@@ -499,6 +500,7 @@ export const typeDefs = `
     # Job mutations
     createJob(input: CreateJobInput!): Job!
     updateJob(input: UpdateJobInput!): Job!
+    deleteJob(id: ID!): Boolean!
     updateJobStatus(id: ID!, status: String!): Job!
     markJobPaid(id: ID!, driverPaid: Boolean!, paymentReceived: Boolean!): Job!
     

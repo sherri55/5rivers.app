@@ -19,6 +19,7 @@ export const GET_JOBS = gql`
         imageUrls
         calculatedAmount
         calculatedHours
+        driverPay
         createdAt
         updatedAt
         jobType {
@@ -71,6 +72,7 @@ export const GET_JOB = gql`
       imageUrls
       calculatedAmount
       calculatedHours
+      driverPay
       createdAt
       updatedAt
       jobType {
@@ -119,6 +121,7 @@ export const SEARCH_JOBS = gql`
       id
       jobDate
       calculatedAmount
+      driverPay
       invoiceStatus
       jobType {
         id
@@ -149,6 +152,7 @@ export const CREATE_JOB = gql`
       endTime
       calculatedAmount
       calculatedHours
+      driverPay
       createdAt
       updatedAt
       jobType {
@@ -250,6 +254,9 @@ export const UPDATE_JOB = gql`
       paymentReceived
       driverPaid
       imageUrls
+      calculatedAmount
+      calculatedHours
+      driverPay
       updatedAt
       jobType {
         id

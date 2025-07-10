@@ -6,9 +6,11 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Search, Plus, FileText, User, Eye, Edit, DollarSign, Download, AlertTriangle } from "lucide-react"
 import { GET_INVOICES, DOWNLOAD_INVOICE_PDF } from "@/lib/graphql/invoices"
+import { DELETE_INVOICE } from "@/lib/graphql/mutations"
 import { CreateInvoiceModal } from "@/components/modals/CreateInvoiceModal"
 import { InvoiceViewModal } from "@/components/modals/InvoiceViewModal"
 import { EditInvoiceModal } from "@/components/modals/EditInvoiceModal"
+import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog"
 import { useToast } from "@/hooks/use-toast"
 import { validateJobAmounts, formatCurrencyWithValidation } from "@/lib/validation/jobAmountValidation"
 
@@ -28,8 +30,34 @@ export function Invoices() {
   })
 
   const [downloadInvoicePDF, { loading: downloadLoading }] = useMutation(DOWNLOAD_INVOICE_PDF)
+  const [deleteInvoice] = useMutation(DELETE_INVOICE)
 
   const invoices = data?.invoices || []
+
+  const handleDeleteInvoice = async (invoiceId: string, invoiceNumber: string) => {
+    try {
+      const result = await deleteInvoice({
+        variables: { id: invoiceId },
+      })
+
+      if (result.data?.deleteInvoice?.success) {
+        toast({
+          title: "Success",
+          description: `Invoice ${invoiceNumber} has been deleted successfully.`,
+        })
+        refetch()
+      } else {
+        throw new Error(result.data?.deleteInvoice?.message || 'Failed to delete invoice')
+      }
+    } catch (error: any) {
+      console.error('Error deleting invoice:', error)
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete invoice",
+        variant: "destructive",
+      })
+    }
+  }
 
   // Auto-validate job amounts when data loads
   useEffect(() => {
@@ -390,6 +418,11 @@ export function Invoices() {
                       </>
                     )}
                   </Button>
+                  <ConfirmDeleteDialog
+                    title="Delete Invoice"
+                    description={`Are you sure you want to delete ${invoice.invoiceNumber || `Invoice #${invoice.id.slice(-6)}`}? This action cannot be undone.`}
+                    onConfirm={() => handleDeleteInvoice(invoice.id, invoice.invoiceNumber || `Invoice #${invoice.id.slice(-6)}`)}
+                  />
                 </div>
               </CardContent>
             </Card>

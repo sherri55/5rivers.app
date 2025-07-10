@@ -38,6 +38,7 @@ export const GET_DASHBOARD_STATS = gql`
         id
         jobDate
         calculatedAmount
+        driverPay
         invoiceStatus
         ticketIds
         jobType {

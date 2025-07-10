@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { useQuery } from "@apollo/client"
+import { useQuery, useMutation } from "@apollo/client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,9 +9,14 @@ import { AddJobTypeModal } from "@/components/modals/AddJobTypeModal"
 import { EditJobTypeModal } from "@/components/modals/EditJobTypeModal"
 import { JobTypeJobsViewModal } from "@/components/modals/JobTypeJobsViewModal"
 import { GET_JOB_TYPES } from "@/lib/graphql/jobTypes"
+import { DELETE_JOB_TYPE } from "@/lib/graphql/mutations"
+import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog"
+import { useToast } from "@/hooks/use-toast"
 
 export function JobTypes() {
   const [searchTerm, setSearchTerm] = useState("")
+  const { toast } = useToast()
+  
   const { data, loading, error, refetch } = useQuery(GET_JOB_TYPES, {
     variables: {
       pagination: { 
@@ -21,6 +26,31 @@ export function JobTypes() {
       }
     }
   })
+
+  const [deleteJobType] = useMutation(DELETE_JOB_TYPE, {
+    onCompleted: () => {
+      toast({
+        title: "Job type deleted",
+        description: "Job type has been deleted successfully.",
+      })
+      refetch()
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: `Failed to delete job type: ${error.message}`,
+        variant: "destructive"
+      })
+    },
+  })
+
+  const handleDeleteJobType = async (jobTypeId: string) => {
+    try {
+      await deleteJobType({ variables: { id: jobTypeId } })
+    } catch (error) {
+      console.error('Error deleting job type:', error)
+    }
+  }
 
   const jobTypes = data?.jobTypes || []
   const filteredJobTypes = jobTypes.filter((jobType: any) =>
@@ -205,6 +235,11 @@ export function JobTypes() {
                               </Button>
                             }
                             jobType={jobType}
+                          />
+                          <ConfirmDeleteDialog
+                            title="Delete Job Type"
+                            description="Are you sure you want to delete this job type? This action cannot be undone and will fail if the job type has associated jobs."
+                            onConfirm={() => handleDeleteJobType(jobType.id)}
                           />
                         </div>
                       </CardContent>

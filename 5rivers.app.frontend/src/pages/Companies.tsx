@@ -1,14 +1,19 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Building, Plus, MapPin, Phone, Mail } from "lucide-react"
-import { useQuery } from "@apollo/client"
+import { useQuery, useMutation } from "@apollo/client"
 import { GET_COMPANIES } from "@/lib/graphql/companies"
+import { DELETE_COMPANY } from "@/lib/graphql/mutations"
 import { CompanyEditModal } from "@/components/modals/CompanyEditModal"
 import { AddCompanyModal } from "@/components/modals/AddCompanyModal"
 import { CompanyJobsViewModal } from "@/components/modals/CompanyJobsViewModal"
+import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog"
+import { useToast } from "@/hooks/use-toast"
 import { config } from "@/lib/config"
 
 export function Companies() {
+  const { toast } = useToast()
+  
   const { data, loading, error, refetch } = useQuery(GET_COMPANIES, {
     variables: {
       pagination: { 
@@ -18,6 +23,31 @@ export function Companies() {
       }
     }
   })
+
+  const [deleteCompany] = useMutation(DELETE_COMPANY, {
+    onCompleted: () => {
+      toast({
+        title: "Company deleted",
+        description: "Company has been deleted successfully.",
+      })
+      refetch()
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: `Failed to delete company: ${error.message}`,
+        variant: "destructive"
+      })
+    },
+  })
+
+  const handleDeleteCompany = async (companyId: string) => {
+    try {
+      await deleteCompany({ variables: { id: companyId } })
+    } catch (error) {
+      console.error('Error deleting company:', error)
+    }
+  }
 
   if (loading) return <div>Loading companies...</div>
   if (error) return <div>Error loading companies: {error.message}</div>
@@ -107,6 +137,11 @@ export function Companies() {
                       View Jobs
                     </Button>
                   } 
+                />
+                <ConfirmDeleteDialog
+                  title="Delete Company"
+                  description="Are you sure you want to delete this company? This action cannot be undone and will fail if the company has job types."
+                  onConfirm={() => handleDeleteCompany(company.id)}
                 />
               </div>
             </CardContent>
