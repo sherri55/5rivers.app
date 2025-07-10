@@ -1,5 +1,6 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useQuery, useMutation } from "@apollo/client"
+import { useSearchParams } from "react-router-dom"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -15,6 +16,8 @@ import { useToast } from "@/hooks/use-toast"
 
 export function JobTypes() {
   const [searchTerm, setSearchTerm] = useState("")
+  const [editJobTypeId, setEditJobTypeId] = useState<string | null>(null)
+  const [searchParams, setSearchParams] = useSearchParams()
   const { toast } = useToast()
   
   const { data, loading, error, refetch } = useQuery(GET_JOB_TYPES, {
@@ -43,6 +46,41 @@ export function JobTypes() {
       })
     },
   })
+
+  // Handle URL parameters to auto-open edit modal
+  useEffect(() => {
+    const editId = searchParams.get('edit')
+    if (editId && data?.jobTypes) {
+      // Check if the job type exists
+      const jobTypeExists = data.jobTypes.some((jt: any) => jt.id === editId)
+      if (jobTypeExists) {
+        setEditJobTypeId(editId)
+        // Remove the URL parameter to keep URL clean
+        setSearchParams(params => {
+          params.delete('edit')
+          return params
+        })
+      }
+    }
+  }, [searchParams, data?.jobTypes, setSearchParams])
+
+  // Auto-click the hidden trigger to open the modal
+  useEffect(() => {
+    if (editJobTypeId) {
+      // Small delay to ensure the button is rendered
+      const timer = setTimeout(() => {
+        const button = document.getElementById(`auto-edit-${editJobTypeId}`)
+        if (button) {
+          button.click()
+        }
+      }, 100)
+      return () => clearTimeout(timer)
+    }
+  }, [editJobTypeId])
+
+  const handleCloseEditModal = () => {
+    setEditJobTypeId(null)
+  }
 
   const handleDeleteJobType = async (jobTypeId: string) => {
     try {
@@ -276,6 +314,24 @@ export function JobTypes() {
             />
           )}
         </div>
+      )}
+
+      {/* Auto-open EditJobTypeModal based on URL parameter */}
+      {editJobTypeId && data?.jobTypes && (
+        <EditJobTypeModal
+          key={editJobTypeId} // Force remount when job type changes
+          trigger={
+            <Button 
+              style={{ display: 'none' }} 
+              id={`auto-edit-${editJobTypeId}`}
+            />
+          }
+          jobType={data.jobTypes.find((jt: any) => jt.id === editJobTypeId)}
+          onSuccess={() => {
+            refetch()
+            handleCloseEditModal()
+          }}
+        />
       )}
     </div>
   )

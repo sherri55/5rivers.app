@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { useQuery } from "@apollo/client"
+import { useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -15,7 +16,8 @@ import {
   MapPin,
   DollarSign,
   Calendar,
-  FileText
+  FileText,
+  Edit
 } from "lucide-react"
 import { GET_JOB_TYPE } from "@/lib/graphql/jobTypes"
 
@@ -26,6 +28,7 @@ interface JobTypeViewModalProps {
 
 export function JobTypeViewModal({ jobTypeId, trigger }: JobTypeViewModalProps) {
   const [isOpen, setIsOpen] = useState(false)
+  const navigate = useNavigate()
   
   const { data, loading, error } = useQuery(GET_JOB_TYPE, {
     variables: { id: jobTypeId },
@@ -33,6 +36,11 @@ export function JobTypeViewModal({ jobTypeId, trigger }: JobTypeViewModalProps) 
   })
 
   const jobType = data?.jobType
+
+  const handleEditJobType = () => {
+    setIsOpen(false)
+    navigate(`/job-types?edit=${jobTypeId}`)
+  }
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -143,6 +151,18 @@ export function JobTypeViewModal({ jobTypeId, trigger }: JobTypeViewModalProps) 
                 </div>
               </CardContent>
             </Card>
+          </div>
+        )}
+        
+        {jobType && (
+          <div className="flex justify-end gap-3 pt-4 border-t">
+            <Button variant="outline" onClick={() => setIsOpen(false)}>
+              Close
+            </Button>
+            <Button onClick={handleEditJobType} className="flex items-center gap-2">
+              <Edit className="h-4 w-4" />
+              Edit Job Type
+            </Button>
           </div>
         )}
       </DialogContent>
