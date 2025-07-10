@@ -14,19 +14,19 @@ import {
 import { Search, Plus, Calendar, DollarSign, Truck, User, List, ChevronLeft, ChevronRight, Eye, Edit, FileText, Receipt, Clock, AlertTriangle } from "lucide-react"
 import { GET_JOBS } from "@/lib/graphql/jobs"
 import { DELETE_JOB } from "@/lib/graphql/mutations"
-import { CreateJobModal } from "@/components/modals/CreateJobModal"
+import { JobModal } from "@/components/modals/JobModal"
 import { JobDetailModal } from "@/components/modals/JobDetailModal"
-import { JobEditModal } from "@/components/modals/JobEditModal"
 import { JobTypeViewModal } from "@/components/modals/JobTypeViewModal"
 import { InvoiceViewModal } from "@/components/modals/InvoiceViewModal"
 import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog"
 import { useToast } from "@/hooks/use-toast"
+import { parseBackendDate, formatDateForDisplay, formatTimeRange, formatWeightForDisplay } from "@/lib/utils/dateUtils"
 
 interface Job {
   id: string
   jobDate: string
   invoiceStatus: string
-  weight?: string
+  weight?: number[]
   loads?: number
   startTime?: string
   endTime?: string
@@ -45,6 +45,10 @@ interface Job {
     }
   }
   driver?: {
+    id: string
+    name: string
+  }
+  dispatcher?: {
     id: string
     name: string
   }
@@ -81,7 +85,8 @@ function CalendarView({ jobs, currentDate, onDateChange, onJobSuccess, onDeleteJ
   
   // Filter jobs for the current month
   const monthJobs = jobs.filter(job => {
-    const jobDate = new Date(job.jobDate)
+    const jobDate = parseBackendDate(job.jobDate)
+    if (!jobDate) return false
     return jobDate.getMonth() === currentDate.getMonth() && 
            jobDate.getFullYear() === currentDate.getFullYear()
   })
@@ -89,11 +94,14 @@ function CalendarView({ jobs, currentDate, onDateChange, onJobSuccess, onDeleteJ
   // Group jobs by day
   const jobsByDay: { [key: number]: Job[] } = {}
   monthJobs.forEach(job => {
-    const day = new Date(job.jobDate).getDate()
-    if (!jobsByDay[day]) {
-      jobsByDay[day] = []
+    const jobDate = parseBackendDate(job.jobDate)
+    if (jobDate) {
+      const day = jobDate.getDate()
+      if (!jobsByDay[day]) {
+        jobsByDay[day] = []
+      }
+      jobsByDay[day].push(job)
     }
-    jobsByDay[day].push(job)
   })
 
   const navigateMonth = (direction: 'prev' | 'next') => {
@@ -208,9 +216,17 @@ function CalendarView({ jobs, currentDate, onDateChange, onJobSuccess, onDeleteJ
                         </div>
                         
                         <div className="flex items-center justify-between mt-1">
-                          <div className="text-xs text-muted-foreground truncate flex items-center gap-1">
-                            <User className="h-2.5 w-2.5" />
-                            <span>{job.driver?.name?.substring(0, 8) || 'No driver'}</span>
+                          <div className="text-xs text-muted-foreground truncate">
+                            <div className="flex items-center gap-1">
+                              <User className="h-2.5 w-2.5" />
+                              <span>{job.driver?.name?.substring(0, 8) || 'No driver'}</span>
+                            </div>
+                            {job.dispatcher && (
+                              <div className="flex items-center gap-1 mt-0.5">
+                                <Receipt className="h-2.5 w-2.5" />
+                                <span>{job.dispatcher.name.substring(0, 8)}</span>
+                              </div>
+                            )}
                           </div>
                           
                           {job.calculatedAmount && (
@@ -223,7 +239,7 @@ function CalendarView({ jobs, currentDate, onDateChange, onJobSuccess, onDeleteJ
                         {job.startTime && (
                           <div className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
                             <Clock className="h-2.5 w-2.5" />
-                            {job.startTime.substring(0, 5)}
+                            {formatTimeRange(job.startTime, job.endTime)}
                           </div>
                         )}
                       </div>
@@ -287,6 +303,11 @@ function CalendarView({ jobs, currentDate, onDateChange, onJobSuccess, onDeleteJ
                         </div>
                         
                         <div className="flex items-center gap-1">
+                          <Receipt className="h-4 w-4" />
+                          <span>{job.dispatcher?.name || 'No dispatcher assigned'}</span>
+                        </div>
+                        
+                        <div className="flex items-center gap-1">
                           <Truck className="h-4 w-4" />
                           <span>{job.unit?.name || 'No unit assigned'}</span>
                         </div>
@@ -294,7 +315,7 @@ function CalendarView({ jobs, currentDate, onDateChange, onJobSuccess, onDeleteJ
                         {job.startTime && (
                           <div className="flex items-center gap-1">
                             <Clock className="h-4 w-4" />
-                            <span>{job.startTime} - {job.endTime || 'Ongoing'}</span>
+                            <span>{formatTimeRange(job.startTime, job.endTime)}</span>
                           </div>
                         )}
                         
@@ -317,7 +338,7 @@ function CalendarView({ jobs, currentDate, onDateChange, onJobSuccess, onDeleteJ
                         }
                         job={job}
                       />
-                      <JobEditModal
+                      <JobModal
                         trigger={
                           <Button variant="outline" size="sm" title="Edit Job">
                             <Edit className="h-4 w-4" />
@@ -375,17 +396,23 @@ function CalendarView({ jobs, currentDate, onDateChange, onJobSuccess, onDeleteJ
                     <div className={`w-3 h-3 rounded-full ${getStatusColor(job).replace('bg-', 'bg-').replace(' text-', '')}`} />
                     <div>
                       <div className="text-sm font-medium">
-                        {new Date(job.jobDate).toLocaleDateString()} - {job.jobType?.title || 'Unknown Job'}
+                        {formatDateForDisplay(job.jobDate, 'MMM d, yyyy')} - {job.jobType?.title || 'Unknown Job'}
                       </div>
                       <div className="text-xs text-muted-foreground flex items-center gap-2">
                         <span className="flex items-center gap-1">
                           <User className="h-3 w-3" />
                           {job.driver?.name || 'No driver'}
                         </span>
+                        {job.dispatcher && (
+                          <span className="flex items-center gap-1">
+                            <Receipt className="h-3 w-3" />
+                            {job.dispatcher.name}
+                          </span>
+                        )}
                         {job.startTime && (
                           <span className="flex items-center gap-1">
                             <Clock className="h-3 w-3" />
-                            {job.startTime}
+                            {formatTimeRange(job.startTime, job.endTime)}
                           </span>
                         )}
                         {job.calculatedAmount && (
@@ -406,7 +433,7 @@ function CalendarView({ jobs, currentDate, onDateChange, onJobSuccess, onDeleteJ
                       }
                       job={job}
                     />
-                    <JobEditModal 
+                    <JobModal 
                       trigger={
                         <Button variant="ghost" size="sm" className="h-8 w-8 p-0" title="Edit Job">
                           <Edit className="h-4 w-4" />
@@ -480,10 +507,12 @@ export function Jobs() {
     variables: {
       pagination: { 
         page: 1, 
-        limit: 100, // Get more jobs for calendar view
+        limit: 1000, // Get all jobs for calendar view and dropdowns
         offset: 0
       }
-    }
+    },
+    fetchPolicy: 'cache-and-network', // Ensure fresh data is fetched
+    errorPolicy: 'all'
   })
 
   const [deleteJob] = useMutation(DELETE_JOB, {
@@ -515,12 +544,24 @@ export function Jobs() {
   if (error) return <div className="flex items-center justify-center h-64 text-destructive">Error loading jobs: {error.message}</div>
 
   const jobs: Job[] = data?.jobs?.nodes || []
-  const filteredJobs = jobs.filter((job: Job) =>
-    job.jobDate?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    job.weight?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    job.jobType?.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    job.driver?.name?.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  const filteredJobs = jobs.filter((job: Job) => {
+    const searchLower = searchTerm.toLowerCase();
+    
+    // Check job date
+    if (job.jobDate?.toLowerCase().includes(searchLower)) return true;
+    
+    // Check weight (handle array format)
+    if (job.weight && Array.isArray(job.weight)) {
+      if (job.weight.some(w => w.toString().includes(searchLower))) return true;
+    }
+    
+    // Check other fields
+    if (job.jobType?.title?.toLowerCase().includes(searchLower)) return true;
+    if (job.driver?.name?.toLowerCase().includes(searchLower)) return true;
+    if (job.dispatcher?.name?.toLowerCase().includes(searchLower)) return true;
+    
+    return false;
+  })
 
   // Group jobs by month-year for list view
   const groupJobsByMonth = (jobList: Job[]) => {
@@ -528,12 +569,14 @@ export function Jobs() {
     
     jobList.forEach(job => {
       if (job.jobDate) {
-        const date = new Date(job.jobDate)
-        const monthYear = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
-        if (!groups[monthYear]) {
-          groups[monthYear] = []
+        const date = parseBackendDate(job.jobDate)
+        if (date) {
+          const monthYear = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+          if (!groups[monthYear]) {
+            groups[monthYear] = []
+          }
+          groups[monthYear].push(job)
         }
-        groups[monthYear].push(job)
       }
     })
 
@@ -542,9 +585,12 @@ export function Jobs() {
     Object.keys(groups)
       .sort((a, b) => b.localeCompare(a))
       .forEach(key => {
-        sortedGroups[key] = groups[key].sort((a, b) => 
-          new Date(b.jobDate).getTime() - new Date(a.jobDate).getTime()
-        )
+        sortedGroups[key] = groups[key].sort((a, b) => {
+          const dateA = parseBackendDate(a.jobDate)
+          const dateB = parseBackendDate(b.jobDate)
+          if (!dateA || !dateB) return 0
+          return dateB.getTime() - dateA.getTime()
+        })
       })
 
     return sortedGroups
@@ -575,13 +621,14 @@ export function Jobs() {
           <h1 className="text-3xl font-bold text-foreground">Jobs</h1>
           <p className="text-muted-foreground">Manage delivery jobs and track their progress.</p>
         </div>
-        <CreateJobModal 
+        <JobModal 
           trigger={
             <Button className="bg-primary hover:bg-primary-hover text-primary-foreground">
               <Plus className="h-4 w-4 mr-2" />
               Create Job
             </Button>
           }
+          onSuccess={() => refetch()}
         />
       </div>
 
@@ -589,7 +636,7 @@ export function Jobs() {
         <div className="relative flex-1">
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search jobs by date, weight, type, driver..."
+            placeholder="Search jobs by date, weight, type, driver, dispatcher..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-8"
@@ -619,13 +666,14 @@ export function Jobs() {
                 <p className="text-muted-foreground mb-4">
                   {searchTerm ? "No jobs match your search criteria." : "No jobs have been created yet."}
                 </p>
-                <CreateJobModal 
+                <JobModal 
                   trigger={
                     <Button className="bg-primary hover:bg-primary-hover text-primary-foreground">
                       <Plus className="h-4 w-4 mr-2" />
                       Create First Job
                     </Button>
                   }
+                  onSuccess={() => refetch()}
                 />
               </CardContent>
             </Card>
@@ -650,12 +698,7 @@ export function Jobs() {
                         <div className="flex items-center justify-between">
                           <CardTitle className="flex items-center gap-2">
                             <Calendar className="h-5 w-5 text-primary" />
-                            {new Date(job.jobDate).toLocaleDateString('en-US', { 
-                              weekday: 'long',
-                              year: 'numeric', 
-                              month: 'long', 
-                              day: 'numeric' 
-                            })}
+                            {formatDateForDisplay(job.jobDate, 'EEEE, MMMM d, yyyy')}
                           </CardTitle>
                           <div className="flex gap-2">
                             <Badge className={getStatusColor(job)}>
@@ -684,15 +727,15 @@ export function Jobs() {
                               </span>
                             </div>
                           )}
-                          {job.weight && (
+                          {formatWeightForDisplay(job.weight) && (
                             <div className="flex items-center gap-2">
                               <Truck className="h-4 w-4 text-muted-foreground" />
                               <span className="text-sm">
-                                <span className="font-medium">Weight:</span> {job.weight}
+                                <span className="font-medium">Weight:</span> {formatWeightForDisplay(job.weight)}
                               </span>
                             </div>
                           )}
-                          {job.loads && (
+                          {job?.loads > 0 && (
                             <div className="flex items-center gap-2">
                               <DollarSign className="h-4 w-4 text-muted-foreground" />
                               <span className="text-sm">
@@ -700,11 +743,11 @@ export function Jobs() {
                               </span>
                             </div>
                           )}
-                          {job.startTime && job.endTime && (
+                          {job.startTime && (
                             <div className="flex items-center gap-2">
-                              <User className="h-4 w-4 text-muted-foreground" />
+                              <Clock className="h-4 w-4 text-muted-foreground" />
                               <span className="text-sm">
-                                <span className="font-medium">Time:</span> {job.startTime} - {job.endTime}
+                                <span className="font-medium">Time:</span> {formatTimeRange(job.startTime, job.endTime)}
                               </span>
                             </div>
                           )}
@@ -713,6 +756,14 @@ export function Jobs() {
                               <User className="h-4 w-4 text-muted-foreground" />
                               <span className="text-sm">
                                 <span className="font-medium">Driver:</span> {job.driver.name}
+                              </span>
+                            </div>
+                          )}
+                          {job.dispatcher && (
+                            <div className="flex items-center gap-2">
+                              <Receipt className="h-4 w-4 text-muted-foreground" />
+                              <span className="text-sm">
+                                <span className="font-medium">Dispatcher:</span> {job.dispatcher.name}
                               </span>
                             </div>
                           )}
@@ -764,7 +815,7 @@ export function Jobs() {
                               trigger={<Button variant="outline" size="sm">View Details</Button>}
                               job={job}
                             />
-                            <JobEditModal 
+                            <JobModal 
                               trigger={<Button variant="outline" size="sm">Edit</Button>}
                               job={job}
                             />

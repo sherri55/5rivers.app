@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Calendar, DollarSign, Truck, Clock, Package } from "lucide-react"
 import { useQuery } from "@apollo/client"
 import { GET_COMPANY } from "@/lib/graphql/companies"
+import { formatWeightForDisplay, shouldDisplayWeight } from "@/lib/utils/dateUtils"
 
 interface CompanyJobsViewModalProps {
   trigger: React.ReactNode
@@ -94,12 +95,12 @@ export const CompanyJobsViewModal = ({ trigger, company }: CompanyJobsViewModalP
                         </div>
                       </div>
                       
-                      {job.weight && (
+                      {shouldDisplayWeight(job.weight) && (
                         <div className="flex items-center gap-2 text-sm">
                           <Package className="h-4 w-4 text-muted-foreground" />
                           <div>
                             <div className="text-muted-foreground">Weight</div>
-                            <div className="font-medium text-foreground">{job.weight}</div>
+                            <div className="font-medium text-foreground">{formatWeightForDisplay(job.weight)}</div>
                           </div>
                         </div>
                       )}

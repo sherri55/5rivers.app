@@ -36,7 +36,7 @@ export const EditInvoiceModal = ({ trigger, invoiceId, onSuccess }: EditInvoiceM
       filters: { 
         dispatcherId: invoice?.dispatcher?.id 
       },
-      pagination: { page: 1, limit: 100, offset: 0 }
+      pagination: { page: 1, limit: 1000, offset: 0 }
     },
     skip: !open || !invoice?.dispatcher?.id
   })

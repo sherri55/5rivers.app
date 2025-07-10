@@ -5,8 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Search, Plus, User, DollarSign } from "lucide-react"
-import { AddDriverModal } from "@/components/modals/AddDriverModal"
-import { DriverEditModal } from "@/components/modals/DriverEditModal"
+import { DriverModal } from "@/components/modals/DriverModal"
 import { DriverJobsViewModal } from "@/components/modals/DriverJobsViewModal"
 import { GET_DRIVERS } from "@/lib/graphql/drivers"
 import { DELETE_DRIVER } from "@/lib/graphql/mutations"
@@ -21,7 +20,7 @@ export function Drivers() {
     variables: {
       pagination: { 
         page: 1, 
-        limit: 20,
+        limit: 1000,
         offset: 0
       }
     }
@@ -88,7 +87,7 @@ export function Drivers() {
           <h1 className="text-3xl font-bold text-foreground">Drivers</h1>
           <p className="text-muted-foreground">Manage your fleet drivers and their information.</p>
         </div>
-        <AddDriverModal
+        <DriverModal
           trigger={
             <Button className="bg-primary hover:bg-primary-hover text-primary-foreground">
               <Plus className="h-4 w-4 mr-2" />
@@ -174,7 +173,7 @@ export function Drivers() {
                 </div>
                 
                 <div className="flex gap-2 pt-2">
-                  <DriverEditModal 
+                  <DriverModal 
                     driver={driver} 
                     onSuccess={() => refetch()}
                     trigger={
@@ -214,7 +213,7 @@ export function Drivers() {
             }
           </p>
           {!searchTerm && (
-            <AddDriverModal
+            <DriverModal
               trigger={
                 <Button className="drivers-gradient text-white border-0 hover:opacity-90">
                   <Plus className="h-4 w-4 mr-2" />

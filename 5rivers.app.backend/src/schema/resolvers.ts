@@ -5,6 +5,8 @@ import CalculationService from '../services/calculationService';
 import PDFService from '../services/pdfService';
 import { Neo4jService } from '../database/neo4j';
 import neo4j from 'neo4j-driver';
+import { fromZonedTime, toZonedTime, format } from 'date-fns-tz';
+import { parseISO } from 'date-fns';
 import {
   CreateCompanyInput,
   UpdateCompanyInput,
@@ -12,7 +14,9 @@ import {
   PaginationInput,
 } from '../types/company';
 
-// Helper function to safely parse dates and return ISO strings
+const EST_TIMEZONE = 'America/New_York';
+
+// Helper function to safely parse dates and return ISO strings in EST context
 const parseDate = (dateValue: any): string | null => {
   if (!dateValue) return null;
   
@@ -24,9 +28,11 @@ const parseDate = (dateValue: any): string | null => {
     
     // If it's a string, try to parse it
     if (typeof dateValue === 'string') {
-      // Handle date-only strings by adding time component
+      // Handle date-only strings by treating them as EST dates
       if (dateValue.match(/^\d{4}-\d{2}-\d{2}$/)) {
-        return new Date(`${dateValue}T00:00:00.000Z`).toISOString();
+        // Parse the date as if it's in EST timezone, then convert to UTC for storage
+        const estDate = fromZonedTime(`${dateValue} 00:00:00`, EST_TIMEZONE);
+        return estDate.toISOString();
       }
       
       // Handle other date formats
@@ -47,6 +53,25 @@ const parseDate = (dateValue: any): string | null => {
     return date.toISOString();
   } catch (error) {
     console.warn(`Error parsing date ${dateValue}:`, error);
+    return null;
+  }
+};
+
+// Helper function to format dates back to EST for display
+const formatDateForDisplay = (dateValue: any): string | null => {
+  if (!dateValue) return null;
+  
+  try {
+    const date = new Date(dateValue);
+    if (isNaN(date.getTime())) {
+      return null;
+    }
+    
+    // Convert UTC date back to EST and format as YYYY-MM-DD
+    const estDate = toZonedTime(date, EST_TIMEZONE);
+    return format(estDate, 'yyyy-MM-dd', { timeZone: EST_TIMEZONE });
+  } catch (error) {
+    console.warn(`Error formatting date ${dateValue}:`, error);
     return null;
   }
 };
@@ -145,6 +170,7 @@ export const resolvers = {
       const result = await context.neo4jService.runQuery(query, { companyId: parent.id });
       return result.map((record: any) => ({
         ...record.j.properties,
+        jobDate: formatDateForDisplay(record.j.properties.jobDate), // Format date for EST display
         weight: parseWeights(record.j.properties.weight), // Convert string/mixed to array
         ticketIds: parseTicketIds(record.j.properties.ticketIds), // Convert string to array
         createdAt: new Date(record.j.properties.createdAt),
@@ -163,6 +189,7 @@ export const resolvers = {
       const result = await context.neo4jService.runQuery(query, { driverId: parent.id });
       return result.map((record: any) => ({
         ...record.j.properties,
+        jobDate: formatDateForDisplay(record.j.properties.jobDate), // Format date for EST display
         weight: parseWeights(record.j.properties.weight), // Convert string/mixed to array
         ticketIds: parseTicketIds(record.j.properties.ticketIds), // Convert string to array
         createdAt: new Date(record.j.properties.createdAt),
@@ -194,6 +221,7 @@ export const resolvers = {
       const result = await context.neo4jService.runQuery(query, { dispatcherId: parent.id });
       return result.map((record: any) => ({
         ...record.j.properties,
+        jobDate: formatDateForDisplay(record.j.properties.jobDate), // Format date for EST display
         ticketIds: parseTicketIds(record.j.properties.ticketIds), // Convert string to array
         createdAt: new Date(record.j.properties.createdAt),
         updatedAt: new Date(record.j.properties.updatedAt),
@@ -228,6 +256,7 @@ export const resolvers = {
       const result = await context.neo4jService.runQuery(query, { unitId: parent.id });
       return result.map((record: any) => ({
         ...record.j.properties,
+        jobDate: formatDateForDisplay(record.j.properties.jobDate), // Format date for EST display
         ticketIds: parseTicketIds(record.j.properties.ticketIds), // Convert string to array
         createdAt: new Date(record.j.properties.createdAt),
         updatedAt: new Date(record.j.properties.updatedAt),
@@ -260,6 +289,7 @@ export const resolvers = {
       const result = await context.neo4jService.runQuery(query, { jobTypeId: parent.id });
       return result.map((record: any) => ({
         ...record.j.properties,
+        jobDate: formatDateForDisplay(record.j.properties.jobDate), // Format date for EST display
         ticketIds: parseTicketIds(record.j.properties.ticketIds), // Convert string to array
         createdAt: new Date(record.j.properties.createdAt),
         updatedAt: new Date(record.j.properties.updatedAt),
@@ -602,6 +632,7 @@ export const resolvers = {
 
       const jobs = jobsResult.map((record: any) => ({
         ...record.j.properties,
+        jobDate: formatDateForDisplay(record.j.properties.jobDate), // Format date for EST display
         ticketIds: parseTicketIds(record.j.properties.ticketIds), // Convert string to array
         createdAt: new Date(record.j.properties.createdAt),
         updatedAt: new Date(record.j.properties.updatedAt),
@@ -632,6 +663,7 @@ export const resolvers = {
       if (result[0]) {
         return {
           ...result[0].j.properties,
+          jobDate: formatDateForDisplay(result[0].j.properties.jobDate), // Format date for EST display
           ticketIds: parseTicketIds(result[0].j.properties.ticketIds), // Convert string to array
           createdAt: new Date(result[0].j.properties.createdAt),
           updatedAt: new Date(result[0].j.properties.updatedAt),
@@ -784,6 +816,7 @@ export const resolvers = {
         const recentJobsResult = await context.neo4jService.runQuery(recentJobsQuery, {});
         const recentJobs = recentJobsResult.map((record: any) => ({
           ...record.j.properties,
+          jobDate: formatDateForDisplay(record.j.properties.jobDate), // Format date for EST display
           ticketIds: parseTicketIds(record.j.properties.ticketIds),
           weight: Array.isArray(record.j.properties.weight) 
             ? record.j.properties.weight 
@@ -865,6 +898,7 @@ export const resolvers = {
       
       return result.map((record: any) => ({
         ...record.j.properties,
+        jobDate: formatDateForDisplay(record.j.properties.jobDate), // Format date for EST display
         ticketIds: parseTicketIds(record.j.properties.ticketIds), // Convert string to array
         createdAt: new Date(record.j.properties.createdAt),
         updatedAt: new Date(record.j.properties.updatedAt),
@@ -964,10 +998,24 @@ export const resolvers = {
     ) => {
       const jobId = `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       
+      // Validate and clean weight input
+      let validatedWeight = null;
+      if (args.input.weight) {
+        const cleanedWeight = Array.isArray(args.input.weight) 
+          ? args.input.weight.filter((w: any) => w != null && !isNaN(parseFloat(w)) && parseFloat(w) > 0)
+          : [];
+        
+        // Only store weight if we have valid values
+        if (cleanedWeight.length > 0) {
+          validatedWeight = cleanedWeight.map((w: any) => parseFloat(w));
+        }
+      }
+      
       const query = `
         CREATE (j:Job {
           id: $id,
           jobDate: $jobDate,
+          amount: $amount,
           invoiceStatus: $invoiceStatus,
           weight: $weight,
           loads: $loads,
@@ -977,6 +1025,7 @@ export const resolvers = {
           paymentReceived: $paymentReceived,
           driverPaid: $driverPaid,
           imageUrls: $imageUrls,
+          images: $images,
           createdAt: datetime(),
           updatedAt: datetime()
         })
@@ -985,16 +1034,18 @@ export const resolvers = {
       
       const params = {
         id: jobId,
-        jobDate: args.input.jobDate || null,
+        jobDate: parseDate(args.input.jobDate),
+        amount: args.input.amount || null,
         invoiceStatus: args.input.invoiceStatus || "pending",
-        weight: args.input.weight || null,
+        weight: validatedWeight,
         loads: neo4j.int(args.input.loads || 0),
         startTime: args.input.startTime || null,
         endTime: args.input.endTime || null,
         ticketIds: args.input.ticketIds || [],
         paymentReceived: args.input.paymentReceived || false,
         driverPaid: args.input.driverPaid || false,
-        imageUrls: args.input.imageUrls || []
+        imageUrls: args.input.imageUrls || null,
+        images: args.input.images || []
       };
 
       const result = await context.neo4jService.runQuery(query, params);
@@ -1046,6 +1097,7 @@ export const resolvers = {
 
       return {
         ...result[0].j.properties,
+        jobDate: formatDateForDisplay(result[0].j.properties.jobDate), // Format date for EST display
         createdAt: new Date(result[0].j.properties.createdAt),
         updatedAt: new Date(result[0].j.properties.updatedAt),
       };
@@ -1064,11 +1116,25 @@ export const resolvers = {
       
       if (updates.jobDate !== undefined) {
         updateFields.push('j.jobDate = $jobDate');
-        params.jobDate = updates.jobDate;
+        params.jobDate = parseDate(updates.jobDate);
       }
       if (updates.weight !== undefined) {
         updateFields.push('j.weight = $weight');
-        params.weight = updates.weight;
+        
+        // Validate and clean weight input
+        let validatedWeight = null;
+        if (updates.weight) {
+          const cleanedWeight = Array.isArray(updates.weight) 
+            ? updates.weight.filter((w: any) => w != null && !isNaN(parseFloat(w)) && parseFloat(w) > 0)
+            : [];
+          
+          // Only store weight if we have valid values
+          if (cleanedWeight.length > 0) {
+            validatedWeight = cleanedWeight.map((w: any) => parseFloat(w));
+          }
+        }
+        
+        params.weight = validatedWeight;
       }
       if (updates.loads !== undefined) {
         updateFields.push('j.loads = $loads');
@@ -1101,6 +1167,10 @@ export const resolvers = {
       if (updates.imageUrls !== undefined) {
         updateFields.push('j.imageUrls = $imageUrls');
         params.imageUrls = updates.imageUrls;
+      }
+      if (updates.images !== undefined) {
+        updateFields.push('j.images = $images');
+        params.images = updates.images;
       }
       if (updates.amount !== undefined) {
         updateFields.push('j.amount = $amount');
@@ -1188,6 +1258,7 @@ export const resolvers = {
 
       return {
         ...result[0].j.properties,
+        jobDate: formatDateForDisplay(result[0].j.properties.jobDate), // Format date for EST display
         ticketIds: parseTicketIds(result[0].j.properties.ticketIds), // Convert string to array
         createdAt: new Date(result[0].j.properties.createdAt),
         updatedAt: new Date(result[0].j.properties.updatedAt),
@@ -1506,7 +1577,527 @@ export const resolvers = {
       return true;
     },
 
-    // ...existing code...
+    // JobType mutations
+    createJobType: async (
+      _parent: any,
+      args: { input: any },
+      context: GraphQLContext
+    ) => {
+      const jobTypeId = `jobtype_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      const query = `
+        CREATE (jt:JobType {
+          id: $id,
+          title: $title,
+          startLocation: $startLocation,
+          endLocation: $endLocation,
+          dispatchType: $dispatchType,
+          rateOfJob: $rateOfJob,
+          createdAt: datetime(),
+          updatedAt: datetime()
+        })
+        RETURN jt
+      `;
+      
+      const params = {
+        id: jobTypeId,
+        title: args.input.title,
+        startLocation: args.input.startLocation || null,
+        endLocation: args.input.endLocation || null,
+        dispatchType: args.input.dispatchType,
+        rateOfJob: args.input.rateOfJob
+      };
+
+      const result = await context.neo4jService.runQuery(query, params);
+      
+      // Create relationship with company if provided
+      if (args.input.companyId) {
+        await context.neo4jService.runQuery(
+          `MATCH (jt:JobType {id: $jobTypeId}), (c:Company {id: $companyId})
+           CREATE (c)-[:HAS_JOB_TYPE]->(jt)`,
+          { jobTypeId, companyId: args.input.companyId }
+        );
+      }
+      
+      return {
+        ...result[0].jt.properties,
+        createdAt: new Date(result[0].jt.properties.createdAt),
+        updatedAt: new Date(result[0].jt.properties.updatedAt),
+      };
+    },
+  
+
+    updateJobType: async (
+      _parent: any,
+      args: { input: any },
+      context: GraphQLContext
+    ) => {
+      const { id, ...updates } = args.input;
+      
+      // Build dynamic update query
+      const updateFields = [];
+      const params: any = { id };
+      
+      if (updates.title !== undefined) {
+        updateFields.push('jt.title = $title');
+        params.title = updates.title;
+      }
+      if (updates.startLocation !== undefined) {
+        updateFields.push('jt.startLocation = $startLocation');
+        params.startLocation = updates.startLocation;
+      }
+      if (updates.endLocation !== undefined) {
+        updateFields.push('jt.endLocation = $endLocation');
+        params.endLocation = updates.endLocation;
+      }
+      if (updates.dispatchType !== undefined) {
+        updateFields.push('jt.dispatchType = $dispatchType');
+        params.dispatchType = updates.dispatchType;
+      }
+      if (updates.rateOfJob !== undefined) {
+        updateFields.push('jt.rateOfJob = $rateOfJob');
+        params.rateOfJob = updates.rateOfJob;
+      }
+      
+      updateFields.push('jt.updatedAt = datetime()');
+      
+      const query = `
+        MATCH (jt:JobType {id: $id})
+        SET ${updateFields.join(', ')}
+        RETURN jt
+      `;
+      
+      const result = await context.neo4jService.runQuery(query, params);
+      
+      if (result.length === 0) {
+        throw new Error(`JobType with id ${id} not found`);
+      }
+      
+      // Handle company relationship update
+      if (updates.companyId) {
+        await context.neo4jService.runQuery(
+          `MATCH (jt:JobType {id: $id})
+           OPTIONAL MATCH (c:Company)-[r:HAS_JOB_TYPE]->(jt)
+           DELETE r`,
+          { id }
+        );
+        await context.neo4jService.runQuery(
+          `MATCH (jt:JobType {id: $id}), (c:Company {id: $companyId})
+           CREATE (c)-[:HAS_JOB_TYPE]->(jt)`,
+          { id, companyId: updates.companyId }
+        );
+      }
+      
+      return {
+        ...result[0].jt.properties,
+        createdAt: new Date(result[0].jt.properties.createdAt),
+        updatedAt: new Date(result[0].jt.properties.updatedAt),
+      };
+    },
+
+    deleteJobType: async (
+      _parent: any,
+      args: { id: string },
+      context: GraphQLContext
+    ) => {
+      const query = `
+        MATCH (jt:JobType {id: $id})
+        DETACH DELETE jt
+        RETURN true as deleted
+      `;
+      
+      const result = await context.neo4jService.runQuery(query, args);
+      
+      if (result.length === 0) {
+        throw new Error(`JobType with id ${args.id} not found`);
+      }
+      
+      return true;
+    },
+
+    // Dispatcher mutations
+    createDispatcher: async (
+      _parent: any,
+      args: { input: any },
+      context: GraphQLContext
+    ) => {
+      const dispatcherId = `dispatcher_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      const query = `
+        CREATE (d:Dispatcher {
+          id: $id,
+          name: $name,
+          description: $description,
+          email: $email,
+          phone: $phone,
+          commissionPercent: $commissionPercent,
+          createdAt: datetime(),
+          updatedAt: datetime()
+        })
+        RETURN d
+      `;
+      
+      const params = {
+        id: dispatcherId,
+        name: args.input.name,
+        description: args.input.description || null,
+        email: args.input.email,
+        phone: args.input.phone || null,
+        commissionPercent: args.input.commissionPercent
+      };
+
+      const result = await context.neo4jService.runQuery(query, params);
+      
+      return {
+        ...result[0].d.properties,
+        createdAt: new Date(result[0].d.properties.createdAt),
+        updatedAt: new Date(result[0].d.properties.updatedAt),
+      };
+    },
+
+    updateDispatcher: async (
+      _parent: any,
+      args: { input: any },
+      context: GraphQLContext
+    ) => {
+      const { id, ...updates } = args.input;
+      
+      // Build dynamic update query
+      const updateFields = [];
+      const params: any = { id };
+      
+      if (updates.name !== undefined) {
+        updateFields.push('d.name = $name');
+        params.name = updates.name;
+      }
+      if (updates.description !== undefined) {
+        updateFields.push('d.description = $description');
+        params.description = updates.description;
+      }
+      if (updates.email !== undefined) {
+        updateFields.push('d.email = $email');
+        params.email = updates.email;
+      }
+      if (updates.phone !== undefined) {
+        updateFields.push('d.phone = $phone');
+        params.phone = updates.phone;
+      }
+      if (updates.commissionPercent !== undefined) {
+        updateFields.push('d.commissionPercent = $commissionPercent');
+        params.commissionPercent = updates.commissionPercent;
+      }
+      
+      updateFields.push('d.updatedAt = datetime()');
+      
+      const query = `
+        MATCH (d:Dispatcher {id: $id})
+        SET ${updateFields.join(', ')}
+        RETURN d
+      `;
+      
+      const result = await context.neo4jService.runQuery(query, params);
+      
+      if (result.length === 0) {
+        throw new Error(`Dispatcher with id ${id} not found`);
+      }
+      
+      return {
+        ...result[0].d.properties,
+        createdAt: new Date(result[0].d.properties.createdAt),
+        updatedAt: new Date(result[0].d.properties.updatedAt),
+      };
+    },
+
+    deleteDispatcher: async (
+      _parent: any,
+      args: { id: string },
+      context: GraphQLContext
+    ) => {
+      const query = `
+        MATCH (d:Dispatcher {id: $id})
+        DETACH DELETE d
+        RETURN true as deleted
+      `;
+      
+      const result = await context.neo4jService.runQuery(query, args);
+      
+      if (result.length === 0) {
+        throw new Error(`Dispatcher with id ${args.id} not found`);
+      }
+      
+      return true;
+    },
+
+    // Unit mutations
+    createUnit: async (
+      _parent: any,
+      args: { input: any },
+      context: GraphQLContext
+    ) => {
+      const unitId = `unit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      const query = `
+        CREATE (u:Unit {
+          id: $id,
+          unitNumber: $unitNumber,
+          description: $description,
+          licensePlate: $licensePlate,
+          vin: $vin,
+          createdAt: datetime(),
+          updatedAt: datetime()
+        })
+        RETURN u
+      `;
+      
+      const params = {
+        id: unitId,
+        unitNumber: args.input.unitNumber,
+        description: args.input.description || null,
+        licensePlate: args.input.licensePlate || null,
+        vin: args.input.vin || null
+      };
+
+      const result = await context.neo4jService.runQuery(query, params);
+      
+      return {
+        ...result[0].u.properties,
+        createdAt: new Date(result[0].u.properties.createdAt),
+        updatedAt: new Date(result[0].u.properties.updatedAt),
+      };
+    },
+
+    updateUnit: async (
+      _parent: any,
+      args: { input: any },
+      context: GraphQLContext
+    ) => {
+      const { id, ...updates } = args.input;
+      
+      // Build dynamic update query
+      const updateFields = [];
+      const params: any = { id };
+      
+      if (updates.unitNumber !== undefined) {
+        updateFields.push('u.unitNumber = $unitNumber');
+        params.unitNumber = updates.unitNumber;
+      }
+      if (updates.description !== undefined) {
+        updateFields.push('u.description = $description');
+        params.description = updates.description;
+      }
+      if (updates.licensePlate !== undefined) {
+        updateFields.push('u.licensePlate = $licensePlate');
+        params.licensePlate = updates.licensePlate;
+      }
+      if (updates.vin !== undefined) {
+        updateFields.push('u.vin = $vin');
+        params.vin = updates.vin;
+      }
+      
+      updateFields.push('u.updatedAt = datetime()');
+      
+      const query = `
+        MATCH (u:Unit {id: $id})
+        SET ${updateFields.join(', ')}
+        RETURN u
+      `;
+      
+      const result = await context.neo4jService.runQuery(query, params);
+      
+      if (result.length === 0) {
+        throw new Error(`Unit with id ${id} not found`);
+      }
+      
+      return {
+        ...result[0].u.properties,
+        createdAt: new Date(result[0].u.properties.createdAt),
+        updatedAt: new Date(result[0].u.properties.updatedAt),
+      };
+    },
+
+    deleteUnit: async (
+      _parent: any,
+      args: { id: string },
+      context: GraphQLContext
+    ) => {
+      const query = `
+        MATCH (u:Unit {id: $id})
+        DETACH DELETE u
+        RETURN true as deleted
+      `;
+      
+      const result = await context.neo4jService.runQuery(query, args);
+      
+      if (result.length === 0) {
+        throw new Error(`Unit with id ${args.id} not found`);
+      }
+      
+      return true;
+    },
+
+    // Invoice mutations
+    createInvoice: async (
+      _parent: any,
+      args: { input: any },
+      context: GraphQLContext
+    ) => {
+      const invoiceId = `invoice_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      const query = `
+        CREATE (i:Invoice {
+          id: $id,
+          invoiceNumber: $invoiceNumber,
+          invoiceDate: $invoiceDate,
+          status: $status,
+          notes: $notes,
+          createdAt: datetime(),
+          updatedAt: datetime()
+        })
+        RETURN i
+      `;
+      
+      const params = {
+        id: invoiceId,
+        invoiceNumber: args.input.invoiceNumber,
+        invoiceDate: args.input.invoiceDate || new Date().toISOString(),
+        status: args.input.status || "pending",
+        notes: args.input.notes || null
+      };
+
+      const result = await context.neo4jService.runQuery(query, params);
+      
+      // Create relationship with dispatcher if provided
+      if (args.input.dispatcherId) {
+        await context.neo4jService.runQuery(
+          `MATCH (i:Invoice {id: $invoiceId}), (d:Dispatcher {id: $dispatcherId})
+           CREATE (i)-[:BILLED_BY]->(d)`,
+          { invoiceId, dispatcherId: args.input.dispatcherId }
+        );
+      }
+      
+      // Add jobs to invoice if provided
+      if (args.input.jobIds && args.input.jobIds.length > 0) {
+        for (const jobId of args.input.jobIds) {
+          await context.neo4jService.runQuery(
+            `MATCH (i:Invoice {id: $invoiceId}), (j:Job {id: $jobId})
+             CREATE (j)-[:INVOICED_IN {amount: j.calculatedAmount, createdAt: datetime()}]->(i)`,
+            { invoiceId, jobId }
+          );
+        }
+      }
+      
+      return {
+        ...result[0].i.properties,
+        createdAt: new Date(result[0].i.properties.createdAt),
+        updatedAt: new Date(result[0].i.properties.updatedAt),
+        invoiceDate: new Date(result[0].i.properties.invoiceDate),
+      };
+    },
+
+    updateInvoice: async (
+      _parent: any,
+      args: { input: any },
+      context: GraphQLContext
+    ) => {
+      const { id, ...updates } = args.input;
+      
+      // Build dynamic update query
+      const updateFields = [];
+      const params: any = { id };
+      
+      if (updates.invoiceNumber !== undefined) {
+        updateFields.push('i.invoiceNumber = $invoiceNumber');
+        params.invoiceNumber = updates.invoiceNumber;
+      }
+      if (updates.invoiceDate !== undefined) {
+        updateFields.push('i.invoiceDate = $invoiceDate');
+        params.invoiceDate = updates.invoiceDate;
+      }
+      if (updates.status !== undefined) {
+        updateFields.push('i.status = $status');
+        params.status = updates.status;
+      }
+      if (updates.notes !== undefined) {
+        updateFields.push('i.notes = $notes');
+        params.notes = updates.notes;
+      }
+      
+      updateFields.push('i.updatedAt = datetime()');
+      
+      const query = `
+        MATCH (i:Invoice {id: $id})
+        SET ${updateFields.join(', ')}
+        RETURN i
+      `;
+      
+      const result = await context.neo4jService.runQuery(query, params);
+      
+      if (result.length === 0) {
+        throw new Error(`Invoice with id ${id} not found`);
+      }
+      
+      // Handle dispatcher relationship update
+      if (updates.dispatcherId) {
+        await context.neo4jService.runQuery(
+          `MATCH (i:Invoice {id: $id})
+           OPTIONAL MATCH (i)-[r:BILLED_BY]->()
+           DELETE r`,
+          { id }
+        );
+        await context.neo4jService.runQuery(
+          `MATCH (i:Invoice {id: $id}), (d:Dispatcher {id: $dispatcherId})
+           CREATE (i)-[:BILLED_BY]->(d)`,
+          { id, dispatcherId: updates.dispatcherId }
+        );
+      }
+      
+      return {
+        ...result[0].i.properties,
+        createdAt: new Date(result[0].i.properties.createdAt),
+        updatedAt: new Date(result[0].i.properties.updatedAt),
+        invoiceDate: new Date(result[0].i.properties.invoiceDate),
+      };
+    },
+
+    deleteInvoice: async (
+      _parent: any,
+      args: { id: string },
+      context: GraphQLContext
+    ) => {
+      const query = `
+        MATCH (i:Invoice {id: $id})
+        DETACH DELETE i
+        RETURN true as deleted
+      `;
+      
+      const result = await context.neo4jService.runQuery(query, args);
+      
+      if (result.length === 0) {
+        throw new Error(`Invoice with id ${args.id} not found`);
+      }
+      
+      return true;
+    },
+
+    deleteJob: async (
+      _parent: any,
+      args: { id: string },
+      context: GraphQLContext
+    ) => {
+      const query = `
+        MATCH (j:Job {id: $id})
+        DETACH DELETE j
+        RETURN true as deleted
+      `;
+      
+      const result = await context.neo4jService.runQuery(query, args);
+      
+      if (result.length === 0) {
+        throw new Error(`Job with id ${args.id} not found`);
+      }
+      
+      return true;
+    },
   },
 
   // Field resolvers for simplified Invoice structure

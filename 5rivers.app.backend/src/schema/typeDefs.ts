@@ -90,6 +90,7 @@ export const typeDefs = `
     paymentReceived: Boolean!
     driverPaid: Boolean!
     imageUrls: String
+    images: [String]
     createdAt: Date!
     updatedAt: Date!
     # Relationships
@@ -265,7 +266,7 @@ export const typeDefs = `
 
   input CreateJobInput {
     jobDate: String!
-    jobGrossAmount: Float
+    amount: Float
     jobTypeId: ID
     driverId: ID
     dispatcherId: ID
@@ -274,6 +275,12 @@ export const typeDefs = `
     loads: Int
     startTime: String
     endTime: String
+    invoiceStatus: String!
+    paymentReceived: Boolean!
+    driverPaid: Boolean!
+    ticketIds: [String]
+    imageUrls: String
+    images: [String]
   }
 
   input UpdateJobInput {
@@ -293,6 +300,7 @@ export const typeDefs = `
     driverPaid: Boolean
     ticketIds: [String]
     imageUrls: String
+    images: [String]
   }
 
   input JobFilters {

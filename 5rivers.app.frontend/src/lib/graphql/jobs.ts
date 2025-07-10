@@ -17,6 +17,7 @@ export const GET_JOBS = gql`
         paymentReceived
         driverPaid
         imageUrls
+        images
         calculatedAmount
         calculatedHours
         driverPay
@@ -70,6 +71,7 @@ export const GET_JOB = gql`
       paymentReceived
       driverPaid
       imageUrls
+      images
       calculatedAmount
       calculatedHours
       driverPay
@@ -150,6 +152,9 @@ export const CREATE_JOB = gql`
       loads
       startTime
       endTime
+      ticketIds
+      imageUrls
+      images
       calculatedAmount
       calculatedHours
       driverPay
@@ -254,6 +259,7 @@ export const UPDATE_JOB = gql`
       paymentReceived
       driverPaid
       imageUrls
+      images
       calculatedAmount
       calculatedHours
       driverPay

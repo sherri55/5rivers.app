@@ -20,6 +20,7 @@ import {
   Weight,
   Package
 } from "lucide-react"
+import { formatTimeRange, formatWeightForDisplay, shouldDisplayWeight } from "@/lib/utils/dateUtils"
 
 interface JobDetailModalProps {
   job: any
@@ -88,43 +89,32 @@ export function JobDetailModal({ job, trigger }: JobDetailModalProps) {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-muted-foreground" />
-                  <div>
-                    <p className="text-sm font-medium">Start Time</p>
-                    <p className="text-sm text-muted-foreground">{job?.startTime || 'Not set'}</p>
+              <div className="grid grid-cols-1 gap-4">
+                {job?.startTime && job?.endTime && (
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-muted-foreground" />
+                    <div>
+                      <p className="text-sm font-medium">Time</p>
+                      <p className="text-sm text-muted-foreground">
+                        {formatTimeRange(job.startTime, job.endTime)}
+                      </p>
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-muted-foreground" />
-                  <div>
-                    <p className="text-sm font-medium">End Time</p>
-                    <p className="text-sm text-muted-foreground">{job?.endTime || 'Not set'}</p>
-                  </div>
-                </div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div className="flex items-center gap-2">
-                  <Weight className="h-4 w-4 text-muted-foreground" />
-                  <div>
-                    <p className="text-sm font-medium">Weight</p>
-                    <p className="text-sm text-muted-foreground">
-                      {(() => {
-                        if (Array.isArray(job?.weight)) {
-                          const total = job.weight.reduce((sum: number, w: number) => sum + w, 0);
-                          return job.weight.length > 1 
-                            ? `${job.weight.join(' + ')} = ${total.toFixed(2)} tons`
-                            : `${total.toFixed(2)} tons`;
-                        } else if (job?.weight) {
-                          return `${job.weight} tons`;
-                        }
-                        return 'Not specified';
-                      })()}
-                    </p>
+                {shouldDisplayWeight(job?.weight) && (
+                  <div className="flex items-center gap-2">
+                    <Weight className="h-4 w-4 text-muted-foreground" />
+                    <div>
+                      <p className="text-sm font-medium">Weight</p>
+                      <p className="text-sm text-muted-foreground">
+                        {formatWeightForDisplay(job?.weight)} tons
+                      </p>
+                    </div>
                   </div>
-                </div>
+                )}
                 <div className="flex items-center gap-2">
                   <Package className="h-4 w-4 text-muted-foreground" />
                   <div>

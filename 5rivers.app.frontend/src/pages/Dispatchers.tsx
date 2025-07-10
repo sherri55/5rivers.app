@@ -21,7 +21,7 @@ export function Dispatchers() {
     variables: {
       pagination: { 
         page: 1, 
-        limit: 20,
+        limit: 1000,
         offset: 0
       }
     }

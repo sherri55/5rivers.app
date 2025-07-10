@@ -25,10 +25,13 @@ export const CreateInvoiceModal = ({ trigger, onSuccess }: CreateInvoiceModalPro
     variables: {
       filters: {
         invoiceStatus: "NOT_INVOICED"
-      }
+      },
+      pagination: { limit: 1000 }
     }
   })
-  const { data: dispatchersData } = useQuery(GET_DISPATCHERS)
+  const { data: dispatchersData } = useQuery(GET_DISPATCHERS, {
+    variables: { pagination: { limit: 1000 } }
+  })
   
   const [createInvoice, { loading: creating }] = useMutation(CREATE_INVOICE, {
     onCompleted: (data) => {

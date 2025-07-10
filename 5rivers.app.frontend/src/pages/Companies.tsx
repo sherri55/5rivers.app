@@ -9,7 +9,6 @@ import { AddCompanyModal } from "@/components/modals/AddCompanyModal"
 import { CompanyJobsViewModal } from "@/components/modals/CompanyJobsViewModal"
 import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog"
 import { useToast } from "@/hooks/use-toast"
-import { config } from "@/lib/config"
 
 export function Companies() {
   const { toast } = useToast()
@@ -18,7 +17,7 @@ export function Companies() {
     variables: {
       pagination: { 
         page: 1, 
-        limit: config.ui.paginationPageSize,
+        limit: 1000,
         offset: 0
       }
     }

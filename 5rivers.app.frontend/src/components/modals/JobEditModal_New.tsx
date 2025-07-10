@@ -45,11 +45,11 @@ export function JobEditModal({ job, trigger, onSuccess }: JobEditModalProps) {
 
   // Fetch data for dropdowns
   const { data: driversData } = useQuery(GET_DRIVERS, {
-    variables: { pagination: { limit: 100 } }
+    variables: { pagination: { limit: 1000 } }
   })
   
   const { data: unitsData } = useQuery(GET_UNITS, {
-    variables: { pagination: { limit: 100 } }
+    variables: { pagination: { limit: 1000 } }
   })
 
   // Mutations

@@ -24,7 +24,7 @@ export const DispatcherJobsViewModal = ({ trigger, dispatcher }: DispatcherJobsV
       },
       pagination: {
         page: 1,
-        limit: 50,
+        limit: 1000,
         offset: 0
       }
     },

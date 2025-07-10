@@ -41,7 +41,7 @@ export const EditJobTypeModal = ({ trigger, jobType, onSuccess }: EditJobTypeMod
 
   const { data: companiesData, loading: companiesLoading } = useQuery(GET_COMPANIES, {
     variables: {
-      pagination: { page: 1, limit: 100, offset: 0 }
+      pagination: { page: 1, limit: 1000, offset: 0 }
     }
   })
 

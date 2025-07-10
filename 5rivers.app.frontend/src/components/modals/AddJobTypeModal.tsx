@@ -18,7 +18,9 @@ export const AddJobTypeModal = ({ trigger, onSuccess }: AddJobTypeModalProps) =>
   const [open, setOpen] = useState(false)
   const { toast } = useToast()
   const [createJobType, { loading }] = useMutation(CREATE_JOB_TYPE)
-  const { data: companiesData } = useQuery(GET_COMPANIES)
+  const { data: companiesData } = useQuery(GET_COMPANIES, {
+    variables: { pagination: { limit: 1000 } }
+  })
   
   const [formData, setFormData] = useState({
     title: "",

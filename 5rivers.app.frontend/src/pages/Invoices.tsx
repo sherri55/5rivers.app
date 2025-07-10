@@ -7,9 +7,8 @@ import { Badge } from "@/components/ui/badge"
 import { Search, Plus, FileText, User, Eye, Edit, DollarSign, Download, AlertTriangle } from "lucide-react"
 import { GET_INVOICES, DOWNLOAD_INVOICE_PDF } from "@/lib/graphql/invoices"
 import { DELETE_INVOICE } from "@/lib/graphql/mutations"
-import { CreateInvoiceModal } from "@/components/modals/CreateInvoiceModal"
+import { InvoiceModal } from "@/components/modals/InvoiceModal"
 import { InvoiceViewModal } from "@/components/modals/InvoiceViewModal"
-import { EditInvoiceModal } from "@/components/modals/EditInvoiceModal"
 import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog"
 import { useToast } from "@/hooks/use-toast"
 import { validateJobAmounts, formatCurrencyWithValidation } from "@/lib/validation/jobAmountValidation"
@@ -23,7 +22,7 @@ export function Invoices() {
     variables: {
       pagination: {
         page: 1,
-        limit: 20,
+        limit: 1000,
         offset: 0
       }
     }
@@ -199,7 +198,7 @@ export function Invoices() {
           <h1 className="text-3xl font-bold text-foreground">Invoices</h1>
           <p className="text-muted-foreground">Manage invoices and billing.</p>
         </div>
-        <CreateInvoiceModal
+        <InvoiceModal
           trigger={
             <Button className="bg-primary hover:bg-primary-hover text-primary-foreground">
               <Plus className="h-4 w-4 mr-2" />
@@ -283,7 +282,7 @@ export function Invoices() {
             <p className="text-muted-foreground mb-4">
               {searchTerm ? "No invoices match your search criteria." : "No invoices have been created yet."}
             </p>
-            <CreateInvoiceModal
+            <InvoiceModal
               trigger={
                 <Button className="bg-primary hover:bg-primary-hover text-primary-foreground">
                   <Plus className="h-4 w-4 mr-2" />
@@ -392,7 +391,7 @@ export function Invoices() {
                       </Button>
                     }
                   />
-                  <EditInvoiceModal
+                  <InvoiceModal
                     invoiceId={invoice.id}
                     trigger={
                       <Button variant="outline" size="sm" className="flex-1">
