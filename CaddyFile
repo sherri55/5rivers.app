@@ -1,8 +1,24 @@
 5riverstruckinginc.ca {
-    handle_path /api/* {
-        reverse_proxy localhost:9999
-    }
-    handle_path /* {
-        reverse_proxy localhost:3000
-    }
+    # GraphQL API
+    reverse_proxy /graphql localhost:4001
+    
+    # REST API
+    reverse_proxy /api/* localhost:4002
+    
+    # Frontend application
+    reverse_proxy localhost:3000
+    
+    # Basic security
+    header Strict-Transport-Security "max-age=31536000"
+    header X-Content-Type-Options "nosniff"
+    
+    # Compression
+    encode gzip
+    
+    # Logging
+    log
+}
+
+www.5riverstruckinginc.ca {
+    redir https://5riverstruckinginc.ca{uri} permanent
 }
