@@ -242,6 +242,23 @@ export function JobDetailModal({ job, trigger }: JobDetailModalProps) {
                   </Badge>
                 </div>
               </div>
+              
+              {job?.calculatedAmount && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm font-medium">Amount After Commission</p>
+                    <p className="text-sm font-bold text-accent">
+                      ${(job.calculatedAmount - (job.calculatedAmount * ((job.dispatcher?.commissionPercent || 0) / 100))).toFixed(2)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Driver Pay</p>
+                    <p className="text-sm font-bold text-muted-foreground">
+                      ${(job.calculatedAmount * ((job.driver?.hourlyRate || 0) / 100)).toFixed(2)}
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {job?.calculatedHours && (
                 <div>

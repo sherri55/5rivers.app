@@ -24,47 +24,24 @@ interface InvoiceModalProps {
 export const InvoiceModal = ({ invoice, invoiceId, trigger, onSuccess }: InvoiceModalProps) => {
   const [open, setOpen] = useState(false)
   const { toast } = useToast()
-  
+
   const isEditMode = !!(invoice || invoiceId)
   const actualInvoiceId = invoice?.id || invoiceId
-  
+
   // Get the full invoice data for edit mode
   const { data: invoiceData, loading: invoiceLoading } = useQuery(GET_INVOICE, {
     variables: { id: actualInvoiceId },
     skip: !open || !isEditMode || !actualInvoiceId
   })
-  
+
   const resolvedInvoice = invoice || invoiceData?.invoice
-  
+
   // Get dispatchers for create mode
   const { data: dispatchersData } = useQuery(GET_DISPATCHERS, {
     variables: { pagination: { limit: 1000 } },
     skip: !open || isEditMode
   })
-  
-  // Get available jobs
-  const { data: jobsData, loading: jobsLoading } = useQuery(GET_JOBS, {
-    variables: isEditMode ? {
-      filters: { 
-        dispatcherId: resolvedInvoice?.dispatcher?.id 
-      },
-      pagination: { page: 1, limit: 1000, offset: 0 }
-    } : {
-      filters: {
-        invoiceStatus: "NOT_INVOICED"
-      },
-      pagination: { limit: 1000 }
-    },
-    skip: !open || (isEditMode && !resolvedInvoice?.dispatcher?.id)
-  })
-  
-  const [createInvoice] = useMutation(CREATE_INVOICE)
-  const [updateInvoice] = useMutation(UPDATE_INVOICE)
-  const [updateJob] = useMutation(UPDATE_JOB)
-  
-  const allJobs = jobsData?.jobs?.nodes || []
-  const dispatchers = dispatchersData?.dispatchers || []
-  
+
   const [formData, setFormData] = useState({
     invoiceNumber: "",
     invoiceDate: "",
@@ -74,9 +51,35 @@ export const InvoiceModal = ({ invoice, invoiceId, trigger, onSuccess }: Invoice
     dispatcherId: "",
     notes: ""
   })
-  
+
   const [selectedJobIds, setSelectedJobIds] = useState<string[]>([])
-  
+
+  // Get available jobs
+  const jobsQueryVariables = isEditMode ? {
+    filters: resolvedInvoice?.dispatcher?.id ? { dispatcherId: resolvedInvoice.dispatcher.id } : {},
+    pagination: { page: 1, limit: 1000, offset: 0 }
+  } : {
+    filters: {
+      ...(formData.dispatcherId && formData.dispatcherId !== "ALL" ? { dispatcherId: formData.dispatcherId } : {})
+    },
+    pagination: { limit: 1000 }
+  }
+  console.log('Jobs Query Variables:', jobsQueryVariables)
+
+  const { data: jobsData, loading: jobsLoading } = useQuery(GET_JOBS, {
+    variables: jobsQueryVariables,
+    skip: !open || (isEditMode && !resolvedInvoice?.dispatcher?.id) || (!isEditMode && formData.dispatcherId === "")
+  })
+
+  const allJobs = jobsData?.jobs?.nodes || []
+  console.log('Jobs returned:', allJobs)
+
+  const [createInvoice] = useMutation(CREATE_INVOICE)
+  const [updateInvoice] = useMutation(UPDATE_INVOICE)
+  const [updateJob] = useMutation(UPDATE_JOB)
+
+  const dispatchers = dispatchersData?.dispatchers || []
+
   // Initialize form when invoice data loads or modal opens
   useEffect(() => {
     if (open) {
@@ -90,7 +93,7 @@ export const InvoiceModal = ({ invoice, invoiceId, trigger, onSuccess }: Invoice
           dispatcherId: resolvedInvoice.dispatcher?.id || "",
           notes: resolvedInvoice.notes || ""
         })
-        
+
         // Set currently selected jobs
         const currentJobIds = resolvedInvoice.jobs?.map((jobEntry: any) => jobEntry.job.id) || []
         setSelectedJobIds(currentJobIds)
@@ -109,7 +112,7 @@ export const InvoiceModal = ({ invoice, invoiceId, trigger, onSuccess }: Invoice
       }
     }
   }, [resolvedInvoice, open])
-  
+
   const statuses = [
     { value: "DRAFT", label: "Draft" },
     { value: "SENT", label: "Sent" },
@@ -117,7 +120,7 @@ export const InvoiceModal = ({ invoice, invoiceId, trigger, onSuccess }: Invoice
     { value: "PENDING", label: "Pending" },
     { value: "OVERDUE", label: "Overdue" }
   ]
-  
+
   const handleJobToggle = (jobId: string, checked: boolean) => {
     if (checked) {
       setSelectedJobIds([...selectedJobIds, jobId])
@@ -125,35 +128,81 @@ export const InvoiceModal = ({ invoice, invoiceId, trigger, onSuccess }: Invoice
       setSelectedJobIds(selectedJobIds.filter(id => id !== jobId))
     }
   }
-  
+
+  // Add HST (13%) to amount
+  const addHST = (amount: number) => amount * 1.13;
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD'
     }).format(amount)
   }
-  
+
+  // Calculate commission for a job
+  const getCommission = (job: any) => {
+    const commissionPercent = job?.dispatcher?.commissionPercent ?? 5;
+    return addHST(job.calculatedAmount || 0) * (commissionPercent / 100);
+  };
+
+  // Calculate amount after commission for a job
+  const getAmountAfterCommission = (job: any) => {
+    return addHST(job.calculatedAmount || 0) - getCommission(job);
+  };
+
+  // Calculate driver pay for a job using hourlyRate from driverRates (by jobType), based on after-commission amount
+  const getDriverPay = (job: any) => {
+    if (!job.driver || !job.driver.driverRates || !job.jobType) return 0;
+    const rateObj = job.driver.driverRates.find(
+      (rate: any) => rate.jobType && rate.jobType.id === job.jobType.id
+    );
+    const hourlyRate = rateObj?.hourlyRate ?? 0;
+    // Use after-commission amount (with HST) for driver pay calculation
+    return getAmountAfterCommission(job) * (hourlyRate / 100);
+  };
+
+  // Calculate totals for selected jobs
+  const selectedJobs = allJobs.filter((job: any) => selectedJobIds.includes(job.id));
+  const totalBeforeCommission = selectedJobs.reduce((sum: number, job: any) => sum + (job.calculatedAmount || 0), 0);
+  const totalCommission = selectedJobs.reduce((sum: number, job: any) => sum + getCommission(job), 0);
+  const totalAfterCommission = selectedJobs.reduce((sum: number, job: any) => sum + getAmountAfterCommission(job), 0);
+  const totalDriverPay = selectedJobs.reduce((sum: number, job: any) => sum + getDriverPay(job), 0);
+
   const getAvailableJobs = () => {
-    if (isEditMode) {
-      return allJobs.filter((job: any) => 
-        job.invoiceStatus === "NOT_INVOICED" || 
-        selectedJobIds.includes(job.id)
-      )
-    } else {
-      return allJobs
-    }
+    return allJobs
   }
-  
+
   const calculateTotal = () => {
     const selectedJobs = allJobs.filter((job: any) => selectedJobIds.includes(job.id))
     return selectedJobs.reduce((total: number, job: any) => {
-      return total + (job.calculatedAmount || 0)
+      return total + addHST(job.calculatedAmount || 0)
     }, 0)
   }
-  
+
+  const prepareInvoiceInput = (formData: any, selectedJobIds: string[]) => {
+    // Convert invoiceDate to ISO string if present
+    const input: any = {
+      ...formData,
+      invoiceDate: formData.invoiceDate ? new Date(formData.invoiceDate).toISOString() : undefined,
+      jobIds: selectedJobIds
+    }
+    // Remove notes if not supported by backend
+    delete input.notes
+    // Remove dispatcherId if empty or 'ALL'
+    if (!input.dispatcherId || input.dispatcherId === "ALL") {
+      delete input.dispatcherId
+    }
+    // Remove any object-type fields (should not happen, but for safety)
+    Object.keys(input).forEach(key => {
+      if (typeof input[key] === 'object' && !Array.isArray(input[key]) && input[key] !== null) {
+        delete input[key]
+      }
+    })
+    return input
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (selectedJobIds.length === 0) {
       toast({
         title: "Error",
@@ -162,24 +211,22 @@ export const InvoiceModal = ({ invoice, invoiceId, trigger, onSuccess }: Invoice
       })
       return
     }
-    
+
     try {
+      const input = prepareInvoiceInput(formData, selectedJobIds)
+      console.log('Invoice input being sent:', input)
       if (isEditMode) {
         // Update invoice
         await updateInvoice({
           variables: {
-            input: {
-              id: actualInvoiceId,
-              ...formData,
-              jobIds: selectedJobIds
-            }
+            input
           }
         })
-        
+
         // Update job statuses for removed jobs
         const originalJobIds = resolvedInvoice?.jobs?.map((jobEntry: any) => jobEntry.job.id) || []
         const removedJobIds = originalJobIds.filter((id: string) => !selectedJobIds.includes(id))
-        
+
         for (const jobId of removedJobIds) {
           await updateJob({
             variables: {
@@ -190,7 +237,7 @@ export const InvoiceModal = ({ invoice, invoiceId, trigger, onSuccess }: Invoice
             }
           })
         }
-        
+
         toast({
           title: "Invoice Updated",
           description: `Invoice ${formData.invoiceNumber} has been updated successfully.`,
@@ -199,19 +246,16 @@ export const InvoiceModal = ({ invoice, invoiceId, trigger, onSuccess }: Invoice
         // Create invoice
         await createInvoice({
           variables: {
-            input: {
-              ...formData,
-              jobIds: selectedJobIds
-            }
+            input
           }
         })
-        
+
         toast({
           title: "Invoice Created",
           description: `Invoice ${formData.invoiceNumber} has been created successfully.`,
         })
       }
-      
+
       setOpen(false)
       onSuccess?.()
     } catch (error: any) {
@@ -232,7 +276,7 @@ export const InvoiceModal = ({ invoice, invoiceId, trigger, onSuccess }: Invoice
         <DialogHeader>
           <DialogTitle>{isEditMode ? `Edit Invoice: ${resolvedInvoice?.invoiceNumber}` : 'Create New Invoice'}</DialogTitle>
         </DialogHeader>
-        
+
         {(invoiceLoading || jobsLoading) && isEditMode ? (
           <div className="flex items-center justify-center py-8">
             <div className="text-center">Loading invoice data...</div>
@@ -246,57 +290,57 @@ export const InvoiceModal = ({ invoice, invoiceId, trigger, onSuccess }: Invoice
                 <Input
                   id="invoiceNumber"
                   value={formData.invoiceNumber}
-                  onChange={(e) => setFormData({...formData, invoiceNumber: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, invoiceNumber: e.target.value })}
                   placeholder="INV-2024-001"
                   required
                 />
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="invoiceDate">Invoice Date *</Label>
                 <Input
                   id="invoiceDate"
                   type="date"
                   value={formData.invoiceDate}
-                  onChange={(e) => setFormData({...formData, invoiceDate: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, invoiceDate: e.target.value })}
                   required
                 />
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="billedTo">Billed To *</Label>
                 <Input
                   id="billedTo"
                   value={formData.billedTo}
-                  onChange={(e) => setFormData({...formData, billedTo: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, billedTo: e.target.value })}
                   placeholder="Company Name"
                   required
                 />
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="billedEmail">Billed Email</Label>
                 <Input
                   id="billedEmail"
                   type="email"
                   value={formData.billedEmail}
-                  onChange={(e) => setFormData({...formData, billedEmail: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, billedEmail: e.target.value })}
                   placeholder="billing@company.com"
                 />
               </div>
-              
+
               {!isEditMode && (
                 <div className="space-y-2">
                   <Label htmlFor="dispatcherId">Dispatcher</Label>
                   <Select
                     value={formData.dispatcherId}
-                    onValueChange={(value) => setFormData({...formData, dispatcherId: value})}
+                    onValueChange={(value) => setFormData({ ...formData, dispatcherId: value })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select dispatcher" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">All dispatchers</SelectItem>
+                      <SelectItem value="ALL">All dispatchers</SelectItem>
                       {dispatchers.map((dispatcher: any) => (
                         <SelectItem key={dispatcher.id} value={dispatcher.id}>
                           {dispatcher.name}
@@ -306,13 +350,13 @@ export const InvoiceModal = ({ invoice, invoiceId, trigger, onSuccess }: Invoice
                   </Select>
                 </div>
               )}
-              
+
               {isEditMode && (
                 <div className="space-y-2">
                   <Label htmlFor="status">Status</Label>
                   <Select
                     value={formData.status}
-                    onValueChange={(value) => setFormData({...formData, status: value})}
+                    onValueChange={(value) => setFormData({ ...formData, status: value })}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -335,12 +379,12 @@ export const InvoiceModal = ({ invoice, invoiceId, trigger, onSuccess }: Invoice
               <Textarea
                 id="notes"
                 value={formData.notes}
-                onChange={(e) => setFormData({...formData, notes: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                 placeholder="Additional notes for this invoice..."
                 rows={3}
               />
             </div>
-            
+
             {/* Job Selection */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -351,7 +395,7 @@ export const InvoiceModal = ({ invoice, invoiceId, trigger, onSuccess }: Invoice
                   {selectedJobIds.length} job(s) selected
                 </Badge>
               </div>
-              
+
               {getAvailableJobs().length === 0 ? (
                 <Card>
                   <CardContent className="p-6 text-center">
@@ -362,49 +406,76 @@ export const InvoiceModal = ({ invoice, invoiceId, trigger, onSuccess }: Invoice
                 </Card>
               ) : (
                 <div className="grid gap-3 max-h-60 overflow-y-auto border rounded-lg p-4">
-                  {getAvailableJobs().map((job: any) => (
-                    <div key={job.id} className="flex items-center space-x-3 p-3 border rounded hover:bg-muted/50">
-                      <Checkbox
-                        checked={selectedJobIds.includes(job.id)}
-                        onCheckedChange={(checked) => handleJobToggle(job.id, checked as boolean)}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1">
-                            <p className="text-sm font-medium">
-                              {job.jobType?.title || 'Unknown Job'} - {new Date(job.jobDate).toLocaleDateString()}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {job.driver?.name} • {job.dispatcher?.name}
-                            </p>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-sm font-medium">
-                              {formatCurrency(job.calculatedAmount || 0)}
-                            </p>
-                            <Badge variant="outline" className="text-xs">
-                              {job.invoiceStatus}
-                            </Badge>
-                          </div>
-                        </div>
+              {getAvailableJobs().map((job: any) => (
+                <div key={job.id} className="flex items-center space-x-3 p-3 border rounded hover:bg-muted/50">
+                  <Checkbox
+                    checked={selectedJobIds.includes(job.id)}
+                    onCheckedChange={(checked) => handleJobToggle(job.id, checked as boolean)}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">
+                          {job.jobType?.title || 'Unknown Job'} - {new Date(job.jobDate).toLocaleDateString()}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {job.driver?.name} • {job.dispatcher?.name}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-medium">
+                          {formatCurrency(job.calculatedAmount || 0)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Commission: {formatCurrency(getCommission(job))}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          After comm: {formatCurrency(getAmountAfterCommission(job))}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Driver pay: {formatCurrency(getDriverPay(job))}
+                        </p>
+                        <Badge variant="outline" className="text-xs">
+                          {job.invoiceStatus}
+                        </Badge>
                       </div>
                     </div>
-                  ))}
+                  </div>
+                </div>
+              ))}
                 </div>
               )}
-              
+
               {selectedJobIds.length > 0 && (
-                <div className="bg-muted/30 p-4 rounded-lg">
+                <div className="bg-muted/30 p-4 rounded-lg space-y-2">
                   <div className="flex justify-between items-center">
-                    <span className="font-medium">Total Invoice Amount:</span>
+                    <span className="font-medium">Total Amount (before commission):</span>
                     <span className="text-lg font-bold text-primary">
-                      {formatCurrency(calculateTotal())}
+                      {formatCurrency(totalBeforeCommission)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="font-medium">Total Commission:</span>
+                    <span className="text-lg font-bold text-warning">
+                      {formatCurrency(totalCommission)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="font-medium">Total Amount (after commission):</span>
+                    <span className="text-lg font-bold text-accent">
+                      {formatCurrency(totalAfterCommission)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="font-medium">Driver Pay:</span>
+                    <span className="text-lg font-bold text-muted-foreground">
+                      {formatCurrency(totalDriverPay)}
                     </span>
                   </div>
                 </div>
               )}
             </div>
-            
+
             <div className="flex justify-end space-x-2">
               <Button variant="outline" type="button" onClick={() => setOpen(false)}>
                 Cancel

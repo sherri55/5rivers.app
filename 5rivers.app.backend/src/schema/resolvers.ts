@@ -1949,9 +1949,11 @@ export const resolvers = {
           invoiceNumber: $invoiceNumber,
           invoiceDate: $invoiceDate,
           status: $status,
+          billedTo: $billedTo,
+          billedEmail: $billedEmail,
           notes: $notes,
-          createdAt: datetime(),
-          updatedAt: datetime()
+          createdAt: toString(datetime()),
+          updatedAt: toString(datetime())
         })
         RETURN i
       `;
@@ -1960,8 +1962,10 @@ export const resolvers = {
         id: invoiceId,
         invoiceNumber: args.input.invoiceNumber,
         invoiceDate: args.input.invoiceDate || new Date().toISOString(),
-        status: args.input.status || "pending",
-        notes: args.input.notes || null
+        status: args.input.status || "DRAFT",
+        billedTo: args.input.billedTo || "",
+        billedEmail: args.input.billedEmail || "",
+        notes: args.input.notes || ""
       };
 
       const result = await context.neo4jService.runQuery(query, params);
@@ -1980,7 +1984,7 @@ export const resolvers = {
         for (const jobId of args.input.jobIds) {
           await context.neo4jService.runQuery(
             `MATCH (i:Invoice {id: $invoiceId}), (j:Job {id: $jobId})
-             CREATE (j)-[:INVOICED_IN {amount: j.calculatedAmount, createdAt: datetime()}]->(i)`,
+             CREATE (j)-[:INVOICED_IN {amount: j.calculatedAmount, createdAt: toString(datetime())}]->(i)`,
             { invoiceId, jobId }
           );
         }
@@ -2105,7 +2109,7 @@ export const resolvers = {
     jobs: async (parent: any, _args: any, context: GraphQLContext) => {
       const query = `
         MATCH (i:Invoice {id: $invoiceId})<-[r:INVOICED_IN]-(j:Job)
-        RETURN j, r.amount as amount, r.createdAt as invoicedAt
+        RETURN j, r.amount as amount, toString(r.createdAt) as invoicedAt
         ORDER BY j.jobDate
       `;
       const result = await context.neo4jService.runQuery(query, { invoiceId: parent.id });

@@ -36,6 +36,7 @@ export const GET_JOBS = gql`
         driver {
           id
           name
+          hourlyRate
         }
         dispatcher {
           id

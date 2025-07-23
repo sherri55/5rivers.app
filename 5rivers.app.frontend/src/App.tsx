@@ -9,8 +9,41 @@ import { Jobs } from '@/pages/Jobs'
 import { JobTypes } from '@/pages/JobTypes'
 import { Invoices } from '@/pages/Invoices'
 import { NotFound } from '@/pages/NotFound'
+import React, { useEffect, useState } from 'react'
+import { AdminLoginModal } from '@/components/AdminLoginModal'
 
 function App() {
+  const [authenticated, setAuthenticated] = useState(false)
+
+  useEffect(() => {
+    const auth = localStorage.getItem('admin-auth')
+    if (auth === 'true') {
+      setAuthenticated(true)
+    }
+  }, [])
+
+  const handleSuccess = () => {
+    setAuthenticated(true)
+    const expires = new Date(Date.now() + 24 * 60 * 60 * 1000)
+    localStorage.setItem('admin-auth', 'true')
+    localStorage.setItem('admin-auth-expiry', expires.toISOString())
+  }
+
+  useEffect(() => {
+    if (authenticated) {
+      const expiry = localStorage.getItem('admin-auth-expiry')
+      if (expiry && new Date(expiry) < new Date()) {
+        localStorage.removeItem('admin-auth')
+        localStorage.removeItem('admin-auth-expiry')
+        setAuthenticated(false)
+      }
+    }
+  }, [authenticated])
+
+  if (!authenticated) {
+    return <AdminLoginModal onSuccess={handleSuccess} />
+  }
+
   return (
     <Layout>
       <Routes>

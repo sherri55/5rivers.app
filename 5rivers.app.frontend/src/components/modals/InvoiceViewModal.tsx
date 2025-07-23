@@ -236,6 +236,11 @@ export function InvoiceViewModal({ invoiceId, trigger }: InvoiceViewModalProps) 
                             <div className="text-lg font-semibold text-primary bg-primary/10 px-3 py-1 rounded">
                               ${(jobEntry.job?.calculatedAmount || jobEntry.amount || 0).toFixed(2)}
                             </div>
+                            {invoice.dispatcher?.commissionPercent && (
+                              <div className="text-xs text-muted-foreground mt-1">
+                                After comm: ${((jobEntry.job?.calculatedAmount || jobEntry.amount || 0) - ((jobEntry.job?.calculatedAmount || jobEntry.amount || 0) * (invoice.dispatcher.commissionPercent / 100))).toFixed(2)}
+                              </div>
+                            )}
                             {jobEntry.invoicedAt && (
                               <div className="text-xs text-muted-foreground mt-1">
                                 Invoiced: {new Date(jobEntry.invoicedAt).toLocaleDateString()}
@@ -267,13 +272,37 @@ export function InvoiceViewModal({ invoiceId, trigger }: InvoiceViewModalProps) 
                   </div>
                   
                   {/* Jobs Summary */}
-                  <div className="mt-4 pt-4 border-t">
+                  <div className="mt-4 pt-4 border-t space-y-2">
                     <div className="flex justify-between items-center text-sm">
-                      <span className="font-medium">Total from {invoice.jobs.length} job{invoice.jobs.length > 1 ? 's' : ''}:</span>
+                      <span className="font-medium">Total (before commission):</span>
                       <span className="font-semibold text-lg text-primary">
                         ${invoice.jobs.reduce((sum: number, jobEntry: any) => 
                           sum + (jobEntry.job?.calculatedAmount || jobEntry.amount || 0), 0
                         ).toFixed(2)}
+                      </span>
+                    </div>
+                    
+                    {invoice.dispatcher?.commissionPercent && (
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="font-medium">Total (after {invoice.dispatcher.commissionPercent}% commission):</span>
+                        <span className="font-semibold text-lg text-accent">
+                          ${invoice.jobs.reduce((sum: number, jobEntry: any) => {
+                            const amount = jobEntry.job?.calculatedAmount || jobEntry.amount || 0;
+                            const commission = amount * (invoice.dispatcher.commissionPercent / 100);
+                            return sum + (amount - commission);
+                          }, 0).toFixed(2)}
+                        </span>
+                      </div>
+                    )}
+                    
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="font-medium">Driver Pay (est.):</span>
+                      <span className="font-semibold text-lg text-muted-foreground">
+                        ${invoice.jobs.reduce((sum: number, jobEntry: any) => {
+                          const amount = jobEntry.job?.calculatedAmount || jobEntry.amount || 0;
+                          const driverHourlyRate = jobEntry.job?.driver?.hourlyRate || 0;
+                          return sum + (amount * (driverHourlyRate / 100));
+                        }, 0).toFixed(2)}
                       </span>
                     </div>
                   </div>

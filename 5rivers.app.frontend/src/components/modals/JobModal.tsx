@@ -1066,3 +1066,5 @@ export function JobModal({ job, trigger, onSuccess }: JobModalProps) {
     </Dialog>
   )
 }
+
+

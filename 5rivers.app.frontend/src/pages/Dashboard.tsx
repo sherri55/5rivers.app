@@ -7,6 +7,21 @@ import { DashboardStatsData } from "@/lib/types/dashboard"
 import { useState } from "react"
 import { JobDetailModal } from "@/components/modals/JobDetailModal"
 
+// Calculation helpers for commission and driver pay
+const getCommission = (job: any) => {
+  const commissionPercent = job?.dispatcher?.commissionPercent ?? 5;
+  return (job.calculatedAmount || 0) * (commissionPercent / 100);
+};
+const getAmountAfterCommission = (job: any) => {
+  return (job.calculatedAmount || 0) - getCommission(job);
+};
+// Add HST (1.13%) to amount
+const addHST = (amount: number) => amount * 1.13;
+const getDriverPay = (job: any) => {
+  const hourlyRate = job.driver?.hourlyRate ?? 0;
+  return getAmountAfterCommission(job) * (hourlyRate / 100);
+};
+
 export function Dashboard() {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
@@ -319,7 +334,10 @@ export function Dashboard() {
                         <div className="text-right">
                           <p className="text-sm font-medium text-foreground">{formatCurrency(job.calculatedAmount)}</p>
                           <p className="text-xs text-muted-foreground">
-                            Driver pay: {job.driverPay ? formatCurrency(job.driverPay) : '$0'}
+                            Commission: {formatCurrency(getCommission(job))} | After comm: {formatCurrency(getAmountAfterCommission(job))}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Driver pay: {formatCurrency(getDriverPay(job))}
                           </p>
                           <p className="text-xs text-muted-foreground">{job.jobType?.title || 'No Job Type'}</p>
                         </div>

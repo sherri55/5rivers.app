@@ -14,11 +14,13 @@ import {
 import { Search, Plus, Calendar, DollarSign, Truck, User, List, ChevronLeft, ChevronRight, Eye, Edit, FileText, Receipt, Clock, AlertTriangle } from "lucide-react"
 import { GET_JOBS } from "@/lib/graphql/jobs"
 import { DELETE_JOB } from "@/lib/graphql/mutations"
+import { UPDATE_JOB } from "@/lib/graphql/jobs"
 import { JobModal } from "@/components/modals/JobModal"
 import { JobDetailModal } from "@/components/modals/JobDetailModal"
 import { JobTypeViewModal } from "@/components/modals/JobTypeViewModal"
 import { InvoiceViewModal } from "@/components/modals/InvoiceViewModal"
 import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog"
+import { JobList } from "@/components/JobList"
 import { useToast } from "@/hooks/use-toast"
 import { parseBackendDate, formatDateForDisplay, formatTimeRange, formatWeightForDisplay } from "@/lib/utils/dateUtils"
 
@@ -62,6 +64,21 @@ interface Job {
   }
 }
 
+// Calculation helpers for commission and driver pay
+// Add HST (1.13%) to amount
+const addHST = (amount: number) => amount * 1.13;
+const getCommission = (job: Job) => {
+  const commissionPercent = job?.dispatcher?.commissionPercent ?? 5;
+  return addHST(job.calculatedAmount || 0) * (commissionPercent / 100);
+};
+const getAmountAfterCommission = (job: Job) => {
+  return addHST(job.calculatedAmount || 0) - getCommission(job);
+};
+const getDriverPay = (job: Job) => {
+  const hourlyRate = job.driver?.hourlyRate ?? 0;
+  return getAmountAfterCommission(job) * (hourlyRate / 100);
+};
+
 // Calendar View Component
 interface CalendarViewProps {
   jobs: Job[]
@@ -74,7 +91,9 @@ interface CalendarViewProps {
 function CalendarView({ jobs, currentDate, onDateChange, onJobSuccess, onDeleteJob }: CalendarViewProps) {
   const [selectedDate, setSelectedDate] = useState<number | null>(null)
   const [showDateModal, setShowDateModal] = useState(false)
-  
+  const { toast } = useToast();
+  const [updateJob] = useMutation(UPDATE_JOB);
+
   const monthNames = [
     "January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December"
@@ -131,6 +150,11 @@ function CalendarView({ jobs, currentDate, onDateChange, onJobSuccess, onDeleteJ
       setSelectedDate(day)
       setShowDateModal(true)
     }
+  }
+
+  // Utility function to check if a job has missing rate
+  const hasMissingRate = (job: Job): boolean => {
+    return !job.jobType?.rateOfJob || job.jobType.rateOfJob <= 0
   }
 
   return (
@@ -229,11 +253,16 @@ function CalendarView({ jobs, currentDate, onDateChange, onJobSuccess, onDeleteJ
                             )}
                           </div>
                           
-                          {job.calculatedAmount && (
-                            <div className="text-xs font-medium">
-                              ${job.calculatedAmount.toFixed(0)}
-                            </div>
-                          )}
+                        {job.calculatedAmount && (
+                          <div className="text-xs font-medium">
+                            Amount: ${job.calculatedAmount.toFixed(2)}
+                          </div>
+                        )}
+                        {job.calculatedAmount && (
+                          <div className="text-xs text-muted-foreground">
+                            Commission: ${getCommission(job).toFixed(2)} | After comm: ${getAmountAfterCommission(job).toFixed(2)} | Driver pay: ${getDriverPay(job).toFixed(2)}
+                          </div>
+                        )}
                         </div>
                         
                         {job.startTime && (
@@ -270,7 +299,7 @@ function CalendarView({ jobs, currentDate, onDateChange, onJobSuccess, onDeleteJ
               <Badge variant="outline">{getSelectedDateJobs().length} job(s)</Badge>
             </DialogTitle>
           </DialogHeader>
-          
+
           <div className="space-y-3">
             {getSelectedDateJobs().map((job) => (
               <Card 
@@ -322,7 +351,12 @@ function CalendarView({ jobs, currentDate, onDateChange, onJobSuccess, onDeleteJ
                         {job.calculatedAmount && (
                           <div className="flex items-center gap-1">
                             <DollarSign className="h-4 w-4" />
-                            <span className="font-medium">${job.calculatedAmount.toFixed(2)}</span>
+                            <span className="font-medium">Amount: ${job.calculatedAmount.toFixed(2)}</span>
+                          </div>
+                        )}
+                        {job.calculatedAmount && (
+                          <div className="text-xs text-muted-foreground">
+                            Commission: ${getCommission(job).toFixed(2)} | After comm: ${getAmountAfterCommission(job).toFixed(2)} | Driver pay: ${getDriverPay(job).toFixed(2)}
                           </div>
                         )}
                       </div>
@@ -418,7 +452,12 @@ function CalendarView({ jobs, currentDate, onDateChange, onJobSuccess, onDeleteJ
                         {job.calculatedAmount && (
                           <span className="flex items-center gap-1">
                             <DollarSign className="h-3 w-3" />
-                            ${job.calculatedAmount.toFixed(2)}
+                            Amount: ${job.calculatedAmount.toFixed(2)}
+                          </span>
+                        )}
+                        {job.calculatedAmount && (
+                          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                            Commission: ${getCommission(job).toFixed(2)} | After comm: ${getAmountAfterCommission(job).toFixed(2)} | Driver pay: ${getDriverPay(job).toFixed(2)}
                           </span>
                         )}
                       </div>
@@ -440,6 +479,7 @@ function CalendarView({ jobs, currentDate, onDateChange, onJobSuccess, onDeleteJ
                         </Button>
                       }
                       job={job}
+                      onSuccess={onJobSuccess}
                     />
                     {job.jobType && (
                       <JobTypeViewModal
@@ -604,12 +644,6 @@ export function Jobs() {
     return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
   }
 
-  const getStatusColor = (job: Job) => {
-    if (job.paymentReceived && job.driverPaid) return "bg-green-100 text-green-800"
-    if (job.paymentReceived) return "bg-blue-100 text-blue-800"
-    return "bg-yellow-100 text-yellow-800"
-  }
-
   const handleSuccess = () => {
     refetch()
   }
@@ -678,178 +712,16 @@ export function Jobs() {
               </CardContent>
             </Card>
           ) : (
-            Object.entries(groupedJobs).map(([monthYear, monthJobs]) => (
-              <div key={monthYear} className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <h2 className="text-2xl font-bold text-foreground">{formatMonthYear(monthYear)}</h2>
-                  <Badge variant="outline" className="text-sm">
-                    {monthJobs.length} job{monthJobs.length !== 1 ? 's' : ''}
-                  </Badge>
-                </div>
-                <div className="grid gap-4">
-                  {monthJobs.map((job: Job) => (
-                    <Card 
-                      key={job.id} 
-                      className={`hover:shadow-md transition-shadow ${
-                        hasMissingRate(job) ? 'border-orange-500 border-2' : ''
-                      }`}
-                    >
-                      <CardHeader>
-                        <div className="flex items-center justify-between">
-                          <CardTitle className="flex items-center gap-2">
-                            <Calendar className="h-5 w-5 text-primary" />
-                            {formatDateForDisplay(job.jobDate, 'EEEE, MMMM d, yyyy')}
-                          </CardTitle>
-                          <div className="flex gap-2">
-                            <Badge className={getStatusColor(job)}>
-                              {job.paymentReceived && job.driverPaid ? "Completed" : 
-                               job.paymentReceived ? "Payment Received" : "Pending"}
-                            </Badge>
-                          </div>
-                        </div>
-                        <CardDescription>
-                          Job ID: {job.id}
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                          {job.jobType && (
-                            <div className="flex items-center gap-2">
-                              <Calendar className="h-4 w-4 text-muted-foreground" />
-                              <span className="text-sm">
-                                <span className="font-medium">Type:</span> {job.jobType.title}
-                                {hasMissingRate(job) && (
-                                  <span className="ml-2 inline-flex items-center gap-1 text-orange-600">
-                                    <AlertTriangle className="h-3 w-3" />
-                                    <span className="text-xs">No rate</span>
-                                  </span>
-                                )}
-                              </span>
-                            </div>
-                          )}
-                          {formatWeightForDisplay(job.weight) && (
-                            <div className="flex items-center gap-2">
-                              <Truck className="h-4 w-4 text-muted-foreground" />
-                              <span className="text-sm">
-                                <span className="font-medium">Weight:</span> {formatWeightForDisplay(job.weight)}
-                              </span>
-                            </div>
-                          )}
-                          {job?.loads > 0 && (
-                            <div className="flex items-center gap-2">
-                              <DollarSign className="h-4 w-4 text-muted-foreground" />
-                              <span className="text-sm">
-                                <span className="font-medium">Loads:</span> {job.loads}
-                              </span>
-                            </div>
-                          )}
-                          {job.startTime && (
-                            <div className="flex items-center gap-2">
-                              <Clock className="h-4 w-4 text-muted-foreground" />
-                              <span className="text-sm">
-                                <span className="font-medium">Time:</span> {formatTimeRange(job.startTime, job.endTime)}
-                              </span>
-                            </div>
-                          )}
-                          {job.driver && (
-                            <div className="flex items-center gap-2">
-                              <User className="h-4 w-4 text-muted-foreground" />
-                              <span className="text-sm">
-                                <span className="font-medium">Driver:</span> {job.driver.name}
-                              </span>
-                            </div>
-                          )}
-                          {job.dispatcher && (
-                            <div className="flex items-center gap-2">
-                              <Receipt className="h-4 w-4 text-muted-foreground" />
-                              <span className="text-sm">
-                                <span className="font-medium">Dispatcher:</span> {job.dispatcher.name}
-                              </span>
-                            </div>
-                          )}
-                          {job.unit && (
-                            <div className="flex items-center gap-2">
-                              <Truck className="h-4 w-4 text-muted-foreground" />
-                              <span className="text-sm">
-                                <span className="font-medium">Unit:</span> {job.unit.name}
-                              </span>
-                            </div>
-                          )}
-                          {job.calculatedAmount && (
-                            <div className="flex items-center gap-2">
-                              <DollarSign className="h-4 w-4 text-muted-foreground" />
-                              <span className="text-sm">
-                                <span className="font-medium">Amount:</span> ${job.calculatedAmount.toFixed(2)}
-                              </span>
-                            </div>
-                          )}
-                          {job.driverPay !== undefined && (
-                            <div className="flex items-center gap-2">
-                              <User className="h-4 w-4 text-muted-foreground" />
-                              <span className="text-sm">
-                                <span className="font-medium">Driver pay:</span> ${job.driverPay.toFixed(2)}
-                              </span>
-                            </div>
-                          )}
-                          {job.jobType?.company && (
-                            <div className="flex items-center gap-2">
-                              <Calendar className="h-4 w-4 text-muted-foreground" />
-                              <span className="text-sm">
-                                <span className="font-medium">Company:</span> {job.jobType.company.name}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                        
-                        <div className="mt-4 flex items-center justify-between">
-                          <div className="flex gap-2">
-                            <Badge variant={job.driverPaid ? "default" : "outline"}>
-                              Driver {job.driverPaid ? "Paid" : "Unpaid"}
-                            </Badge>
-                            <Badge variant="outline">
-                              {job.invoiceStatus || "Not Invoiced"}
-                            </Badge>
-                          </div>
-                          <div className="flex gap-2">
-                            <JobDetailModal 
-                              trigger={<Button variant="outline" size="sm">View Details</Button>}
-                              job={job}
-                            />
-                            <JobModal 
-                              trigger={<Button variant="outline" size="sm">Edit</Button>}
-                              job={job}
-                            />
-                            {job.jobType && (
-                              <JobTypeViewModal
-                                trigger={<Button variant="outline" size="sm">Job Type</Button>}
-                                jobTypeId={job.jobType.id}
-                              />
-                            )}
-                            {job.invoiceStatus && job.invoiceStatus !== 'Not Invoiced' && (
-                              <InvoiceViewModal
-                                trigger={<Button variant="outline" size="sm">Invoice</Button>}
-                                invoiceId={job.invoice?.id}
-                              />
-                            )}
-                            <ConfirmDeleteDialog
-                              title="Delete Job"
-                              description="Are you sure you want to delete this job? This action cannot be undone."
-                              onConfirm={() => handleDeleteJob(job.id)}
-                            />
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </div>
-            ))
+            <JobList 
+              jobs={filteredJobs} 
+              onJobSuccess={handleSuccess} 
+              onDeleteJob={handleDeleteJob} 
+            />
           )}
         </TabsContent>
-
         <TabsContent value="calendar" className="space-y-6">
           <CalendarView 
-            jobs={filteredJobs} 
+            jobs={filteredJobs}
             currentDate={currentDate}
             onDateChange={setCurrentDate}
             onJobSuccess={handleSuccess}
