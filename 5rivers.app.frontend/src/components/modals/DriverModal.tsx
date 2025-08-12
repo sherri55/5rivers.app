@@ -19,11 +19,12 @@ interface DriverModalProps {
   driver?: any // Optional - if provided, it's an edit modal; if not, it's a create modal
   trigger?: React.ReactNode
   onSuccess?: () => void
+  isDuplicate?: boolean // New prop to indicate if this is a duplicate operation
 }
 
-export function DriverModal({ driver, trigger, onSuccess }: DriverModalProps) {
+export function DriverModal({ driver, trigger, onSuccess, isDuplicate = false }: DriverModalProps) {
   const [isOpen, setIsOpen] = useState(false)
-  const isEditMode = !!driver
+  const isEditMode = !!driver && !isDuplicate
   
   const [formData, setFormData] = useState({
     name: driver?.name || "",
@@ -123,7 +124,9 @@ export function DriverModal({ driver, trigger, onSuccess }: DriverModalProps) {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-foreground">
             <User className="h-5 w-5 text-primary" />
-            {isEditMode ? 'Edit Driver Information' : 'Add New Driver'}
+            {isEditMode ? 'Edit Driver Information' : 
+             isDuplicate ? 'Duplicate Driver' : 
+             'Add New Driver'}
           </DialogTitle>
         </DialogHeader>
         
@@ -200,7 +203,10 @@ export function DriverModal({ driver, trigger, onSuccess }: DriverModalProps) {
               Cancel
             </Button>
             <Button type="submit" disabled={loading}>
-              {loading ? "Saving..." : (isEditMode ? 'Save Changes' : 'Add Driver')}
+              {loading ? "Saving..." : 
+               isEditMode ? 'Save Changes' : 
+               isDuplicate ? 'Create Duplicate' : 
+               'Add Driver'}
             </Button>
           </div>
         </form>

@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Building, Plus, MapPin, Phone, Mail } from "lucide-react"
+import { Building, Plus, MapPin, Phone, Mail, Copy } from "lucide-react"
 import { useQuery, useMutation } from "@apollo/client"
 import { GET_COMPANIES } from "@/lib/graphql/companies"
 import { DELETE_COMPANY } from "@/lib/graphql/mutations"
@@ -45,6 +45,19 @@ export function Companies() {
       await deleteCompany({ variables: { id: companyId } })
     } catch (error) {
       console.error('Error deleting company:', error)
+    }
+  }
+
+  // Function to create a duplicate company with copied data but reset certain fields
+  const createDuplicateCompany = (originalCompany: any) => {
+    return {
+      ...originalCompany,
+      id: undefined, // Remove ID so it creates a new company
+      name: `${originalCompany.name} (Copy)`, // Append "Copy" to the name
+      createdAt: undefined, // Let it set the current date
+      updatedAt: undefined, // Let it set the current date
+      jobs: undefined, // Don't copy job relationships
+      // Keep all other data including description, website, industry, location, etc.
     }
   }
 
@@ -127,6 +140,16 @@ export function Companies() {
                   onSuccess={() => refetch()}
                   trigger={
                     <Button variant="outline" size="sm" className="flex-1">Edit</Button>
+                  } 
+                />
+                <AddCompanyModal 
+                  onSuccess={() => refetch()}
+                  initialData={createDuplicateCompany(company)}
+                  trigger={
+                    <Button variant="outline" size="sm" className="flex-1">
+                      <Copy className="h-3 w-3 mr-1" />
+                      Duplicate
+                    </Button>
                   } 
                 />
                 <CompanyJobsViewModal 

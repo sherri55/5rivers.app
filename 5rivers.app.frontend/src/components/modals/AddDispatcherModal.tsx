@@ -11,18 +11,19 @@ import { CREATE_DISPATCHER } from "@/lib/graphql/dispatchers"
 interface AddDispatcherModalProps {
   trigger: React.ReactNode
   onSuccess?: () => void
+  initialData?: any // Optional initial data for duplication
 }
 
-export const AddDispatcherModal = ({ trigger, onSuccess }: AddDispatcherModalProps) => {
+export const AddDispatcherModal = ({ trigger, onSuccess, initialData }: AddDispatcherModalProps) => {
   const [open, setOpen] = useState(false)
   const { toast } = useToast()
   const [createDispatcher, { loading }] = useMutation(CREATE_DISPATCHER)
   const [formData, setFormData] = useState({
-    name: "",
-    description: "",
-    email: "",
-    phone: "",
-    commissionPercent: ""
+    name: initialData?.name || "",
+    description: initialData?.description || "",
+    email: initialData?.email || "",
+    phone: initialData?.phone || "",
+    commissionPercent: initialData?.commissionPercent?.toString() || ""
   })
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -42,8 +43,8 @@ export const AddDispatcherModal = ({ trigger, onSuccess }: AddDispatcherModalPro
       })
       
       toast({
-        title: "Dispatcher Created",
-        description: `${formData.name} has been added successfully.`,
+        title: initialData ? "Dispatcher Duplicated" : "Dispatcher Created",
+        description: `${formData.name} has been ${initialData ? 'duplicated' : 'added'} successfully.`,
       })
       
       setOpen(false)
@@ -74,7 +75,7 @@ export const AddDispatcherModal = ({ trigger, onSuccess }: AddDispatcherModalPro
       </DialogTrigger>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Add New Dispatcher</DialogTitle>
+          <DialogTitle>{initialData ? 'Duplicate Dispatcher' : 'Add New Dispatcher'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
@@ -144,7 +145,10 @@ export const AddDispatcherModal = ({ trigger, onSuccess }: AddDispatcherModalPro
               Cancel
             </Button>
             <Button type="submit" disabled={loading} className="flex-1">
-              {loading ? "Creating..." : "Create Dispatcher"}
+              {loading ? 
+                (initialData ? "Duplicating..." : "Creating...") : 
+                (initialData ? "Create Duplicate" : "Create Dispatcher")
+              }
             </Button>
           </div>
         </form>

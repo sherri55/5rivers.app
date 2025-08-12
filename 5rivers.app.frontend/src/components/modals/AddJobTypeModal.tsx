@@ -12,9 +12,10 @@ import { GET_COMPANIES } from "@/lib/graphql/companies"
 interface AddJobTypeModalProps {
   trigger: React.ReactNode
   onSuccess?: () => void
+  initialData?: any // Optional initial data for duplication
 }
 
-export const AddJobTypeModal = ({ trigger, onSuccess }: AddJobTypeModalProps) => {
+export const AddJobTypeModal = ({ trigger, onSuccess, initialData }: AddJobTypeModalProps) => {
   const [open, setOpen] = useState(false)
   const { toast } = useToast()
   const [createJobType, { loading }] = useMutation(CREATE_JOB_TYPE)
@@ -23,12 +24,12 @@ export const AddJobTypeModal = ({ trigger, onSuccess }: AddJobTypeModalProps) =>
   })
   
   const [formData, setFormData] = useState({
-    title: "",
-    startLocation: "",
-    endLocation: "",
-    dispatchType: "",
-    rateOfJob: "",
-    companyId: ""
+    title: initialData?.title || "",
+    startLocation: initialData?.startLocation || "",
+    endLocation: initialData?.endLocation || "",
+    dispatchType: initialData?.dispatchType || "",
+    rateOfJob: initialData?.rateOfJob?.toString() || "",
+    companyId: initialData?.company?.id || ""
   })
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -49,8 +50,8 @@ export const AddJobTypeModal = ({ trigger, onSuccess }: AddJobTypeModalProps) =>
       })
       
       toast({
-        title: "Job Type Created",
-        description: `${formData.title} has been added successfully.`,
+        title: initialData ? "Job Type Duplicated" : "Job Type Created",
+        description: `${formData.title} has been ${initialData ? 'duplicated' : 'added'} successfully.`,
       })
       
       setOpen(false)
@@ -89,7 +90,7 @@ export const AddJobTypeModal = ({ trigger, onSuccess }: AddJobTypeModalProps) =>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
-          <DialogTitle>Add New Job Type</DialogTitle>
+          <DialogTitle>{initialData ? 'Duplicate Job Type' : 'Add New Job Type'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
@@ -173,7 +174,10 @@ export const AddJobTypeModal = ({ trigger, onSuccess }: AddJobTypeModalProps) =>
               Cancel
             </Button>
             <Button type="submit" disabled={loading} className="flex-1">
-              {loading ? "Creating..." : "Create Job Type"}
+              {loading ? 
+                (initialData ? "Duplicating..." : "Creating...") : 
+                (initialData ? "Create Duplicate" : "Create Job Type")
+              }
             </Button>
           </div>
         </form>

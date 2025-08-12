@@ -12,23 +12,24 @@ import { CREATE_COMPANY } from "@/lib/graphql/companies"
 interface AddCompanyModalProps {
   trigger: React.ReactNode
   onSuccess?: () => void
+  initialData?: any // Optional initial data for duplication
 }
 
-export const AddCompanyModal = ({ trigger, onSuccess }: AddCompanyModalProps) => {
+export const AddCompanyModal = ({ trigger, onSuccess, initialData }: AddCompanyModalProps) => {
   const [open, setOpen] = useState(false)
   const { toast } = useToast()
   const [createCompany, { loading }] = useMutation(CREATE_COMPANY)
   const [formData, setFormData] = useState({
-    name: "",
-    description: "",
-    website: "",
-    industry: "",
-    location: "",
-    size: "",
-    founded: "",
-    logo: "",
-    email: "",
-    phone: ""
+    name: initialData?.name || "",
+    description: initialData?.description || "",
+    website: initialData?.website || "",
+    industry: initialData?.industry || "",
+    location: initialData?.location || "",
+    size: initialData?.size || "",
+    founded: initialData?.founded?.toString() || "",
+    logo: initialData?.logo || "",
+    email: initialData?.email || "",
+    phone: initialData?.phone || ""
   })
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -53,8 +54,8 @@ export const AddCompanyModal = ({ trigger, onSuccess }: AddCompanyModalProps) =>
       })
       
       toast({
-        title: "Company Created",
-        description: `${formData.name} has been added successfully.`,
+        title: initialData ? "Company Duplicated" : "Company Created",
+        description: `${formData.name} has been ${initialData ? 'duplicated' : 'added'} successfully.`,
       })
       
       setOpen(false)
@@ -110,7 +111,7 @@ export const AddCompanyModal = ({ trigger, onSuccess }: AddCompanyModalProps) =>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Add New Company</DialogTitle>
+          <DialogTitle>{initialData ? 'Duplicate Company' : 'Add New Company'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
@@ -239,7 +240,10 @@ export const AddCompanyModal = ({ trigger, onSuccess }: AddCompanyModalProps) =>
               Cancel
             </Button>
             <Button type="submit" disabled={loading} className="flex-1">
-              {loading ? "Creating..." : "Create Company"}
+              {loading ? 
+                (initialData ? "Duplicating..." : "Creating...") : 
+                (initialData ? "Create Duplicate" : "Create Company")
+              }
             </Button>
           </div>
         </form>

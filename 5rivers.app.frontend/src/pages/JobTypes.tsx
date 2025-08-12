@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Search, Plus, Briefcase, DollarSign, MapPin, Truck, Edit, Eye } from "lucide-react"
+import { Search, Plus, Briefcase, DollarSign, MapPin, Truck, Edit, Eye, Copy } from "lucide-react"
 import { AddJobTypeModal } from "@/components/modals/AddJobTypeModal"
 import { EditJobTypeModal } from "@/components/modals/EditJobTypeModal"
 import { JobTypeJobsViewModal } from "@/components/modals/JobTypeJobsViewModal"
@@ -87,6 +87,18 @@ export function JobTypes() {
       await deleteJobType({ variables: { id: jobTypeId } })
     } catch (error) {
       console.error('Error deleting job type:', error)
+    }
+  }
+
+  // Function to create a duplicate job type with copied data but reset certain fields
+  const createDuplicateJobType = (originalJobType: any) => {
+    return {
+      ...originalJobType,
+      id: undefined, // Remove ID so it creates a new job type
+      title: `${originalJobType.title} (Copy)`, // Append "Copy" to the title
+      createdAt: undefined, // Let it set the current date
+      updatedAt: undefined, // Let it set the current date
+      // Keep all other data including company relationship, locations, dispatch type, rate
     }
   }
 
@@ -263,6 +275,16 @@ export function JobTypes() {
                               </Button>
                             }
                             jobType={jobType}
+                            onSuccess={refetch}
+                          />
+                          <AddJobTypeModal
+                            trigger={
+                              <Button variant="outline" size="sm" className="flex-1">
+                                <Copy className="h-3 w-3 mr-1" />
+                                Duplicate
+                              </Button>
+                            }
+                            initialData={createDuplicateJobType(jobType)}
                             onSuccess={refetch}
                           />
                           <JobTypeJobsViewModal

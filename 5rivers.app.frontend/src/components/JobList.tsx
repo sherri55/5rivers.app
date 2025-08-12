@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Calendar, DollarSign, User, Receipt, Clock, Eye, Edit, FileText, AlertTriangle, Truck, Weight, Package } from "lucide-react"
+import { Calendar, DollarSign, User, Receipt, Clock, Eye, Edit, FileText, AlertTriangle, Truck, Weight, Package, Copy } from "lucide-react"
 import { JobDetailModal } from "@/components/modals/JobDetailModal"
 import { JobModal } from "@/components/modals/JobModal"
 import { JobTypeViewModal } from "@/components/modals/JobTypeViewModal"
@@ -363,6 +363,22 @@ export function JobList({ jobs, onJobSuccess, onDeleteJob }: JobListProps) {
     }
   };
 
+  // Function to create a duplicate job with copied data but reset certain fields
+  const createDuplicateJob = (originalJob: Job) => {
+    const today = new Date().toISOString().slice(0, 10) // Today's date in YYYY-MM-DD format
+    
+    return {
+      ...originalJob,
+      id: undefined, // Remove ID so it creates a new job
+      jobDate: today, // Set to today's date
+      invoiceStatus: 'PENDING', // Reset to pending
+      driverPaid: false, // Reset driver paid status
+      calculatedAmount: undefined, // Let it recalculate
+      invoice: undefined, // Don't copy invoice relationship
+      // Keep all other relationships and data
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Selected Jobs Summary */}
@@ -597,6 +613,16 @@ export function JobList({ jobs, onJobSuccess, onDeleteJob }: JobListProps) {
                           </Button>
                         }
                         job={job}
+                        onSuccess={onJobSuccess}
+                      />
+                      <JobModal
+                        trigger={
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="Duplicate Job">
+                            <Copy className="h-3 w-3" />
+                          </Button>
+                        }
+                        job={createDuplicateJob(job)}
+                        isDuplicate={true}
                         onSuccess={onJobSuccess}
                       />
                       {job.jobType && (

@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Search, Plus, User, DollarSign } from "lucide-react"
+import { Search, Plus, User, DollarSign, Copy } from "lucide-react"
 import { DriverModal } from "@/components/modals/DriverModal"
 import { DriverJobsViewModal } from "@/components/modals/DriverJobsViewModal"
 import { GET_DRIVERS } from "@/lib/graphql/drivers"
@@ -48,6 +48,19 @@ export function Drivers() {
       await deleteDriver({ variables: { id: driverId } })
     } catch (error) {
       console.error('Error deleting driver:', error)
+    }
+  }
+
+  // Function to create a duplicate driver with copied data but reset certain fields
+  const createDuplicateDriver = (originalDriver: any) => {
+    return {
+      ...originalDriver,
+      id: undefined, // Remove ID so it creates a new driver
+      name: `${originalDriver.name} (Copy)`, // Append "Copy" to the name
+      email: originalDriver.email ? `copy_${originalDriver.email}` : "", // Prefix email with "copy_" to avoid duplicates
+      createdAt: undefined, // Let it set the current date
+      updatedAt: undefined, // Let it set the current date
+      // Keep all other data including phone, licenseNumber, hourlyRate, etc.
     }
   }
 
@@ -178,6 +191,17 @@ export function Drivers() {
                     onSuccess={() => refetch()}
                     trigger={
                       <Button variant="outline" size="sm" className="flex-1">Edit</Button>
+                    } 
+                  />
+                  <DriverModal 
+                    driver={createDuplicateDriver(driver)} 
+                    isDuplicate={true}
+                    onSuccess={() => refetch()}
+                    trigger={
+                      <Button variant="outline" size="sm" className="flex-1">
+                        <Copy className="h-3 w-3 mr-1" />
+                        Duplicate
+                      </Button>
                     } 
                   />
                   <DriverJobsViewModal 

@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Search, Plus, Radio, Percent, Edit, Briefcase } from "lucide-react"
+import { Search, Plus, Radio, Percent, Edit, Briefcase, Copy } from "lucide-react"
 import { AddDispatcherModal } from "@/components/modals/AddDispatcherModal"
 import { EditDispatcherModal } from "@/components/modals/EditDispatcherModal"
 import { DispatcherJobsViewModal } from "@/components/modals/DispatcherJobsViewModal"
@@ -49,6 +49,19 @@ export function Dispatchers() {
       await deleteDispatcher({ variables: { id: dispatcherId } })
     } catch (error) {
       console.error('Error deleting dispatcher:', error)
+    }
+  }
+
+  // Function to create a duplicate dispatcher with copied data but reset certain fields
+  const createDuplicateDispatcher = (originalDispatcher: any) => {
+    return {
+      ...originalDispatcher,
+      id: undefined, // Remove ID so it creates a new dispatcher
+      name: `${originalDispatcher.name} (Copy)`, // Append "Copy" to the name
+      email: `copy_${originalDispatcher.email}`, // Prefix email with "copy_" to avoid duplicates
+      createdAt: undefined, // Let it set the current date
+      updatedAt: undefined, // Let it set the current date
+      // Keep all other data including description, phone, commissionPercent
     }
   }
 
@@ -175,6 +188,16 @@ export function Dispatchers() {
                       </Button>
                     }
                     dispatcher={dispatcher}
+                    onSuccess={refetch}
+                  />
+                  <AddDispatcherModal
+                    trigger={
+                      <Button variant="outline" size="sm" className="flex-1">
+                        <Copy className="h-4 w-4 mr-1" />
+                        Duplicate
+                      </Button>
+                    }
+                    initialData={createDuplicateDispatcher(dispatcher)}
                     onSuccess={refetch}
                   />
                   <DispatcherJobsViewModal

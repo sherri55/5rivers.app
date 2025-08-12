@@ -3,7 +3,7 @@ import { useQuery, useMutation } from "@apollo/client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Search, Plus, Truck, Palette, Edit, Eye } from "lucide-react"
+import { Search, Plus, Truck, Palette, Edit, Eye, Copy } from "lucide-react"
 import { AddUnitModal } from "@/components/modals/AddUnitModal"
 import { EditUnitModal } from "@/components/modals/EditUnitModal"
 import { UnitJobsViewModal } from "@/components/modals/UnitJobsViewModal"
@@ -48,6 +48,18 @@ export function Units() {
       await deleteUnit({ variables: { id: unitId } })
     } catch (error) {
       console.error('Error deleting unit:', error)
+    }
+  }
+
+  // Function to create a duplicate unit with copied data but reset certain fields
+  const createDuplicateUnit = (originalUnit: any) => {
+    return {
+      ...originalUnit,
+      id: undefined, // Remove ID so it creates a new unit
+      name: `${originalUnit.name} (Copy)`, // Append "Copy" to the name
+      createdAt: undefined, // Let it set the current date
+      updatedAt: undefined, // Let it set the current date
+      // Keep all other data including description, license, color, etc.
     }
   }
 
@@ -171,6 +183,16 @@ export function Units() {
                       </Button>
                     }
                     unit={unit}
+                    onSuccess={refetch}
+                  />
+                  <AddUnitModal
+                    trigger={
+                      <Button variant="outline" size="sm" className="flex-1">
+                        <Copy className="h-3 w-3 mr-1" />
+                        Duplicate
+                      </Button>
+                    }
+                    initialData={createDuplicateUnit(unit)}
                     onSuccess={refetch}
                   />
                   <UnitJobsViewModal

@@ -11,18 +11,19 @@ import { CREATE_UNIT } from "@/lib/graphql/units"
 interface AddUnitModalProps {
   trigger: React.ReactNode
   onSuccess?: () => void
+  initialData?: any // Optional initial data for duplication
 }
 
-export const AddUnitModal = ({ trigger, onSuccess }: AddUnitModalProps) => {
+export const AddUnitModal = ({ trigger, onSuccess, initialData }: AddUnitModalProps) => {
   const [open, setOpen] = useState(false)
   const { toast } = useToast()
   const [createUnit, { loading }] = useMutation(CREATE_UNIT)
   const [formData, setFormData] = useState({
-    name: "",
-    description: "",
-    color: "",
-    plateNumber: "",
-    vin: ""
+    name: initialData?.name || "",
+    description: initialData?.description || "",
+    color: initialData?.color || "",
+    plateNumber: initialData?.plateNumber || "",
+    vin: initialData?.vin || ""
   })
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -42,8 +43,8 @@ export const AddUnitModal = ({ trigger, onSuccess }: AddUnitModalProps) => {
       })
       
       toast({
-        title: "Unit Created",
-        description: `${formData.name} has been added successfully.`,
+        title: initialData ? "Unit Duplicated" : "Unit Created",
+        description: `${formData.name} has been ${initialData ? 'duplicated' : 'added'} successfully.`,
       })
       
       setOpen(false)
@@ -74,7 +75,7 @@ export const AddUnitModal = ({ trigger, onSuccess }: AddUnitModalProps) => {
       </DialogTrigger>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Add New Unit</DialogTitle>
+          <DialogTitle>{initialData ? 'Duplicate Unit' : 'Add New Unit'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
@@ -136,7 +137,10 @@ export const AddUnitModal = ({ trigger, onSuccess }: AddUnitModalProps) => {
               Cancel
             </Button>
             <Button type="submit" disabled={loading} className="flex-1">
-              {loading ? "Creating..." : "Create Unit"}
+              {loading ? 
+                (initialData ? "Duplicating..." : "Creating...") : 
+                (initialData ? "Create Duplicate" : "Create Unit")
+              }
             </Button>
           </div>
         </form>

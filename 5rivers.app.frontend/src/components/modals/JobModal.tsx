@@ -34,6 +34,7 @@ interface JobModalProps {
   job?: any // Optional - if provided, it's an edit modal; if not, it's a create modal
   trigger?: React.ReactNode
   onSuccess?: () => void
+  isDuplicate?: boolean // New prop to indicate if this is a duplicate operation
 }
 
 // Helper function to format datetime for datetime-local input
@@ -183,9 +184,9 @@ const calculateDuration = (startTime: string, endTime: string) => {
   }
 }
 
-export function JobModal({ job, trigger, onSuccess }: JobModalProps) {
+export function JobModal({ job, trigger, onSuccess, isDuplicate = false }: JobModalProps) {
   const [isOpen, setIsOpen] = useState(false)
-  const isEditMode = !!job
+  const isEditMode = !!job && !isDuplicate
   
   const [formData, setFormData] = useState({
     jobDate: job ? formatDate(job.jobDate || "") : "",
@@ -601,7 +602,11 @@ export function JobModal({ job, trigger, onSuccess }: JobModalProps) {
       </DialogTrigger>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{isEditMode ? `Edit Job: ${job?.id}` : 'Create New Job'}</DialogTitle>
+          <DialogTitle>
+            {isEditMode ? `Edit Job: ${job?.id}` : 
+             isDuplicate ? `Duplicate Job: ${job?.id}` : 
+             'Create New Job'}
+          </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-6">
@@ -1048,7 +1053,9 @@ export function JobModal({ job, trigger, onSuccess }: JobModalProps) {
             Cancel
           </Button>
           <Button onClick={handleSave}>
-            {isEditMode ? 'Save Changes' : 'Create Job'}
+            {isEditMode ? 'Save Changes' : 
+             isDuplicate ? 'Create Duplicate' : 
+             'Create Job'}
           </Button>
         </div>
       </DialogContent>
