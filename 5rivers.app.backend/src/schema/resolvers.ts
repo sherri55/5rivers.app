@@ -1397,14 +1397,19 @@ export const resolvers = {
     downloadInvoicePDF: async (_parent: any, args: { invoiceId: string }, context: GraphQLContext) => {
       try {
         const pdfService = new PDFService();
+        // Fetch invoice data to get the invoice number for filename
+        const invoiceData = await pdfService.getInvoiceData(args.invoiceId);
+        if (!invoiceData) {
+          throw new Error('Invoice not found');
+        }
         const pdfBuffer = await pdfService.generateInvoicePDF(args.invoiceId);
         await pdfService.close();
-        
-        // Return base64 encoded PDF
+        // Use invoice number as filename, fallback to invoiceId if missing
+        const safeInvoiceNumber = invoiceData.invoiceNumber?.replace(/[^a-zA-Z0-9-_]/g, "_") || args.invoiceId;
         return {
           success: true,
           data: pdfBuffer.toString('base64'),
-          filename: `invoice-${args.invoiceId}.pdf`
+          filename: `${safeInvoiceNumber}.pdf`
         };
       } catch (error) {
         console.error('Error generating invoice PDF:', error);
@@ -1829,28 +1834,27 @@ export const resolvers = {
       context: GraphQLContext
     ) => {
       const unitId = `unit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
       const query = `
         CREATE (u:Unit {
           id: $id,
-          unitNumber: $unitNumber,
+          name: $name,
           description: $description,
-          licensePlate: $licensePlate,
+          color: $color,
+          plateNumber: $plateNumber,
           vin: $vin,
           createdAt: datetime(),
           updatedAt: datetime()
         })
         RETURN u
       `;
-      
       const params = {
         id: unitId,
-        unitNumber: args.input.unitNumber,
+        name: args.input.name,
         description: args.input.description || null,
-        licensePlate: args.input.licensePlate || null,
+        color: args.input.color || null,
+        plateNumber: args.input.plateNumber || null,
         vin: args.input.vin || null
       };
-
       const result = await context.neo4jService.runQuery(query, params);
       
       return {
@@ -1871,23 +1875,26 @@ export const resolvers = {
       const updateFields = [];
       const params: any = { id };
       
-      if (updates.unitNumber !== undefined) {
-        updateFields.push('u.unitNumber = $unitNumber');
-        params.unitNumber = updates.unitNumber;
+      if (updates.name !== undefined) {
+        updateFields.push('u.name = $name');
+        params.name = updates.name;
       }
       if (updates.description !== undefined) {
         updateFields.push('u.description = $description');
         params.description = updates.description;
       }
-      if (updates.licensePlate !== undefined) {
-        updateFields.push('u.licensePlate = $licensePlate');
-        params.licensePlate = updates.licensePlate;
+      if (updates.color !== undefined) {
+        updateFields.push('u.color = $color');
+        params.color = updates.color;
+      }
+      if (updates.plateNumber !== undefined) {
+        updateFields.push('u.plateNumber = $plateNumber');
+        params.plateNumber = updates.plateNumber;
       }
       if (updates.vin !== undefined) {
         updateFields.push('u.vin = $vin');
         params.vin = updates.vin;
       }
-      
       updateFields.push('u.updatedAt = datetime()');
       
       const query = `
@@ -1937,6 +1944,17 @@ export const resolvers = {
     ) => {
       const invoiceId = `invoice_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       
+      console.log('createInvoice input:', JSON.stringify(args.input, null, 2));
+      
+      // Helper function to ensure only primitives
+      const sanitizeValue = (value: any): any => {
+        if (value === null || value === undefined) return value;
+        if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return value;
+        if (value instanceof Map) return undefined;
+        if (typeof value === 'object') return undefined;
+        return String(value); // Convert anything else to string
+      };
+      
       const query = `
         CREATE (i:Invoice {
           id: $id,
@@ -1954,32 +1972,43 @@ export const resolvers = {
       
       const params = {
         id: invoiceId,
-        invoiceNumber: args.input.invoiceNumber,
-        invoiceDate: args.input.invoiceDate || new Date().toISOString(),
-        status: args.input.status || "DRAFT",
-        billedTo: args.input.billedTo || "",
-        billedEmail: args.input.billedEmail || "",
-        notes: args.input.notes || ""
+        invoiceNumber: sanitizeValue(args.input.invoiceNumber) || "",
+        invoiceDate: sanitizeValue(args.input.invoiceDate) || new Date().toISOString(),
+        status: sanitizeValue(args.input.status) || "DRAFT",
+        billedTo: sanitizeValue(args.input.billedTo) || "",
+        billedEmail: sanitizeValue(args.input.billedEmail) || "",
+        notes: sanitizeValue(args.input.notes) || ""
       };
+
+      console.log('Invoice params:', JSON.stringify(params, null, 2));
 
       const result = await context.neo4jService.runQuery(query, params);
       
       // Create relationship with dispatcher if provided
       if (args.input.dispatcherId) {
+        console.log('Creating dispatcher relationship with:', args.input.dispatcherId);
         await context.neo4jService.runQuery(
           `MATCH (i:Invoice {id: $invoiceId}), (d:Dispatcher {id: $dispatcherId})
            CREATE (i)-[:BILLED_BY]->(d)`,
-          { invoiceId, dispatcherId: args.input.dispatcherId }
+          { invoiceId, dispatcherId: sanitizeValue(args.input.dispatcherId) }
         );
       }
       
       // Add jobs to invoice if provided
       if (args.input.jobIds && args.input.jobIds.length > 0) {
+        console.log('Adding jobs to invoice:', args.input.jobIds);
         for (const jobId of args.input.jobIds) {
+          // Fetch calculatedAmount for the job
+          const jobResult = await context.neo4jService.runQuery(
+            `MATCH (j:Job {id: $jobId}) RETURN j.calculatedAmount AS amount`,
+            { jobId: sanitizeValue(jobId) }
+          );
+          const amount = jobResult && jobResult[0] && typeof jobResult[0].amount === 'number' ? jobResult[0].amount : null;
+          console.log(`Job ${jobId} amount:`, amount);
           await context.neo4jService.runQuery(
             `MATCH (i:Invoice {id: $invoiceId}), (j:Job {id: $jobId})
-             CREATE (j)-[:INVOICED_IN {amount: j.calculatedAmount, createdAt: toString(datetime())}]->(i)`,
-            { invoiceId, jobId }
+             CREATE (j)-[:INVOICED_IN {amount: $amount, createdAt: toString(datetime())}]->(i)`,
+            { invoiceId, jobId: sanitizeValue(jobId), amount }
           );
         }
       }
@@ -1999,34 +2028,65 @@ export const resolvers = {
     ) => {
       const { id, ...updates } = args.input;
       
+      console.log('updateInvoice input:', JSON.stringify(args.input, null, 2));
+      
+      // Helper function to ensure only primitives
+      const sanitizeValue = (value: any): any => {
+        if (value === null || value === undefined) return value;
+        if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return value;
+        if (value instanceof Map) return undefined;
+        if (typeof value === 'object') return undefined;
+        return String(value); // Convert anything else to string
+      };
+      
       // Build dynamic update query
       const updateFields = [];
-      const params: any = { id };
+      const params: any = { id: sanitizeValue(id) };
       
       if (updates.invoiceNumber !== undefined) {
-        updateFields.push('i.invoiceNumber = $invoiceNumber');
-        params.invoiceNumber = updates.invoiceNumber;
+        const sanitizedValue = sanitizeValue(updates.invoiceNumber);
+        if (sanitizedValue !== undefined) {
+          updateFields.push('i.invoiceNumber = $invoiceNumber');
+          params.invoiceNumber = sanitizedValue;
+        }
       }
       if (updates.invoiceDate !== undefined) {
-        updateFields.push('i.invoiceDate = $invoiceDate');
-        params.invoiceDate = updates.invoiceDate;
+        const sanitizedValue = sanitizeValue(updates.invoiceDate);
+        if (sanitizedValue !== undefined) {
+          updateFields.push('i.invoiceDate = $invoiceDate');
+          params.invoiceDate = sanitizedValue;
+        }
       }
       if (updates.status !== undefined) {
-        updateFields.push('i.status = $status');
-        params.status = updates.status;
+        const sanitizedValue = sanitizeValue(updates.status);
+        if (sanitizedValue !== undefined) {
+          updateFields.push('i.status = $status');
+          params.status = sanitizedValue;
+        }
       }
       if (updates.notes !== undefined) {
-        updateFields.push('i.notes = $notes');
-        params.notes = updates.notes;
+        const sanitizedValue = sanitizeValue(updates.notes);
+        if (sanitizedValue !== undefined) {
+          updateFields.push('i.notes = $notes');
+          params.notes = sanitizedValue;
+        }
       }
       
       updateFields.push('i.updatedAt = datetime()');
+      
+      if (updateFields.length === 1) {
+        // Only updatedAt field, no actual changes
+        console.log('No fields to update, skipping database update');
+      }
       
       const query = `
         MATCH (i:Invoice {id: $id})
         SET ${updateFields.join(', ')}
         RETURN i
       `;
+      
+      console.log('Update query:', query);
+      console.log('Update params:', JSON.stringify(params, null, 2));
       
       const result = await context.neo4jService.runQuery(query, params);
       
@@ -2036,17 +2096,48 @@ export const resolvers = {
       
       // Handle dispatcher relationship update
       if (updates.dispatcherId) {
+        console.log('Updating dispatcher relationship with:', updates.dispatcherId);
         await context.neo4jService.runQuery(
           `MATCH (i:Invoice {id: $id})
            OPTIONAL MATCH (i)-[r:BILLED_BY]->()
            DELETE r`,
-          { id }
+          { id: sanitizeValue(id) }
         );
         await context.neo4jService.runQuery(
           `MATCH (i:Invoice {id: $id}), (d:Dispatcher {id: $dispatcherId})
            CREATE (i)-[:BILLED_BY]->(d)`,
-          { id, dispatcherId: updates.dispatcherId }
+          { id: sanitizeValue(id), dispatcherId: sanitizeValue(updates.dispatcherId) }
         );
+      }
+      
+      // Handle job updates if jobIds provided
+      if (updates.jobIds) {
+        console.log('Updating jobs for invoice:', updates.jobIds);
+        
+        // Remove all existing job relationships
+        await context.neo4jService.runQuery(
+          `MATCH (j:Job)-[r:INVOICED_IN]->(i:Invoice {id: $id})
+           DELETE r`,
+          { id: sanitizeValue(id) }
+        );
+        
+        // Add new job relationships
+        if (updates.jobIds.length > 0) {
+          for (const jobId of updates.jobIds) {
+            // Fetch calculatedAmount for the job
+            const jobResult = await context.neo4jService.runQuery(
+              `MATCH (j:Job {id: $jobId}) RETURN j.calculatedAmount AS amount`,
+              { jobId: sanitizeValue(jobId) }
+            );
+            const amount = jobResult && jobResult[0] && typeof jobResult[0].amount === 'number' ? jobResult[0].amount : null;
+            console.log(`Job ${jobId} amount:`, amount);
+            await context.neo4jService.runQuery(
+              `MATCH (i:Invoice {id: $invoiceId}), (j:Job {id: $jobId})
+               CREATE (j)-[:INVOICED_IN {amount: $amount, createdAt: toString(datetime())}]->(i)`,
+              { invoiceId: sanitizeValue(id), jobId: sanitizeValue(jobId), amount }
+            );
+          }
+        }
       }
       
       return {

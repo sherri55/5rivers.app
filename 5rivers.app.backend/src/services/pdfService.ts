@@ -81,11 +81,11 @@ export class PDFService {
     }
   }
 
-  private async getInvoiceData(invoiceId: string): Promise<InvoiceData | null> {
+  async getInvoiceData(invoiceId: string): Promise<InvoiceData | null> {
     const query = `
       MATCH (i:Invoice {id: $invoiceId})-[:BILLED_BY]->(d:Dispatcher)
       OPTIONAL MATCH (i)<-[rel:INVOICED_IN]-(j:Job)-[:OF_TYPE]->(jt:JobType)
-      OPTIONAL MATCH (jt)-[:BELONGS_TO]->(c:Company)
+      OPTIONAL MATCH (c:Company)-[:HAS_JOB_TYPE]->(jt)
       OPTIONAL MATCH (j)-[:ASSIGNED_TO]->(dr:Driver)
       OPTIONAL MATCH (j)-[:USES_UNIT]->(u:Unit)
       RETURN i, d, 
@@ -109,18 +109,69 @@ export class PDFService {
     const invoice = record.i.properties;
     const dispatcher = record.d.properties;
     
-    const jobs = record.jobs.filter((j: any) => j.job).map((j: any) => ({
-      job: {
+    // Helper function to parse weights like in resolvers
+    const parseWeights = (weight: any): number[] => {
+      if (!weight) return [];
+      
+      // Already an array of numbers
+      if (Array.isArray(weight)) {
+        return weight.map((w: any) => parseFloat(w) || 0).filter((w: number) => !isNaN(w));
+      }
+      
+      // If it's a number
+      if (typeof weight === 'number') {
+        return [weight];
+      }
+      
+      // If it's a string, parse it
+      if (typeof weight === 'string') {
+        // Try to parse as JSON array first
+        if (weight.trim().startsWith('[') && weight.trim().endsWith(']')) {
+          try {
+            const parsed = JSON.parse(weight);
+            if (Array.isArray(parsed)) {
+              return parsed.map((w: any) => parseFloat(w) || 0).filter((w: number) => !isNaN(w));
+            }
+          } catch {
+            // Fall back to space-separated parsing
+          }
+        }
+        
+        // Split by spaces and parse each weight
+        return weight.split(' ')
+          .map((w: string) => parseFloat(w.trim()) || 0)
+          .filter((w: number) => !isNaN(w));
+      }
+      
+      // Try to parse as string
+      try {
+        const numValue = parseFloat(String(weight));
+        return isNaN(numValue) ? [] : [numValue];
+      } catch (error) {
+        console.warn(`Could not parse weight: ${weight}`, error);
+        return [];
+      }
+    };
+
+    const jobs = record.jobs.filter((j: any) => j.job).map((j: any) => {
+      const jobData = {
         ...j.job.properties,
+        weight: parseWeights(j.job.properties.weight), // Parse weight properly
+        loads: j.job.properties.loads?.toNumber ? j.job.properties.loads.toNumber() : (j.job.properties.loads || 0), // Handle Neo4j integer
         driver: j.driver?.properties,
         unit: j.unit?.properties,
         jobType: {
           ...j.jobType?.properties,
           company: j.company?.properties
         }
-      },
-      amount: j.amount
-    }));
+      };
+      
+      
+      return {
+        job: jobData,
+        amount: j.amount
+      };
+    });
 
     // Calculate correct amounts for each job to ensure consistency
     // Import validation service
@@ -202,21 +253,38 @@ export class PDFService {
     const calculateValue = (job: JobData): string => {
       const dispatchType = job.jobType?.dispatchType?.toLowerCase();
       
+      
       if (dispatchType === 'hourly') {
         if (job.startTime && job.endTime) {
-          const [sh, sm] = job.startTime.split(':').map(Number);
-          const [eh, em] = job.endTime.split(':').map(Number);
+          // Extract time portion from ISO datetime or handle HH:MM format
+          const extractTime = (timeStr: string) => {
+            if (timeStr.includes('T')) {
+              // ISO format like "2025-08-01T07:00"
+              return timeStr.split('T')[1].split('Z')[0]; // Get time part, remove Z if present
+            }
+            return timeStr; // Already in HH:MM format
+          };
+          
+          const startTimeStr = extractTime(job.startTime);
+          const endTimeStr = extractTime(job.endTime);
+          
+          const [sh, sm] = startTimeStr.split(':').map(Number);
+          const [eh, em] = endTimeStr.split(':').map(Number);
+          if ([sh, sm, eh, em].some((v) => isNaN(v))) return '';
           const start = sh * 60 + sm;
           let end = eh * 60 + em;
           if (end < start) end += 24 * 60; // Handle overnight jobs
           const hours = (end - start) / 60;
-          return hours.toFixed(2);
+          return isNaN(hours) ? '' : hours.toFixed(2);
         }
         return '';
       } else if (dispatchType === 'tonnage') {
         if (job.weight && Array.isArray(job.weight)) {
-          const totalWeight = job.weight.reduce((sum: number, w: number) => sum + (parseFloat(String(w)) || 0), 0);
-          return totalWeight.toFixed(2);
+          const totalWeight = job.weight.reduce((sum: number, w: number) => {
+            const weight = parseFloat(String(w)) || 0;
+            return sum + (isNaN(weight) ? 0 : weight);
+          }, 0);
+          return isNaN(totalWeight) || totalWeight === 0 ? '' : totalWeight.toFixed(2);
         } else if (job.weight) {
           // Legacy format handling for backward compatibility
           let weights: number[] = [];
@@ -238,12 +306,12 @@ export class PDFService {
               weights = weightValue.split(' ').map((w: string) => parseFloat(w.trim()) || 0).filter((w: number) => !isNaN(w));
             }
           }
-          const totalWeight = weights.reduce((sum: number, w: number) => sum + w, 0);
-          return totalWeight.toFixed(2);
+          const totalWeight = weights.reduce((sum: number, w: number) => sum + (isNaN(w) ? 0 : w), 0);
+          return isNaN(totalWeight) || totalWeight === 0 ? '' : totalWeight.toFixed(2);
         }
         return '';
       } else if (dispatchType === 'load' || dispatchType === 'loads') {
-        return job.loads?.toString() || '';
+        return job.loads != null && !isNaN(Number(job.loads)) ? job.loads.toString() : '';
       } else if (dispatchType === 'fixed') {
         return '1';
       }
@@ -320,6 +388,64 @@ export class PDFService {
       });
     });
 
+    // Build summary rows, conditionally include commission row
+    const summaryRows: any[] = [];
+    if (invoiceData.calculations.commission > 0) {
+      summaryRows.push([
+        { text: '', style: 'tableCell', border: [false, false, false, false] },
+        { text: '', style: 'tableCell', border: [false, false, false, false] },
+        { text: '', style: 'tableCell', border: [false, false, false, false] },
+        { text: '', style: 'tableCell', border: [false, false, false, false] },
+        { text: '', style: 'tableCell', border: [false, false, false, false] },
+        { text: '', style: 'tableCell', border: [false, false, false, false] },
+        { text: '', style: 'tableCell', border: [false, false, false, false] },
+        {
+          text: `COMM. (${invoiceData.dispatcher.commissionPercent?.toFixed(1) || '0'}%)`,
+          fontSize: 11,
+          bold: true,
+          color: 'maroon',
+          alignment: 'right',
+          border: [false, false, false, false],
+          fillColor: null
+        },
+        {
+          text: `- $${invoiceData.calculations.commission.toFixed(2)}`,
+          fontSize: 11,
+          color: 'maroon',
+          alignment: 'right',
+          border: [false, false, false, false],
+          fillColor: null
+        },
+      ]);
+    }
+    summaryRows.push([
+      { text: '', style: 'tableCell', border: [false, false, false, false] },
+      { text: '', style: 'tableCell', border: [false, false, false, false] },
+      { text: '', style: 'tableCell', border: [false, false, false, false] },
+      { text: '', style: 'tableCell', border: [false, false, false, false] },
+      { text: '', style: 'tableCell', border: [false, false, false, false] },
+      { text: '', style: 'tableCell', border: [false, false, false, false] },
+      { text: '', style: 'tableCell', border: [false, false, false, false] },
+      {
+        text: 'TOTAL',
+        fontSize: 12,
+        bold: true,
+        color: 'black',
+        alignment: 'right',
+        border: [false, true, false, false],
+        fillColor: null
+      },
+      {
+        text: `$${invoiceData.calculations.total.toFixed(2)}`,
+        fontSize: 12,
+        bold: true,
+        color: 'black',
+        alignment: 'right',
+        border: [false, true, false, false],
+        fillColor: null
+      },
+    ]);
+
     const content = [
       // Header section
       {
@@ -354,112 +480,7 @@ export class PDFService {
           body: [
             tableHeader,
             ...tableRows,
-            // Summary rows
-            [
-              { text: '', style: 'tableCell', border: [false, false, false, false] },
-              { text: '', style: 'tableCell', border: [false, false, false, false] },
-              { text: '', style: 'tableCell', border: [false, false, false, false] },
-              { text: '', style: 'tableCell', border: [false, false, false, false] },
-              { text: '', style: 'tableCell', border: [false, false, false, false] },
-              { text: '', style: 'tableCell', border: [false, false, false, false] },
-              { text: '', style: 'tableCell', border: [false, false, false, false] },
-              {
-                text: 'SUBTOTAL',
-                fontSize: 11,
-                bold: true,
-                color: 'black',
-                alignment: 'right',
-                border: [false, true, false, false],
-                fillColor: null
-              },
-              {
-                text: `$${invoiceData.calculations.subTotal.toFixed(2)}`,
-                fontSize: 11,
-                color: 'black',
-                alignment: 'right',
-                border: [false, true, false, false],
-                fillColor: null
-              },
-            ],
-            [
-              { text: '', style: 'tableCell', border: [false, false, false, false] },
-              { text: '', style: 'tableCell', border: [false, false, false, false] },
-              { text: '', style: 'tableCell', border: [false, false, false, false] },
-              { text: '', style: 'tableCell', border: [false, false, false, false] },
-              { text: '', style: 'tableCell', border: [false, false, false, false] },
-              { text: '', style: 'tableCell', border: [false, false, false, false] },
-              { text: '', style: 'tableCell', border: [false, false, false, false] },
-              {
-                text: 'HST (13%)',
-                fontSize: 11,
-                bold: true,
-                color: 'black',
-                alignment: 'right',
-                border: [false, false, false, false],
-                fillColor: null
-              },
-              {
-                text: `$${invoiceData.calculations.hst.toFixed(2)}`,
-                fontSize: 11,
-                color: 'black',
-                alignment: 'right',
-                border: [false, false, false, false],
-                fillColor: null
-              },
-            ],
-            [
-              { text: '', style: 'tableCell', border: [false, false, false, false] },
-              { text: '', style: 'tableCell', border: [false, false, false, false] },
-              { text: '', style: 'tableCell', border: [false, false, false, false] },
-              { text: '', style: 'tableCell', border: [false, false, false, false] },
-              { text: '', style: 'tableCell', border: [false, false, false, false] },
-              { text: '', style: 'tableCell', border: [false, false, false, false] },
-              { text: '', style: 'tableCell', border: [false, false, false, false] },
-              {
-                text: `COMM. (${invoiceData.dispatcher.commissionPercent?.toFixed(1) || '0'}%)`,
-                fontSize: 11,
-                bold: true,
-                color: 'maroon',
-                alignment: 'right',
-                border: [false, false, false, false],
-                fillColor: null
-              },
-              {
-                text: `- $${invoiceData.calculations.commission.toFixed(2)}`,
-                fontSize: 11,
-                color: 'maroon',
-                alignment: 'right',
-                border: [false, false, false, false],
-                fillColor: null
-              },
-            ],
-            [
-              { text: '', style: 'tableCell', border: [false, false, false, false] },
-              { text: '', style: 'tableCell', border: [false, false, false, false] },
-              { text: '', style: 'tableCell', border: [false, false, false, false] },
-              { text: '', style: 'tableCell', border: [false, false, false, false] },
-              { text: '', style: 'tableCell', border: [false, false, false, false] },
-              { text: '', style: 'tableCell', border: [false, false, false, false] },
-              { text: '', style: 'tableCell', border: [false, false, false, false] },
-              {
-                text: 'TOTAL',
-                fontSize: 12,
-                bold: true,
-                color: 'black',
-                alignment: 'right',
-                border: [false, true, false, false],
-                fillColor: null
-              },
-              {
-                text: `$${invoiceData.calculations.total.toFixed(2)}`,
-                fontSize: 12,
-                bold: true,
-                color: 'black',
-                alignment: 'right',
-                border: [false, true, false, false],
-                fillColor: null
-              },
-            ],
+            ...summaryRows,
           ],
         },
         layout: {

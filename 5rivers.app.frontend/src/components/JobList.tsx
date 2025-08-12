@@ -173,7 +173,7 @@ export function JobList({ jobs, onJobSuccess, onDeleteJob }: JobListProps) {
       
       case 'tonnage':
         const weightDisplay = job.weight && Array.isArray(job.weight) 
-          ? job.weight.reduce((sum, w) => sum + w, 0).toFixed(1) + ' tons'
+          ? job.weight.reduce((sum, w) => sum + (parseFloat(String(w)) || 0), 0).toFixed(1) + ' tons'
           : job.weight 
             ? `${job.weight} tons`
             : 'No weight';
@@ -274,7 +274,7 @@ export function JobList({ jobs, onJobSuccess, onDeleteJob }: JobListProps) {
       
       case 'tonnage':
         const weightDisplay = job.weight && Array.isArray(job.weight) 
-          ? job.weight.reduce((sum, w) => sum + w, 0).toFixed(1) + ' tons'
+          ? job.weight.reduce((sum, w) => sum + (parseFloat(String(w)) || 0), 0).toFixed(1) + ' tons'
           : job.weight 
             ? `${job.weight} tons`
             : 'No weight';

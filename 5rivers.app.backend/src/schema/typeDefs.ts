@@ -262,6 +262,8 @@ export const typeDefs = `
     status: String
     billedTo: String
     billedEmail: String
+    dispatcherId: ID
+    jobIds: [ID!]
   }
 
   input CreateJobInput {

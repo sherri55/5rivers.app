@@ -168,7 +168,11 @@ export const InvoiceModal = ({ invoice, invoiceId, trigger, onSuccess }: Invoice
   const totalDriverPay = selectedJobs.reduce((sum: number, job: any) => sum + getDriverPay(job), 0);
 
   const getAvailableJobs = () => {
-    return allJobs
+    // Sort jobs by jobDate ascending
+    return allJobs.slice().sort((a: any, b: any) => {
+      if (!a.jobDate || !b.jobDate) return 0;
+      return new Date(a.jobDate).getTime() - new Date(b.jobDate).getTime();
+    });
   }
 
   const calculateTotal = () => {
@@ -178,26 +182,54 @@ export const InvoiceModal = ({ invoice, invoiceId, trigger, onSuccess }: Invoice
     }, 0)
   }
 
-  const prepareInvoiceInput = (formData: any, selectedJobIds: string[]) => {
+  // Helper to deeply sanitize input for GraphQL/Neo4j (only primitives or arrays of primitives)
+  function sanitizeForGraphQL(obj: any): any {
+    if (obj === null || obj === undefined) return obj;
+    if (typeof obj === 'string' || typeof obj === 'number' || typeof obj === 'boolean') return obj;
+    if (Array.isArray(obj)) return obj.map(sanitizeForGraphQL);
+    if (obj instanceof Map) return undefined;
+    if (typeof obj === 'object') {
+      // Only keep primitive or array values
+      const clean: any = {};
+      Object.keys(obj).forEach(key => {
+        const val = obj[key];
+        if (
+          val === null ||
+          val === undefined ||
+          typeof val === 'string' ||
+          typeof val === 'number' ||
+          typeof val === 'boolean' ||
+          (Array.isArray(val) && val.every(v => (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean')))
+        ) {
+          clean[key] = val;
+        }
+      });
+      return clean;
+    }
+    return undefined;
+  }
+
+  const prepareInvoiceInput = (formData: any, selectedJobIds: string[], isUpdate: boolean = false) => {
     // Convert invoiceDate to ISO string if present
     const input: any = {
       ...formData,
       invoiceDate: formData.invoiceDate ? new Date(formData.invoiceDate).toISOString() : undefined,
       jobIds: selectedJobIds
     }
+    
+    // Add invoice ID for updates
+    if (isUpdate && resolvedInvoice?.id) {
+      input.id = resolvedInvoice.id;
+    }
+    
     // Remove notes if not supported by backend
     delete input.notes
     // Remove dispatcherId if empty or 'ALL'
     if (!input.dispatcherId || input.dispatcherId === "ALL") {
       delete input.dispatcherId
     }
-    // Remove any object-type fields (should not happen, but for safety)
-    Object.keys(input).forEach(key => {
-      if (typeof input[key] === 'object' && !Array.isArray(input[key]) && input[key] !== null) {
-        delete input[key]
-      }
-    })
-    return input
+    // Deep sanitize
+    return sanitizeForGraphQL(input);
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -213,10 +245,10 @@ export const InvoiceModal = ({ invoice, invoiceId, trigger, onSuccess }: Invoice
     }
 
     try {
-      const input = prepareInvoiceInput(formData, selectedJobIds)
-      console.log('Invoice input being sent:', input)
       if (isEditMode) {
         // Update invoice
+        const input = prepareInvoiceInput(formData, selectedJobIds, true)
+        console.log('Invoice input being sent:', input)
         await updateInvoice({
           variables: {
             input
@@ -244,6 +276,8 @@ export const InvoiceModal = ({ invoice, invoiceId, trigger, onSuccess }: Invoice
         })
       } else {
         // Create invoice
+        const input = prepareInvoiceInput(formData, selectedJobIds, false)
+        console.log('Invoice input being sent:', input)
         await createInvoice({
           variables: {
             input
@@ -416,7 +450,10 @@ export const InvoiceModal = ({ invoice, invoiceId, trigger, onSuccess }: Invoice
                     <div className="flex items-center justify-between">
                       <div className="flex-1">
                         <p className="text-sm font-medium">
-                          {job.jobType?.title || 'Unknown Job'} - {new Date(job.jobDate).toLocaleDateString()}
+                          {job.jobType?.title || 'Unknown Job'}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Date: {job.jobDate ? new Date(job.jobDate).toLocaleDateString() : 'N/A'}
                         </p>
                         <p className="text-xs text-muted-foreground">
                           {job.driver?.name} • {job.dispatcher?.name}
