@@ -162,7 +162,7 @@ export const DriverJobsViewModal = ({ trigger, driver }: DriverJobsViewModalProp
                     </div>
                     
                     <div className="mt-3 pt-3 border-t flex items-center justify-between text-xs text-muted-foreground">
-                      <div>Payment: {job.paymentReceived ? 'Received' : 'Pending'}</div>
+                      <div>Invoice Status: {job.invoiceStatus === 'RECEIVED' ? 'Received' : 'Pending'}</div>
                       <div>Driver Paid: {job.driverPaid ? 'Yes' : 'No'}</div>
                     </div>
                   </CardContent>

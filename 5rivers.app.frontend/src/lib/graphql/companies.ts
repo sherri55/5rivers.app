@@ -26,7 +26,6 @@ export const GET_COMPANIES = gql`
           id
           jobDate
           invoiceStatus
-          paymentReceived
         }
       }
       totalCount
@@ -60,7 +59,6 @@ export const GET_COMPANY = gql`
         loads
         startTime
         endTime
-        paymentReceived
         driverPaid
         calculatedAmount
         createdAt

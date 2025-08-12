@@ -33,14 +33,14 @@ export function JobDetailModal({ job, trigger }: JobDetailModalProps) {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'Completed': return 'bg-green-100 text-green-800'
-      case 'Payment Received': return 'bg-blue-100 text-blue-800'
+      case 'Received': return 'bg-blue-100 text-blue-800'
       case 'Pending': return 'bg-yellow-100 text-yellow-800'
       default: return 'bg-gray-100 text-gray-800'
     }
   }
 
-  const status = job?.paymentReceived && job?.driverPaid ? 'Completed' : 
-                job?.paymentReceived ? 'Payment Received' : 'Pending'
+  const status = job?.invoiceStatus === 'RECEIVED' && job?.driverPaid ? 'Completed' : 
+                job?.invoiceStatus === 'RECEIVED' ? 'Received' : 'Pending'
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -230,9 +230,9 @@ export function JobDetailModal({ job, trigger }: JobDetailModalProps) {
               
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm font-medium">Payment Received</p>
-                  <Badge variant={job?.paymentReceived ? "default" : "secondary"}>
-                    {job?.paymentReceived ? "Yes" : "No"}
+                  <p className="text-sm font-medium">Invoice Status</p>
+                  <Badge variant={job?.invoiceStatus === 'RECEIVED' ? "default" : "secondary"}>
+                    {job?.invoiceStatus === 'RECEIVED' ? "Received" : "Pending"}
                   </Badge>
                 </div>
                 <div>

@@ -209,7 +209,6 @@ export function JobModal({ job, trigger, onSuccess }: JobModalProps) {
     startTime: job ? formatDateTimeLocal(job.startTime || "", job.jobDate) : "",
     endTime: job ? formatDateTimeLocal(job.endTime || "", job.jobDate) : "",
     invoiceStatus: job?.invoiceStatus || "Pending",
-    paymentReceived: job?.paymentReceived || false,
     driverPaid: job?.driverPaid || false,
     ticketIds: (() => {
       if (!job) return ""
@@ -326,7 +325,6 @@ export function JobModal({ job, trigger, onSuccess }: JobModalProps) {
           startTime: formatDateTimeLocal(job.startTime || "", job.jobDate),
           endTime: formatDateTimeLocal(job.endTime || "", job.jobDate),
           invoiceStatus: job.invoiceStatus || "Pending",
-          paymentReceived: job.paymentReceived || false,
           driverPaid: job.driverPaid || false,
           ticketIds: (() => {
             if (Array.isArray(job.ticketIds)) {
@@ -399,7 +397,6 @@ export function JobModal({ job, trigger, onSuccess }: JobModalProps) {
           startTime: "",
           endTime: "",
           invoiceStatus: "Pending",
-          paymentReceived: false,
           driverPaid: false,
           ticketIds: "",
         })
@@ -546,7 +543,6 @@ export function JobModal({ job, trigger, onSuccess }: JobModalProps) {
         dispatcherId: formData.dispatcherId !== "none" ? formData.dispatcherId : null,
         unitId: formData.unitId !== "none" ? formData.unitId : null,
         invoiceStatus: formData.invoiceStatus,
-        paymentReceived: formData.paymentReceived,
         driverPaid: formData.driverPaid,
         ticketIds: ticketIdValues, // Send ticket IDs as array to backend
         images: allImages, // Array of image URLs
@@ -1013,14 +1009,7 @@ export function JobModal({ job, trigger, onSuccess }: JobModalProps) {
               </Select>
             </div>
 
-            <div className="flex items-center space-x-2">
-              <Switch
-                id="paymentReceived"
-                checked={formData.paymentReceived}
-                onCheckedChange={(checked) => setFormData(prev => ({ ...prev, paymentReceived: checked }))}
-              />
-              <Label htmlFor="paymentReceived">Payment Received</Label>
-            </div>
+            {/* Payment Received removed */}
 
             <div className="flex items-center space-x-2">
               <Switch
@@ -1064,7 +1053,7 @@ export function JobModal({ job, trigger, onSuccess }: JobModalProps) {
         </div>
       </DialogContent>
     </Dialog>
-  )
+  );
 }
 
 

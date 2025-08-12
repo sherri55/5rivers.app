@@ -87,7 +87,7 @@ export const typeDefs = `
     endTime: String
     amount: Float
     ticketIds: [String]
-    paymentReceived: Boolean!
+    # paymentReceived: Boolean! (removed)
     driverPaid: Boolean!
     imageUrls: String
     images: [String]
@@ -276,7 +276,7 @@ export const typeDefs = `
     startTime: String
     endTime: String
     invoiceStatus: String!
-    paymentReceived: Boolean!
+    # paymentReceived: Boolean! (removed)
     driverPaid: Boolean!
     ticketIds: [String]
     imageUrls: String
@@ -296,7 +296,7 @@ export const typeDefs = `
     endTime: String
     amount: Float
     invoiceStatus: String
-    paymentReceived: Boolean
+    # paymentReceived: Boolean (removed)
     driverPaid: Boolean
     ticketIds: [String]
     imageUrls: String
@@ -312,7 +312,7 @@ export const typeDefs = `
     jobTypeId: ID
     companyId: ID
     invoiceStatus: String
-    paymentReceived: Boolean
+    # paymentReceived: Boolean (removed)
     driverPaid: Boolean
   }
 
@@ -510,7 +510,7 @@ export const typeDefs = `
     updateJob(input: UpdateJobInput!): Job!
     deleteJob(id: ID!): Boolean!
     updateJobStatus(id: ID!, status: String!): Job!
-    markJobPaid(id: ID!, driverPaid: Boolean!, paymentReceived: Boolean!): Job!
+    markJobPaid(id: ID!, driverPaid: Boolean!): Job!
     
     # Quick mutations for common operations
     assignJobToDriver(jobId: ID!, driverId: ID!): Job!

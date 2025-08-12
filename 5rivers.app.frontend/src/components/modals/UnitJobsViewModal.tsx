@@ -80,7 +80,7 @@ export const UnitJobsViewModal = ({ trigger, unit }: UnitJobsViewModalProps) => 
                         <Badge className={getStatusColor(job.invoiceStatus)}>
                           {job.invoiceStatus?.replace('_', ' ') || 'Pending'}
                         </Badge>
-                        {job.paymentReceived && (
+                        {job.invoiceStatus === 'RECEIVED' && (
                           <Badge className="bg-green-100 text-green-800">
                             Paid
                           </Badge>

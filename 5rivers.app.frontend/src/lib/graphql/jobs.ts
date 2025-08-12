@@ -14,14 +14,12 @@ export const GET_JOBS = gql`
         endTime
         amount
         ticketIds
-        paymentReceived
         driverPaid
         imageUrls
         images
         calculatedAmount
         calculatedHours
         driverPay
-        createdAt
         updatedAt
         jobType {
           id
@@ -69,7 +67,6 @@ export const GET_JOB = gql`
       startTime
       endTime
       ticketIds
-      paymentReceived
       driverPaid
       imageUrls
       images
@@ -154,7 +151,6 @@ export const CREATE_JOB = gql`
       startTime
       endTime
       ticketIds
-      imageUrls
       images
       calculatedAmount
       calculatedHours
@@ -195,16 +191,6 @@ export const UPDATE_JOB_STATUS = gql`
   }
 `
 
-export const MARK_JOB_PAID = gql`
-  mutation MarkJobPaid($id: ID!, $driverPaid: Boolean!, $paymentReceived: Boolean!) {
-    markJobPaid(id: $id, driverPaid: $driverPaid, paymentReceived: $paymentReceived) {
-      id
-      driverPaid
-      paymentReceived
-      updatedAt
-    }
-  }
-`
 
 export const ASSIGN_JOB_TO_DRIVER = gql`
   mutation AssignJobToDriver($jobId: ID!, $driverId: ID!) {
@@ -257,7 +243,6 @@ export const UPDATE_JOB = gql`
       endTime
       amount
       ticketIds
-      paymentReceived
       driverPaid
       imageUrls
       images

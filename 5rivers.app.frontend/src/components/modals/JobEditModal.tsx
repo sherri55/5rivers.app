@@ -19,7 +19,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import { X } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
@@ -161,8 +160,6 @@ export function JobEditModal({ job, trigger, onSuccess }: JobEditModalProps) {
     endTime: formatDateTimeLocal(job?.endTime || "", job?.jobDate),
     // amount removed - now calculated automatically
     invoiceStatus: job?.invoiceStatus || "Pending",
-    paymentReceived: job?.paymentReceived || false,
-    driverPaid: job?.driverPaid || false,
     ticketIds: (() => {
       if (Array.isArray(job?.ticketIds)) {
         return job.ticketIds.flatMap((item: any) => {
@@ -218,8 +215,6 @@ export function JobEditModal({ job, trigger, onSuccess }: JobEditModalProps) {
         endTime: formatDateTimeLocal(job.endTime || "", job.jobDate),
         // amount removed - now calculated automatically
         invoiceStatus: job.invoiceStatus || "Pending",
-        paymentReceived: job.paymentReceived || false,
-        driverPaid: job.driverPaid || false,
         ticketIds: (() => {
           if (Array.isArray(job.ticketIds)) {
             return job.ticketIds.flatMap((item: any) => {
@@ -307,8 +302,6 @@ export function JobEditModal({ job, trigger, onSuccess }: JobEditModalProps) {
         dispatcherId: formData.dispatcherId !== "none" ? formData.dispatcherId : null,
         unitId: formData.unitId !== "none" ? formData.unitId : null,
         invoiceStatus: formData.invoiceStatus,
-        paymentReceived: formData.paymentReceived,
-        driverPaid: formData.driverPaid,
         ticketIds: ticketIdValues, // Send ticket IDs as array to backend
         imageUrls: formData.imageUrls,
         // Note: amount is calculated automatically, not submitted
@@ -698,28 +691,7 @@ export function JobEditModal({ job, trigger, onSuccess }: JobEditModalProps) {
               </Select>
             </div>
 
-            <div className="flex items-center space-x-2">
-              <Switch
-                id="paymentReceived"
-                checked={formData.paymentReceived}
-                onCheckedChange={(checked) => setFormData(prev => ({ ...prev, paymentReceived: checked }))}
-              />
-              <Label htmlFor="paymentReceived">Payment Received</Label>
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <Switch
-                id="driverPaid"
-                checked={formData.driverPaid}
-                onCheckedChange={(checked) => setFormData(prev => ({ ...prev, driverPaid: checked }))}
-              />
-              <Label htmlFor="driverPaid">Driver Paid</Label>
-            </div>
-          </div>
-
-          {/* Calculated Information (Read-only) */}
-          <div className="bg-muted/30 p-4 rounded-lg space-y-2">
-            <h3 className="font-medium text-foreground">Calculated Information (Read-only)</h3>
+            {/* Payment Received removed */}
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <span className="text-muted-foreground">Calculated Amount:</span>

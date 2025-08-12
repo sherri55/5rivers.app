@@ -16,12 +16,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Switch } from "@/components/ui/switch"
 import { toast } from "@/hooks/use-toast"
 import { GET_DRIVERS } from "@/lib/graphql/drivers"
 import { GET_UNITS } from "@/lib/graphql/units"
 import { 
-  MARK_JOB_PAID, 
   UPDATE_JOB_STATUS, 
   ASSIGN_JOB_TO_DRIVER, 
   ASSIGN_JOB_TO_UNIT 
@@ -37,8 +35,6 @@ export function JobEditModal({ job, trigger, onSuccess }: JobEditModalProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [formData, setFormData] = useState({
     invoiceStatus: job?.invoiceStatus || "Pending",
-    paymentReceived: job?.paymentReceived || false,
-    driverPaid: job?.driverPaid || false,
     driverId: job?.driver?.id || "",
     unitId: job?.unit?.id || "",
   })
@@ -53,7 +49,6 @@ export function JobEditModal({ job, trigger, onSuccess }: JobEditModalProps) {
   })
 
   // Mutations
-  const [markJobPaid] = useMutation(MARK_JOB_PAID)
   const [updateJobStatus] = useMutation(UPDATE_JOB_STATUS)
   const [assignJobToDriver] = useMutation(ASSIGN_JOB_TO_DRIVER)
   const [assignJobToUnit] = useMutation(ASSIGN_JOB_TO_UNIT)
@@ -61,15 +56,6 @@ export function JobEditModal({ job, trigger, onSuccess }: JobEditModalProps) {
   const handleSave = async () => {
     try {
       // Update payment status if changed
-      if (formData.paymentReceived !== job?.paymentReceived || formData.driverPaid !== job?.driverPaid) {
-        await markJobPaid({
-          variables: {
-            id: job.id,
-            driverPaid: formData.driverPaid,
-            paymentReceived: formData.paymentReceived
-          }
-        })
-      }
 
       // Update invoice status if changed
       if (formData.invoiceStatus !== job?.invoiceStatus) {
@@ -243,28 +229,7 @@ export function JobEditModal({ job, trigger, onSuccess }: JobEditModalProps) {
               </Select>
             </div>
 
-            <div className="flex items-center space-x-2">
-              <Switch
-                id="paymentReceived"
-                checked={formData.paymentReceived}
-                onCheckedChange={(checked) => setFormData(prev => ({ ...prev, paymentReceived: checked }))}
-              />
-              <Label htmlFor="paymentReceived">Payment Received</Label>
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <Switch
-                id="driverPaid"
-                checked={formData.driverPaid}
-                onCheckedChange={(checked) => setFormData(prev => ({ ...prev, driverPaid: checked }))}
-              />
-              <Label htmlFor="driverPaid">Driver Paid</Label>
-            </div>
-          </div>
-
-          {/* Calculated Information (Read-only) */}
-          <div className="bg-muted/30 p-4 rounded-lg space-y-2">
-            <h3 className="font-medium text-foreground">Calculated Information (Read-only)</h3>
+            {/* Payment Received removed */}
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <span className="text-muted-foreground">Calculated Amount:</span>

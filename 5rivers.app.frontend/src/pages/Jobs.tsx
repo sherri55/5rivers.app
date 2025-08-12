@@ -32,7 +32,6 @@ interface Job {
   loads?: number
   startTime?: string
   endTime?: string
-  paymentReceived: boolean
   driverPaid: boolean
   calculatedAmount?: number
   driverPay?: number
@@ -134,8 +133,8 @@ function CalendarView({ jobs, currentDate, onDateChange, onJobSuccess, onDeleteJ
   }
 
   const getStatusColor = (job: Job) => {
-    if (job.paymentReceived && job.driverPaid) return "bg-green-500"
-    if (job.paymentReceived) return "bg-blue-500"
+    if (job.invoiceStatus === 'RECEIVED' && job.driverPaid) return "bg-green-500"
+    if (job.invoiceStatus === 'RECEIVED') return "bg-blue-500"
     return "bg-yellow-500"
   }
 
@@ -223,9 +222,9 @@ function CalendarView({ jobs, currentDate, onDateChange, onJobSuccess, onDeleteJ
                         className={`text-xs rounded-md p-1.5 border-l-2 transition-all ${
                           hasMissingRate(job)
                             ? "bg-orange-50 border-orange-500 text-orange-800"
-                            : job.paymentReceived && job.driverPaid 
-                            ? "bg-green-50 border-green-500 text-green-800" 
-                            : job.paymentReceived 
+                            : job.invoiceStatus === 'RECEIVED' && job.driverPaid
+                            ? "bg-green-50 border-green-500 text-green-800"
+                            : job.invoiceStatus === 'RECEIVED'
                             ? "bg-blue-50 border-blue-500 text-blue-800"
                             : "bg-yellow-50 border-yellow-500 text-yellow-800"
                         }`}

@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Calendar, DollarSign, User, Receipt, Clock, Eye, Edit, FileText, AlertTriangle } from "lucide-react"
+import { Calendar, DollarSign, User, Receipt, Clock, Eye, Edit, FileText, AlertTriangle, Truck, Weight, Package } from "lucide-react"
 import { JobDetailModal } from "@/components/modals/JobDetailModal"
 import { JobModal } from "@/components/modals/JobModal"
 import { JobTypeViewModal } from "@/components/modals/JobTypeViewModal"
@@ -22,7 +22,6 @@ interface Job {
   loads?: number
   startTime?: string
   endTime?: string
-  paymentReceived: boolean
   driverPaid: boolean
   calculatedAmount?: number
   driverPay?: number
@@ -74,12 +73,7 @@ export function JobList({ jobs, onJobSuccess, onDeleteJob }: JobListProps) {
   }, [jobs])
 
   // Helper to update jobs in both localJobs and jobs prop array
-  const updateJobsLocally = (ids: string[], changes: Partial<Job>) => {
-    setLocalJobs(prev => prev.map(job => ids.includes(job.id) ? { ...job, ...changes } : job))
-    jobs.forEach(job => {
-      if (ids.includes(job.id)) Object.assign(job, changes)
-    })
-  }
+
 
   // Group jobs by month-year
   const groupJobsByMonth = (jobList: Job[]) => {
@@ -123,9 +117,13 @@ export function JobList({ jobs, onJobSuccess, onDeleteJob }: JobListProps) {
   }
 
   const getStatusColor = (job: Job) => {
-    if (job.paymentReceived && job.driverPaid) return "bg-green-100 text-green-800"
-    if (job.paymentReceived) return "bg-blue-100 text-blue-800"
-    return "bg-yellow-100 text-yellow-800"
+    switch (job.invoiceStatus) {
+      case "RECEIVED":
+        return job.driverPaid ? "bg-green-100 text-green-800" : "bg-blue-100 text-blue-800";
+      case "PENDING":
+      default:
+        return "bg-yellow-100 text-yellow-800";
+    }
   }
 
   // Check if a job has missing rate
@@ -160,24 +158,210 @@ export function JobList({ jobs, onJobSuccess, onDeleteJob }: JobListProps) {
     return getAmountAfterCommission(job) * (hourlyRate / 100);
   };
 
-  // Calculate totals for selected jobs
+  // Get job-specific attribute based on dispatch type
+  const getJobSpecificAttribute = (job: Job) => {
+    const dispatchType = job.jobType?.dispatchType?.toLowerCase();
+    
+    switch (dispatchType) {
+      case 'hourly':
+        return (
+          <div className="flex items-center gap-1">
+            <Clock className="h-3 w-3" />
+            <span>{safeFormatTimeRange(job.startTime, job.endTime)}</span>
+          </div>
+        );
+      
+      case 'tonnage':
+        const weightDisplay = job.weight && Array.isArray(job.weight) 
+          ? job.weight.reduce((sum, w) => sum + w, 0).toFixed(1) + ' tons'
+          : job.weight 
+            ? `${job.weight} tons`
+            : 'No weight';
+        return (
+          <div className="flex items-center gap-1">
+            <Weight className="h-3 w-3" />
+            <span>{weightDisplay}</span>
+          </div>
+        );
+      
+      case 'load':
+        return (
+          <div className="flex items-center gap-1">
+            <Package className="h-3 w-3" />
+            <span>{job.loads || 0} loads</span>
+          </div>
+        );
+      
+      case 'fixed':
+        return (
+          <div className="flex items-center gap-1">
+            <span className="text-xs bg-muted rounded px-1">FIXED</span>
+            <span>Fixed rate</span>
+          </div>
+        );
+      
+      default:
+        return (
+          <div className="flex items-center gap-1">
+            <Clock className="h-3 w-3" />
+            <span>{safeFormatTimeRange(job.startTime, job.endTime)}</span>
+          </div>
+        );
+    }
+  };
+
+  // Get color scheme for dispatch type
+  const getDispatchTypeColors = (dispatchType: string) => {
+    switch (dispatchType.toLowerCase()) {
+      case 'hourly':
+        return {
+          badge: 'bg-blue-100 text-blue-800 border-blue-200',
+          background: 'bg-blue-50',
+          icon: 'text-blue-600',
+          text: 'text-blue-700'
+        };
+      case 'tonnage':
+        return {
+          badge: 'bg-green-100 text-green-800 border-green-200',
+          background: 'bg-green-50',
+          icon: 'text-green-600',
+          text: 'text-green-700'
+        };
+      case 'load':
+        return {
+          badge: 'bg-purple-100 text-purple-800 border-purple-200',
+          background: 'bg-purple-50',
+          icon: 'text-purple-600',
+          text: 'text-purple-700'
+        };
+      case 'fixed':
+        return {
+          badge: 'bg-amber-100 text-amber-800 border-amber-200',
+          background: 'bg-amber-50',
+          icon: 'text-amber-600',
+          text: 'text-amber-700'
+        };
+      default:
+        return {
+          badge: 'bg-gray-100 text-gray-800 border-gray-200',
+          background: 'bg-gray-50',
+          icon: 'text-gray-600',
+          text: 'text-gray-700'
+        };
+    }
+  };
+
+  // Grid-optimized version with label and value
+  const getJobSpecificAttributeForGrid = (job: Job) => {
+    const dispatchType = job.jobType?.dispatchType?.toLowerCase() || 'unknown';
+    const colors = getDispatchTypeColors(dispatchType);
+    const rate = job.jobType?.rateOfJob;
+    
+    switch (dispatchType) {
+      case 'hourly':
+        return (
+          <>
+            <div className={`flex items-center gap-1 ${colors.text}`}>
+              <Clock className={`h-3 w-3 ${colors.icon}`} />
+              <span>Time:</span>
+            </div>
+            <div className={`truncate ml-1 ${colors.text}`}>
+              <span className="font-medium">{safeFormatTimeRange(job.startTime, job.endTime)}</span>
+              {rate && <span className="text-xs ml-1">(${rate}/hr)</span>}
+            </div>
+          </>
+        );
+      
+      case 'tonnage':
+        const weightDisplay = job.weight && Array.isArray(job.weight) 
+          ? job.weight.reduce((sum, w) => sum + w, 0).toFixed(1) + ' tons'
+          : job.weight 
+            ? `${job.weight} tons`
+            : 'No weight';
+        return (
+          <>
+            <div className={`flex items-center gap-1 ${colors.text}`}>
+              <Weight className={`h-3 w-3 ${colors.icon}`} />
+              <span>Weight:</span>
+            </div>
+            <div className={`truncate ml-1 ${colors.text}`}>
+              <span className="font-medium">{weightDisplay}</span>
+              {rate && <span className="text-xs ml-1">(${rate}/ton)</span>}
+            </div>
+          </>
+        );
+      
+      case 'load':
+        return (
+          <>
+            <div className={`flex items-center gap-1 ${colors.text}`}>
+              <Package className={`h-3 w-3 ${colors.icon}`} />
+              <span>Loads:</span>
+            </div>
+            <div className={`truncate ml-1 ${colors.text}`}>
+              <span className="font-medium">{job.loads || 0}</span>
+              {rate && <span className="text-xs ml-1">(${rate}/load)</span>}
+            </div>
+          </>
+        );
+      
+      case 'fixed':
+        return (
+          <>
+            <div className={`flex items-center gap-1 ${colors.text}`}>
+              <DollarSign className={`h-3 w-3 ${colors.icon}`} />
+              <span>Rate:</span>
+            </div>
+            <div className={`truncate ml-1 ${colors.text}`}>
+              <span className="font-medium">
+                {rate ? `$${rate}` : 'Not set'}
+              </span>
+              {rate && <span className="text-xs ml-1">(fixed)</span>}
+            </div>
+          </>
+        );
+      
+      default:
+        return (
+          <>
+            <div className={`flex items-center gap-1 ${colors.text}`}>
+              <Clock className={`h-3 w-3 ${colors.icon}`} />
+              <span>Time:</span>
+            </div>
+            <div className={`truncate ml-1 ${colors.text}`}>
+              <span className="font-medium">{safeFormatTimeRange(job.startTime, job.endTime)}</span>
+              {rate && <span className="text-xs ml-1">(${rate}/hr)</span>}
+            </div>
+          </>
+        );
+    }
+  };
+
+
+  // --- New: Selected jobs and batch update logic ---
   const selectedJobsList = localJobs.filter(job => selectedJobIds.includes(job.id));
   const totalBeforeCommission = selectedJobsList.reduce((sum, job) => sum + addHST(job.calculatedAmount || 0), 0);
   const totalCommission = selectedJobsList.reduce((sum, job) => sum + getCommission(job), 0);
   const totalAfterCommission = selectedJobsList.reduce((sum, job) => sum + getAmountAfterCommission(job), 0);
   const totalDriverPay = selectedJobsList.reduce((sum, job) => sum + getDriverPay(job), 0);
 
-  // Handle job selection
   const handleJobSelection = (jobId: string, checked: boolean) => {
-    if (checked) {
-      setSelectedJobIds([...selectedJobIds, jobId])
-    } else {
-      setSelectedJobIds(selectedJobIds.filter(id => id !== jobId))
-    }
-  }
+    setSelectedJobIds(prev => checked ? [...prev, jobId] : prev.filter(id => id !== jobId));
+  };
 
-  // Calculate totals for selected jobs
-  // Removed unused calculateSelectedJobsTotals function and fixed all driver pay calculations to use driver.hourlyRate
+  // Batch update handler
+  const handleBatchUpdate = async (changes: Partial<Job>, successMsg: string) => {
+    if (selectedJobIds.length === 0) return;
+    try {
+      await Promise.all(selectedJobIds.map(jobId => updateJob({ variables: { input: { id: jobId, ...changes } } })));
+      setLocalJobs(prev => prev.map(job => selectedJobIds.includes(job.id) ? { ...job, ...changes } : job));
+      toast({ title: successMsg, description: `All selected jobs updated.`, variant: "default" });
+      setSelectedJobIds([]);
+      setTimeout(() => onJobSuccess(), 0);
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message || "Failed to update jobs.", variant: "destructive" });
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -222,38 +406,14 @@ export function JobList({ jobs, onJobSuccess, onDeleteJob }: JobListProps) {
                 <Button
                   variant="secondary"
                   size="sm"
-                  onClick={async () => {
-                    try {
-                      await Promise.all(selectedJobIds.map(jobId => updateJob({
-                        variables: { input: { id: jobId, invoiceStatus: "RECEIVED" } }
-                      })));
-                      updateJobsLocally(selectedJobIds, { invoiceStatus: "RECEIVED" });
-                      toast({ title: "Marked as Received", description: "All selected jobs marked as Received." });
-                      setSelectedJobIds([]);
-                      setTimeout(() => onJobSuccess(), 0);
-                    } catch (err: any) {
-                      toast({ title: "Error", description: err.message || "Failed to update jobs.", variant: "destructive" });
-                    }
-                  }}
+                  onClick={() => handleBatchUpdate({ invoiceStatus: "RECEIVED" }, "Marked as Received")}
                 >
                   Mark as Received
                 </Button>
                 <Button
                   variant="secondary"
                   size="sm"
-                  onClick={async () => {
-                    try {
-                      await Promise.all(selectedJobIds.map(jobId => updateJob({
-                        variables: { input: { id: jobId, driverPaid: true } }
-                      })));
-                      updateJobsLocally(selectedJobIds, { driverPaid: true });
-                      toast({ title: "Marked as Driver Paid", description: "All selected jobs marked as Driver Paid." });
-                      setSelectedJobIds([]);
-                      setTimeout(() => onJobSuccess(), 0);
-                    } catch (err: any) {
-                      toast({ title: "Error", description: err.message || "Failed to update jobs.", variant: "destructive" });
-                    }
-                  }}
+                  onClick={() => handleBatchUpdate({ driverPaid: true }, "Marked as Driver Paid")}
                 >
                   Mark as Driver Paid
                 </Button>
@@ -289,7 +449,7 @@ export function JobList({ jobs, onJobSuccess, onDeleteJob }: JobListProps) {
                 {monthJobs.length} job{monthJobs.length !== 1 ? 's' : ''}
               </Badge>
             </div>
-            <div className="grid gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {monthJobs.map((job: Job) => (
                 <Card 
                   key={job.id} 
@@ -298,108 +458,142 @@ export function JobList({ jobs, onJobSuccess, onDeleteJob }: JobListProps) {
                     selectedJobIds.includes(job.id) ? 'border-primary border-2' : ''
                   }`}
                 >
-                  <CardHeader>
+                  <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <Checkbox 
                           checked={selectedJobIds.includes(job.id)}
                           onCheckedChange={(checked) => handleJobSelection(job.id, checked as boolean)}
-                          className="h-5 w-5"
+                          className="h-4 w-4"
                         />
-                        <CardTitle className="flex items-center gap-2">
-                          <Calendar className="h-5 w-5 text-primary" />
-                          {formatDateForDisplay(job.jobDate, 'EEEE, MMMM d, yyyy')}
-                        </CardTitle>
+                        <div>
+                          <CardTitle className="flex items-center gap-2 text-base">
+                            <Calendar className="h-4 w-4 text-primary" />
+                            {formatDateForDisplay(job.jobDate, 'EEE, MMM d, yyyy')}
+                          </CardTitle>
+                          <CardDescription className="text-xs">
+                            ID: {job.id.slice(-8)}
+                          </CardDescription>
+                        </div>
                       </div>
-                      <div className="flex gap-2">
-                        <Badge className={getStatusColor(job)}>
-                          {job.paymentReceived && job.driverPaid ? "Completed" : 
-                           job.paymentReceived ? "Payment Received" : "Pending"}
-                        </Badge>
-                      </div>
+                      <Badge className={getStatusColor(job)} variant="secondary">
+                        {job.invoiceStatus === "RECEIVED" && job.driverPaid ? "Completed"
+                          : job.invoiceStatus === "RECEIVED" ? "Received"
+                          : "Pending"}
+                      </Badge>
                     </div>
-                    <CardDescription>
-                      Job ID: {job.id}
-                    </CardDescription>
                   </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                      {job.jobType && (
-                        <div className="flex items-center gap-2">
-                          <Calendar className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-sm">
-                            <span className="font-medium">Type:</span> {job.jobType.title}
-                            {hasMissingRate(job) && (
-                              <span className="ml-2 text-orange-600 flex items-center gap-1">
-                                <AlertTriangle className="h-3 w-3" />
-                                <span className="text-xs">No rate</span>
-                              </span>
+                  <CardContent className="pt-0">
+                    {/* More compact layout */}
+                    <div className="space-y-3">
+                      {/* Primary Info Row */}
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Badge 
+                            variant="outline" 
+                            className={`text-xs ${getDispatchTypeColors(job.jobType?.dispatchType || 'unknown').badge}`}
+                          >
+                            {job.jobType?.dispatchType || 'Unknown'}
+                          </Badge>
+                          <span className="text-sm font-medium truncate">
+                            {job.jobType?.title || 'No type assigned'}
+                          </span>
+                          {hasMissingRate(job) && (
+                            <span className="text-orange-600 flex items-center gap-1">
+                              <AlertTriangle className="h-3 w-3" />
+                              <span className="text-xs">No rate</span>
+                            </span>
+                          )}
+                        </div>
+                        
+                        {/* Amount */}
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-muted-foreground">Amount:</span>
+                          <span className="text-sm font-medium">
+                            {job.calculatedAmount !== undefined ? formatCurrency(addHST(job.calculatedAmount)) : 'Not calculated'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Secondary Info - Styled like job-specific attributes */}
+                      <div className="space-y-1 text-xs">
+                        {/* Driver */}
+                        <div className="flex items-center justify-between rounded px-2 py-1 bg-slate-50">
+                          <div className="flex items-center gap-1 text-slate-700">
+                            <User className="h-3 w-3 text-slate-600" />
+                            <span>Driver:</span>
+                          </div>
+                          <div className="truncate ml-1 text-slate-700">
+                            <span className="font-medium">{job.driver?.name || 'None'}</span>
+                            {job.driver?.hourlyRate && (
+                              <span className="text-xs ml-1">({job.driver.hourlyRate}%)</span>
                             )}
+                          </div>
+                        </div>
+                        
+                        {/* Dispatcher */}
+                        <div className="flex items-center justify-between rounded px-2 py-1 bg-indigo-50">
+                          <div className="flex items-center gap-1 text-indigo-700">
+                            <Receipt className="h-3 w-3 text-indigo-600" />
+                            <span>Dispatcher:</span>
+                          </div>
+                          <div className="truncate ml-1 text-indigo-700">
+                            <span className="font-medium">{job.dispatcher?.name || 'None'}</span>
+                            {job.dispatcher?.commissionPercent && (
+                              <span className="text-xs ml-1">({job.dispatcher.commissionPercent}%)</span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Unit - Always show for consistency */}
+                        <div className="flex items-center justify-between rounded px-2 py-1 bg-orange-50">
+                          <div className="flex items-center gap-1 text-orange-700">
+                            <Truck className="h-3 w-3 text-orange-600" />
+                            <span>Unit:</span>
+                          </div>
+                          <span className="truncate ml-1 font-medium text-orange-700">
+                            {job.unit?.name || 'None'}
                           </span>
                         </div>
-                      )}
-                      
-                      {job.driver && (
-                        <div className="flex items-center gap-2">
-                          <User className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-sm">
-                            <span className="font-medium">Driver:</span> {job.driver.name}
-                          </span>
+
+                        {/* Conditional display based on dispatch type */}
+                        <div className={`flex items-center justify-between rounded px-2 py-1 ${getDispatchTypeColors(job.jobType?.dispatchType || 'unknown').background}`}>
+                          {getJobSpecificAttributeForGrid(job)}
                         </div>
-                      )}
-                      
-                      {job.dispatcher && (
-                        <div className="flex items-center gap-2">
-                          <Receipt className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-sm">
-                            <span className="font-medium">Dispatcher:</span> {job.dispatcher.name}
-                          </span>
-                        </div>
-                      )}
-                      
-                      {job.startTime && job.endTime && (
-                        <div className="flex items-center gap-2">
-                          <Clock className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-sm">
-                            <span className="font-medium">Time:</span> {safeFormatTimeRange(job.startTime, job.endTime)}
-                          </span>
-                        </div>
-                      )}
-                      
+                      </div>
+
+                      {/* Financial breakdown - compact for grid */}
                       {job.calculatedAmount !== undefined && (
-                        <div className="flex items-center gap-2">
-                          <DollarSign className="h-4 w-4 text-muted-foreground" />
-                          <div className="text-sm">
-                            <div>
-                              <span className="font-medium">Amount:</span> {formatCurrency(addHST(job.calculatedAmount))}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              Commission: {formatCurrency(getCommission(job))}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              After comm: {formatCurrency(getAmountAfterCommission(job))}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              Driver pay: {formatCurrency(getDriverPay(job))}
-                            </div>
+                        <div className="text-xs bg-muted/20 rounded p-2 space-y-1">
+                          <div className="flex justify-between text-muted-foreground">
+                            <span>Commission:</span>
+                            <span>{formatCurrency(getCommission(job))}</span>
+                          </div>
+                          <div className="flex justify-between text-muted-foreground">
+                            <span>After comm:</span>
+                            <span>{formatCurrency(getAmountAfterCommission(job))}</span>
+                          </div>
+                          <div className="flex justify-between font-medium">
+                            <span>Driver pay:</span>
+                            <span>{formatCurrency(getDriverPay(job))}</span>
                           </div>
                         </div>
                       )}
                     </div>
                     
-                    <div className="flex justify-end gap-2 mt-4">
+                    <div className="flex justify-end gap-1 mt-3">
                       <JobDetailModal
                         trigger={
-                          <Button variant="outline" size="sm" title="View Details">
-                            <Eye className="h-4 w-4" />
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="View Details">
+                            <Eye className="h-3 w-3" />
                           </Button>
                         }
                         job={job}
                       />
                       <JobModal
                         trigger={
-                          <Button variant="outline" size="sm" title="Edit Job">
-                            <Edit className="h-4 w-4" />
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="Edit Job">
+                            <Edit className="h-3 w-3" />
                           </Button>
                         }
                         job={job}
@@ -408,8 +602,8 @@ export function JobList({ jobs, onJobSuccess, onDeleteJob }: JobListProps) {
                       {job.jobType && (
                         <JobTypeViewModal
                           trigger={
-                            <Button variant="outline" size="sm" title="View Job Type">
-                              <FileText className="h-4 w-4" />
+                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="View Job Type">
+                              <FileText className="h-3 w-3" />
                             </Button>
                           }
                           jobTypeId={job.jobType.id}
@@ -418,8 +612,8 @@ export function JobList({ jobs, onJobSuccess, onDeleteJob }: JobListProps) {
                       {job.invoice?.id && (
                         <InvoiceViewModal
                           trigger={
-                            <Button variant="outline" size="sm" title="View Invoice">
-                              <Receipt className="h-4 w-4" />
+                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="View Invoice">
+                              <Receipt className="h-3 w-3" />
                             </Button>
                           }
                           invoiceId={job.invoice.id}
@@ -451,9 +645,9 @@ function safeFormatTimeRange(start?: string, end?: string) {
     } else if (start) {
       return formatTimeForDisplay(start)
     } else {
-      return "-"
+      return "No time set"
     }
   } catch {
-    return "-"
+    return "No time set"
   }
 }

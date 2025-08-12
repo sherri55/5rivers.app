@@ -588,10 +588,7 @@ export const resolvers = {
         params.invoiceStatus = args.filters.invoiceStatus;
       }
 
-      if (args.filters?.paymentReceived !== undefined) {
-        whereClauses.push('j.paymentReceived = $paymentReceived');
-        params.paymentReceived = args.filters.paymentReceived;
-      }
+
 
       if (args.filters?.driverPaid !== undefined) {
         whereClauses.push('j.driverPaid = $driverPaid');
@@ -1022,7 +1019,7 @@ export const resolvers = {
           startTime: $startTime,
           endTime: $endTime,
           ticketIds: $ticketIds,
-          paymentReceived: $paymentReceived,
+
           driverPaid: $driverPaid,
           imageUrls: $imageUrls,
           images: $images,
@@ -1042,7 +1039,7 @@ export const resolvers = {
         startTime: args.input.startTime || null,
         endTime: args.input.endTime || null,
         ticketIds: args.input.ticketIds || [],
-        paymentReceived: args.input.paymentReceived || false,
+
         driverPaid: args.input.driverPaid || false,
         imageUrls: args.input.imageUrls || null,
         images: args.input.images || []
@@ -1152,10 +1149,7 @@ export const resolvers = {
         updateFields.push('j.invoiceStatus = $invoiceStatus');
         params.invoiceStatus = updates.invoiceStatus;
       }
-      if (updates.paymentReceived !== undefined) {
-        updateFields.push('j.paymentReceived = $paymentReceived');
-        params.paymentReceived = updates.paymentReceived;
-      }
+
       if (updates.driverPaid !== undefined) {
         updateFields.push('j.driverPaid = $driverPaid');
         params.driverPaid = updates.driverPaid;
@@ -1285,12 +1279,12 @@ export const resolvers = {
 
     markJobPaid: async (
       _parent: any,
-      args: { id: string; driverPaid: boolean; paymentReceived: boolean },
+      args: { id: string; driverPaid: boolean },
       context: GraphQLContext
     ) => {
       const query = `
         MATCH (j:Job {id: $id})
-        SET j.driverPaid = $driverPaid, j.paymentReceived = $paymentReceived, j.updatedAt = datetime()
+        SET j.driverPaid = $driverPaid, j.updatedAt = datetime()
         RETURN j
       `;
       const result = await context.neo4jService.runQuery(query, args);
