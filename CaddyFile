@@ -7,6 +7,12 @@
     
     # Frontend application
     reverse_proxy localhost:3000
+
+    # Static file serving for uploads
+    handle_path /uploads/jobs/* {
+        root * D:\Projects\5rivers.app\5rivers.app.backend\uploads\jobs
+        file_server
+    }
     
     # Basic security
     header Strict-Transport-Security "max-age=31536000"

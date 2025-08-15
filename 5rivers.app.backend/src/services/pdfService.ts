@@ -158,6 +158,7 @@ export class PDFService {
         ...j.job.properties,
         weight: parseWeights(j.job.properties.weight), // Parse weight properly
         loads: j.job.properties.loads?.toNumber ? j.job.properties.loads.toNumber() : (j.job.properties.loads || 0), // Handle Neo4j integer
+        ticketIds: j.job.properties.ticketIds || [], // Ensure ticketIds is preserved
         driver: j.driver?.properties,
         unit: j.unit?.properties,
         jobType: {
@@ -388,9 +389,29 @@ export class PDFService {
       });
     });
 
-    // Build summary rows, conditionally include commission row
+  // Build summary rows: SUBTOTAL, optional COMMISSION, optional AMOUNT (net), HST, TOTAL
     const summaryRows: any[] = [];
-    if (invoiceData.calculations.commission > 0) {
+    const subTotal = invoiceData.calculations.subTotal || 0;
+    const commission = invoiceData.calculations.commission || 0;
+    const netAmount = Math.max(0, subTotal - commission);
+    const hst = invoiceData.calculations.hst || 0;
+    const total = invoiceData.calculations.total || 0;
+
+    // SUBTOTAL
+    summaryRows.push([
+      { text: '', style: 'tableCell', border: [false, false, false, false] },
+      { text: '', style: 'tableCell', border: [false, false, false, false] },
+      { text: '', style: 'tableCell', border: [false, false, false, false] },
+      { text: '', style: 'tableCell', border: [false, false, false, false] },
+      { text: '', style: 'tableCell', border: [false, false, false, false] },
+      { text: '', style: 'tableCell', border: [false, false, false, false] },
+      { text: '', style: 'tableCell', border: [false, false, false, false] },
+      { text: 'SUBTOTAL', fontSize: 11, alignment: 'right', border: [false, false, false, false] },
+      { text: `$${subTotal.toFixed(2)}`, fontSize: 11, alignment: 'right', border: [false, false, false, false] },
+    ]);
+
+    // COMMISSION (only if > 0)
+    if (commission > 0) {
       summaryRows.push([
         { text: '', style: 'tableCell', border: [false, false, false, false] },
         { text: '', style: 'tableCell', border: [false, false, false, false] },
@@ -409,7 +430,7 @@ export class PDFService {
           fillColor: null
         },
         {
-          text: `- $${invoiceData.calculations.commission.toFixed(2)}`,
+          text: `- $${commission.toFixed(2)}`,
           fontSize: 11,
           color: 'maroon',
           alignment: 'right',
@@ -418,6 +439,36 @@ export class PDFService {
         },
       ]);
     }
+
+    // AMOUNT (net) — only when commission is applied
+    if (commission > 0) {
+      summaryRows.push([
+        { text: '', style: 'tableCell', border: [false, false, false, false] },
+        { text: '', style: 'tableCell', border: [false, false, false, false] },
+        { text: '', style: 'tableCell', border: [false, false, false, false] },
+        { text: '', style: 'tableCell', border: [false, false, false, false] },
+        { text: '', style: 'tableCell', border: [false, false, false, false] },
+        { text: '', style: 'tableCell', border: [false, false, false, false] },
+        { text: '', style: 'tableCell', border: [false, false, false, false] },
+        { text: 'AMOUNT', fontSize: 11, alignment: 'right', border: [false, false, false, false] },
+        { text: `$${netAmount.toFixed(2)}`, fontSize: 11, alignment: 'right', border: [false, false, false, false] },
+      ]);
+    }
+
+    // HST
+    summaryRows.push([
+      { text: '', style: 'tableCell', border: [false, false, false, false] },
+      { text: '', style: 'tableCell', border: [false, false, false, false] },
+      { text: '', style: 'tableCell', border: [false, false, false, false] },
+      { text: '', style: 'tableCell', border: [false, false, false, false] },
+      { text: '', style: 'tableCell', border: [false, false, false, false] },
+      { text: '', style: 'tableCell', border: [false, false, false, false] },
+      { text: '', style: 'tableCell', border: [false, false, false, false] },
+      { text: 'HST', fontSize: 11, alignment: 'right', border: [false, false, false, false] },
+      { text: `$${hst.toFixed(2)}`, fontSize: 11, alignment: 'right', border: [false, false, false, false] },
+    ]);
+
+    // TOTAL
     summaryRows.push([
       { text: '', style: 'tableCell', border: [false, false, false, false] },
       { text: '', style: 'tableCell', border: [false, false, false, false] },
@@ -436,7 +487,7 @@ export class PDFService {
         fillColor: null
       },
       {
-        text: `$${invoiceData.calculations.total.toFixed(2)}`,
+        text: `$${total.toFixed(2)}`,
         fontSize: 12,
         bold: true,
         color: 'black',
@@ -446,7 +497,7 @@ export class PDFService {
       },
     ]);
 
-    const content = [
+  const content: any[] = [
       // Header section
       {
         columns: [
@@ -471,8 +522,11 @@ export class PDFService {
         columnGap: 40,
         margin: [0, 0, 0, 30],
       },
-      // Main table
-      {
+    ];
+
+    // Only render the main job table when there are rows; avoids a lone header
+    if (tableRows.length > 0) {
+      content.push({
         style: 'mainTable',
         table: {
           headerRows: 1,
@@ -480,7 +534,6 @@ export class PDFService {
           body: [
             tableHeader,
             ...tableRows,
-            ...summaryRows,
           ],
         },
         layout: {
@@ -488,21 +541,11 @@ export class PDFService {
             if (rowIndex === 0) {
               return '#4a5568'; // Header row
             }
-            
-            const totalRows = node.table.body.length;
-            const summaryRowStart = totalRows - 4;
-            
-            // Check if this is a summary row (last 4 rows)
-            if (rowIndex >= summaryRowStart) {
-              return null;
-            }
-            
             // Check if this is a month header row
             const row = node.table.body[rowIndex];
             if (row && row[0] && row[0].style === 'monthHeaderCell') {
               return '#e2e8f0'; // Light gray for month headers
             }
-            
             // Alternate row colors for regular job rows
             return rowIndex % 2 === 1 ? '#f7fafc' : null;
           },
@@ -518,22 +561,38 @@ export class PDFService {
           vLineColor: function () {
             return '#aaa';
           },
-          paddingLeft: function () {
-            return 6;
-          },
-          paddingRight: function () {
-            return 6;
-          },
-          paddingTop: function () {
-            return 4;
-          },
-          paddingBottom: function () {
-            return 4;
-          },
+          paddingLeft: function () { return 6; },
+          paddingRight: function () { return 6; },
+          paddingTop: function () { return 4; },
+          paddingBottom: function () { return 4; },
         },
-        margin: [0, 0, 0, 30],
+        margin: [0, 0, 0, 20],
+      });
+    }
+
+    // Render summary as a separate table (no headerRows), preventing header repetition on new pages
+    content.push({
+      style: 'mainTable',
+      table: {
+        headerRows: 0,
+        widths: ['auto', 'auto', 'auto', 'auto', '*', 'auto', 'auto', 'auto', 'auto'],
+        body: [
+          ...summaryRows,
+        ],
       },
-    ];
+      layout: {
+        fillColor: function () { return null; },
+        hLineWidth: function () { return 0.5; },
+        vLineWidth: function () { return 0.5; },
+        hLineColor: function () { return '#aaa'; },
+        vLineColor: function () { return '#aaa'; },
+        paddingLeft: function () { return 6; },
+        paddingRight: function () { return 6; },
+        paddingTop: function () { return 4; },
+        paddingBottom: function () { return 4; },
+      },
+      margin: [0, tableRows.length > 0 ? 0 : 10, 0, 30],
+    });
 
     return {
       pageOrientation: 'landscape' as const,

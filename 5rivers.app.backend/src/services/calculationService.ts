@@ -69,7 +69,7 @@ export class CalculationService {
 
     const { startTime, endTime, loads, weight, fixedAmount, jobTypeId, rate, type } = jobResult[0];
     
-    switch (type?.toLowerCase()) {
+  switch (type?.toLowerCase()) {
       case 'hourly':
         // Calculate hours if time is provided
         let hours = 0;
@@ -103,7 +103,8 @@ export class CalculationService {
         }
         return Math.max(0, hours * (parseFloat(rate) || 0));
       
-      case 'load':
+  case 'load':
+  case 'loads': // accept plural alias
         return Math.max(0, (parseInt(loads) || 0) * (parseFloat(rate) || 0));
       
       case 'tonnage':
@@ -159,47 +160,16 @@ export class CalculationService {
    * Calculate invoice subtotal (sum of all job amounts)
    */
   static async calculateInvoiceSubTotal(invoiceId: string): Promise<number> {
-    const jobAmounts = await neo4jService.runQuery(`
-      MATCH (i:Invoice {id: $invoiceId})<-[:INVOICED_IN]-(j:Job)-[:OF_TYPE]->(jt:JobType)
-      RETURN j.id as jobId,
-             j.startTime as startTime,
-             j.endTime as endTime, 
-             j.loads as loads,
-             j.weight as weight,
-             jt.rateOfJob as rate,
-             jt.dispatchType as type
+    // Sum using the single-source-of-truth calculator to avoid divergence
+    const jobs = await neo4jService.runQuery(`
+      MATCH (i:Invoice {id: $invoiceId})<-[:INVOICED_IN]-(j:Job)
+      RETURN j.id as jobId
     `, { invoiceId });
 
     let subTotal = 0;
-    for (const job of jobAmounts) {
-      // Calculate hours if available
-      let hours = 0;
-      if (job.startTime && job.endTime) {
-        const start = new Date(`1970-01-01T${job.startTime}`);
-        let end = new Date(`1970-01-01T${job.endTime}`);
-        
-        // Handle overnight jobs (end time is next day)
-        if (end < start) {
-          end.setDate(end.getDate() + 1);
-        }
-        
-        hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
-      }
-
-      // Calculate job amount based on type
-      switch (job.type?.toLowerCase()) {
-        case 'hourly':
-          subTotal += (hours || 0) * (job.rate || config.defaultHourlyRate);
-          break;
-        case 'load':
-          subTotal += (job.loads || 0) * (job.rate || 0);
-          break;
-        case 'tonnage':
-          subTotal += (parseFloat(job.weight || '0')) * (job.rate || 0);
-          break;
-        default:
-          subTotal += job.rate || 0;
-      }
+    for (const job of jobs) {
+      const amount = await this.calculateJobAmount(job.jobId);
+      subTotal += amount;
     }
 
     return Math.round(subTotal * 100) / 100; // Round to 2 decimal places
@@ -238,22 +208,22 @@ export class CalculationService {
    * Calculate HST on invoice
    */
   static async calculateInvoiceHST(invoiceId: string): Promise<number> {
-    const subTotal = await this.calculateInvoiceSubTotal(invoiceId);
-    const commission = await this.calculateInvoiceCommission(invoiceId);
-    const taxableAmount = subTotal + commission;
-    
-    return Math.round(taxableAmount * config.hstRate * 100) / 100;
+  const subTotal = await this.calculateInvoiceSubTotal(invoiceId);
+  const commission = await this.calculateInvoiceCommission(invoiceId);
+  // HST should be calculated on net amount (after commission deduction)
+  const taxableAmount = Math.max(0, subTotal - commission);
+  return Math.round(taxableAmount * config.hstRate * 100) / 100;
   }
 
   /**
    * Calculate invoice total
    */
   static async calculateInvoiceTotal(invoiceId: string): Promise<number> {
-    const subTotal = await this.calculateInvoiceSubTotal(invoiceId);
-    const commission = await this.calculateInvoiceCommission(invoiceId);
-    const hst = await this.calculateInvoiceHST(invoiceId);
-    
-    return Math.round((subTotal + commission + hst) * 100) / 100;
+  const subTotal = await this.calculateInvoiceSubTotal(invoiceId);
+  const commission = await this.calculateInvoiceCommission(invoiceId);
+  const hst = await this.calculateInvoiceHST(invoiceId);
+  // Total = (subtotal - commission) + HST
+  return Math.round(((subTotal - commission) + hst) * 100) / 100;
   }
 
   /**
@@ -266,7 +236,8 @@ export class CalculationService {
       this.calculateInvoiceHST(invoiceId)
     ]);
 
-    const total = Math.round((subTotal + commission + hst) * 100) / 100;
+  // Total = (subtotal - commission) + HST
+  const total = Math.round(((subTotal - commission) + hst) * 100) / 100;
 
     return {
       subTotal,

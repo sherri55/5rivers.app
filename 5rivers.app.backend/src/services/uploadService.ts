@@ -52,7 +52,10 @@ export class UploadService {
     await fs.writeFile(filePath, buffer)
     
     // Generate URL for serving the file
-    const url = `/uploads/${folder}/${fileName}`
+    const baseUrl = process.env.NODE_ENV === 'production' 
+      ? 'https://5riverstruckinginc.ca' 
+      : 'http://localhost:4002'
+    const url = `${baseUrl}/uploads/${folder}/${fileName}`
     
     return {
       url,

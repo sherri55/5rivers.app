@@ -1,6 +1,8 @@
 // Image upload service
 // This includes both mock implementation and backend endpoint support
 
+import { config } from '../config'
+
 export const uploadImage = async (file: File, folder: string = 'jobs'): Promise<string> => {
   // Try to use the backend upload endpoint first
   try {
@@ -8,8 +10,8 @@ export const uploadImage = async (file: File, folder: string = 'jobs'): Promise<
     formData.append('image', file)
     formData.append('folder', folder)
     
-    // Use the upload server port (GraphQL port + 1)
-    const uploadUrl = `http://localhost:4001/api/upload`
+    // Use configured upload endpoint from environment
+    const uploadUrl = config.api.uploadEndpoint
     
     const response = await fetch(uploadUrl, {
       method: 'POST',
@@ -30,11 +32,13 @@ export const uploadImage = async (file: File, folder: string = 'jobs'): Promise<
     // Simulate upload delay
     await new Promise(resolve => setTimeout(resolve, 500 + Math.random() * 1000))
     
-    // Generate a mock URL that points to localhost
+    // Generate a mock URL using the configured base
     const timestamp = Date.now()
     const randomId = Math.random().toString(36).substring(2, 8)
     const extension = file.name.split('.').pop() || 'jpg'
-    const mockUrl = `http://localhost:4001/uploads/${folder}/${timestamp}_${randomId}.${extension}`
+    // Extract base URL from upload endpoint (remove /api/upload part)
+    const baseUrl = config.api.uploadEndpoint.replace('/api/upload', '')
+    const mockUrl = `${baseUrl}/uploads/${folder}/${timestamp}_${randomId}.${extension}`
     
     return mockUrl
   }
