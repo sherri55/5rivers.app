@@ -11,6 +11,7 @@ import { GET_UNITS } from "@/lib/graphql/units"
 import { DELETE_UNIT } from "@/lib/graphql/mutations"
 import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog"
 import { useToast } from "@/hooks/use-toast"
+import { formatDateForDisplay } from "@/lib/utils/dateUtils"
 
 export function Units() {
   const [searchTerm, setSearchTerm] = useState("")
@@ -170,7 +171,7 @@ export function Units() {
                 <div className="pt-2 border-t">
                   <div className="text-sm text-muted-foreground">Added</div>
                   <div className="text-lg font-bold text-primary">
-                    {new Date(unit.createdAt).toLocaleDateString()}
+                    {formatDateForDisplay(unit.createdAt)}
                   </div>
                 </div>
                 

@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast"
 import { GET_INVOICE, CREATE_INVOICE, UPDATE_INVOICE } from "@/lib/graphql/invoices"
 import { GET_JOBS, UPDATE_JOB } from "@/lib/graphql/jobs"
 import { GET_DISPATCHERS } from "@/lib/graphql/dispatchers"
+import { formatDateForDisplay } from "@/lib/utils/dateUtils"
 
 interface InvoiceModalProps {
   invoice?: any // Optional - if provided, it's an edit modal; if not, it's a create modal
@@ -453,7 +454,7 @@ export const InvoiceModal = ({ invoice, invoiceId, trigger, onSuccess }: Invoice
                           {job.jobType?.title || 'Unknown Job'}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          Date: {job.jobDate ? new Date(job.jobDate).toLocaleDateString() : 'N/A'}
+                          Date: {job.jobDate ? formatDateForDisplay(job.jobDate) : 'N/A'}
                         </p>
                         <p className="text-xs text-muted-foreground">
                           {job.driver?.name} • {job.dispatcher?.name}

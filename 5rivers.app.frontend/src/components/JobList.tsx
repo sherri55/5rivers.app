@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Calendar, DollarSign, User, Receipt, Clock, Eye, Edit, FileText, AlertTriangle, Truck, Weight, Package, Copy } from "lucide-react"
+import { Calendar, DollarSign, User, Receipt, Clock, Eye, Edit, FileText, AlertTriangle, Truck, Weight, Package, Copy, Check } from "lucide-react"
 import { JobDetailModal } from "@/components/modals/JobDetailModal"
 import { JobModal } from "@/components/modals/JobModal"
 import { JobTypeViewModal } from "@/components/modals/JobTypeViewModal"
@@ -598,6 +598,65 @@ export function JobList({ jobs, onJobSuccess, onDeleteJob }: JobListProps) {
                     </div>
                     
                     <div className="flex justify-end gap-1 mt-3">
+                      {/* Quick action buttons - independent of each other */}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0"
+                        title={job.invoiceStatus === 'RECEIVED' ? "Mark as Not Received" : "Mark as Received"}
+                        onClick={async () => {
+                          try {
+                            await updateJob({ 
+                              variables: { 
+                                input: { id: job.id, invoiceStatus: job.invoiceStatus === 'RECEIVED' ? 'PENDING' : 'RECEIVED' } 
+                              } 
+                            })
+                            toast({
+                              title: "Success",
+                              description: job.invoiceStatus === 'RECEIVED' ? "Job marked as not received." : "Job marked as received.",
+                            })
+                            onJobSuccess()
+                          } catch (error: any) {
+                            toast({
+                              title: "Error",
+                              description: `Failed to update job: ${error.message}`,
+                              variant: "destructive"
+                            })
+                          }
+                        }}
+                      >
+                        <Check className={`h-3 w-3 ${job.invoiceStatus === 'RECEIVED' ? 'text-green-600' : 'text-gray-400'}`} />
+                      </Button>
+                      
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0"
+                        title={job.driverPaid ? "Mark Driver as Unpaid" : "Mark Driver as Paid"}
+                        onClick={async () => {
+                          try {
+                            await updateJob({ 
+                              variables: { 
+                                input: { id: job.id, driverPaid: !job.driverPaid } 
+                              } 
+                            })
+                            toast({
+                              title: "Success",
+                              description: job.driverPaid ? "Driver marked as unpaid." : "Driver marked as paid.",
+                            })
+                            onJobSuccess()
+                          } catch (error: any) {
+                            toast({
+                              title: "Error",
+                              description: `Failed to update job: ${error.message}`,
+                              variant: "destructive"
+                            })
+                          }
+                        }}
+                      >
+                        <User className={`h-3 w-3 ${job.driverPaid ? 'text-green-600' : 'text-gray-400'}`} />
+                      </Button>
+
                       <JobDetailModal
                         trigger={
                           <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="View Details">

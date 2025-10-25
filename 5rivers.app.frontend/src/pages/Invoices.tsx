@@ -12,6 +12,7 @@ import { InvoiceViewModal } from "@/components/modals/InvoiceViewModal"
 import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog"
 import { useToast } from "@/hooks/use-toast"
 import { validateJobAmounts, formatCurrencyWithValidation } from "@/lib/validation/jobAmountValidation"
+import { formatDateForDisplay } from "@/lib/utils/dateUtils"
 
 export function Invoices() {
   const [searchTerm, setSearchTerm] = useState("")
@@ -101,14 +102,15 @@ export function Invoices() {
   const formatDate = (dateString: string) => {
     if (!dateString) return 'N/A'
     
-    // Handle date-only strings by appending a time component
-    let dateToFormat = dateString
-    if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
-      dateToFormat = `${dateString}T00:00:00.000Z`
-    }
-    
     try {
-      return new Date(dateToFormat).toLocaleDateString()
+      // Handle date-only strings (YYYY-MM-DD) as local dates to prevent timezone shift
+      if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        const [year, month, day] = dateString.split('-').map(Number);
+        return formatDateForDisplay(new Date(year, month - 1, day)); // month is 0-indexed
+      }
+      
+      // For full ISO dates, parse normally
+      return formatDateForDisplay(dateString)
     } catch (error) {
       console.warn('Invalid date format:', dateString)
       return dateString
@@ -330,7 +332,11 @@ export function Invoices() {
                       Jobs Included ({invoice.jobs.length})
                     </div>
                     <div className="space-y-1 max-h-32 overflow-y-auto">
-                      {invoice.jobs.map((jobEntry: any, index: number) => (
+                      {[...invoice.jobs].sort((a: any, b: any) => {
+                        const dateA = new Date(a.job?.jobDate || '1970-01-01')
+                        const dateB = new Date(b.job?.jobDate || '1970-01-01')
+                        return dateA.getTime() - dateB.getTime()
+                      }).map((jobEntry: any, index: number) => (
                         <div key={index} className="flex justify-between items-center text-xs bg-muted/50 rounded p-2">
                           <div className="flex-1 min-w-0">
                             <div className="font-medium truncate">

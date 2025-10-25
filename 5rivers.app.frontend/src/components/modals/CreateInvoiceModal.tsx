@@ -187,7 +187,11 @@ export const CreateInvoiceModal = ({ trigger, onSuccess }: CreateInvoiceModalPro
               {availableJobs.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No uninvoiced jobs available</p>
               ) : (
-                availableJobs.map((job: any) => (
+                [...availableJobs].sort((a: any, b: any) => {
+                  const dateA = new Date(a.jobDate || '1970-01-01')
+                  const dateB = new Date(b.jobDate || '1970-01-01')
+                  return dateA.getTime() - dateB.getTime()
+                }).map((job: any) => (
                   <div key={job.id} className="flex items-center space-x-2">
                     <Checkbox
                       id={`job-${job.id}`}

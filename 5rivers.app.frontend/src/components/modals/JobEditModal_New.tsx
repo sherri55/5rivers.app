@@ -24,6 +24,7 @@ import {
   ASSIGN_JOB_TO_DRIVER, 
   ASSIGN_JOB_TO_UNIT 
 } from "@/lib/graphql/jobs"
+import { formatDateForDisplay } from "@/lib/utils/dateUtils"
 
 interface JobEditModalProps {
   job: any
@@ -122,7 +123,7 @@ export function JobEditModal({ job, trigger, onSuccess }: JobEditModalProps) {
               <div>
                 <span className="text-muted-foreground">Job Date:</span>
                 <span className="ml-2 font-medium">
-                  {job?.jobDate ? new Date(job.jobDate).toLocaleDateString() : 'Not set'}
+                  {job?.jobDate ? formatDateForDisplay(job.jobDate) : 'Not set'}
                 </span>
               </div>
               <div>

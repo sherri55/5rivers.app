@@ -22,7 +22,7 @@ import {
   Package,
   X
 } from "lucide-react"
-import { formatTimeRange, formatWeightForDisplay, shouldDisplayWeight } from "@/lib/utils/dateUtils"
+import { formatTimeRange, formatWeightForDisplay, shouldDisplayWeight, formatDateForDisplay } from "@/lib/utils/dateUtils"
 
 interface JobDetailModalProps {
   job: any
@@ -80,7 +80,7 @@ export function JobDetailModal({ job, trigger }: JobDetailModalProps) {
                     <div>
                       <p className="text-sm font-medium">Job Date</p>
                       <p className="text-sm text-muted-foreground">
-                        {job?.jobDate ? new Date(job.jobDate).toLocaleDateString() : 'Not set'}
+                        {job?.jobDate ? formatDateForDisplay(job.jobDate) : 'Not set'}
                       </p>
                     </div>
                   </div>
@@ -283,13 +283,13 @@ export function JobDetailModal({ job, trigger }: JobDetailModalProps) {
                   <div>
                     <p className="text-sm font-medium">Created At</p>
                     <p className="text-sm text-muted-foreground">
-                      {job?.createdAt ? new Date(job.createdAt).toLocaleDateString() : 'Unknown'}
+                      {job?.createdAt ? formatDateForDisplay(job.createdAt) : 'Unknown'}
                     </p>
                   </div>
                   <div>
                     <p className="text-sm font-medium">Updated At</p>
                     <p className="text-sm text-muted-foreground">
-                      {job?.updatedAt ? new Date(job.updatedAt).toLocaleDateString() : 'Unknown'}
+                      {job?.updatedAt ? formatDateForDisplay(job.updatedAt) : 'Unknown'}
                     </p>
                   </div>
                 </div>
@@ -304,7 +304,10 @@ export function JobDetailModal({ job, trigger }: JobDetailModalProps) {
                             src={imageUrl}
                             alt={`Job image ${index + 1}`}
                             className="w-full h-32 object-cover rounded-lg border cursor-pointer hover:opacity-75 transition-opacity"
-                            onClick={() => setSelectedImage(imageUrl)}
+                            onClick={() => {
+                              setSelectedImage(imageUrl)
+                              setIsOpen(false)
+                            }}
                           />
                           <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all rounded-lg flex items-center justify-center">
                             <span className="text-white text-xs opacity-0 group-hover:opacity-100 bg-black bg-opacity-50 px-2 py-1 rounded">
@@ -326,11 +329,17 @@ export function JobDetailModal({ job, trigger }: JobDetailModalProps) {
       {selectedImage && createPortal(
         <div 
           className="fixed inset-0 z-[9999] bg-black bg-opacity-75 flex items-center justify-center p-4"
-          onClick={() => setSelectedImage(null)}
+          onClick={() => {
+            setSelectedImage(null)
+            setIsOpen(true)
+          }}
         >
           <div className="relative max-w-4xl max-h-[90vh] w-full">
             <button
-              onClick={() => setSelectedImage(null)}
+              onClick={() => {
+                setSelectedImage(null)
+                setIsOpen(true)
+              }}
               className="absolute top-4 right-4 z-10 bg-black bg-opacity-50 text-white rounded-full p-2 hover:bg-opacity-75 transition-all"
             >
               <X className="h-6 w-6" />

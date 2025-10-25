@@ -21,6 +21,7 @@ import {
 } from "lucide-react"
 import { GET_INVOICE, DOWNLOAD_INVOICE_PDF } from "@/lib/graphql/invoices"
 import { useToast } from "@/hooks/use-toast"
+import { parseBackendDate, formatDateForDisplay } from "@/lib/utils/dateUtils"
 
 interface InvoiceViewModalProps {
   invoiceId?: string
@@ -148,7 +149,7 @@ export function InvoiceViewModal({ invoiceId, trigger }: InvoiceViewModalProps) 
                   <div className="flex items-center gap-2">
                     <Calendar className="h-4 w-4 text-muted-foreground" />
                     <span className="text-sm">
-                      <span className="font-medium">Date:</span> {new Date(invoice.invoiceDate).toLocaleDateString()}
+                      <span className="font-medium">Date:</span> {formatDateForDisplay(invoice.invoiceDate)}
                     </span>
                   </div>
                   
@@ -163,7 +164,7 @@ export function InvoiceViewModal({ invoiceId, trigger }: InvoiceViewModalProps) 
                     <div className="flex items-center gap-2">
                       <Calendar className="h-4 w-4 text-muted-foreground" />
                       <span className="text-sm">
-                        <span className="font-medium">Due:</span> {new Date(invoice.dueDate).toLocaleDateString()}
+                        <span className="font-medium">Due:</span> {formatDateForDisplay(invoice.dueDate)}
                       </span>
                     </div>
                   )}
@@ -216,7 +217,11 @@ export function InvoiceViewModal({ invoiceId, trigger }: InvoiceViewModalProps) 
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {invoice.jobs.map((jobEntry: any, index: number) => (
+                    {[...invoice.jobs].sort((a: any, b: any) => {
+                      const dateA = new Date(a.job?.jobDate || '1970-01-01')
+                      const dateB = new Date(b.job?.jobDate || '1970-01-01')
+                      return dateA.getTime() - dateB.getTime()
+                    }).map((jobEntry: any, index: number) => (
                       <div key={index} className="p-3 border rounded-lg bg-muted/20">
                         <div className="flex justify-between items-start mb-2">
                           <div className="flex-1">
@@ -224,7 +229,7 @@ export function InvoiceViewModal({ invoiceId, trigger }: InvoiceViewModalProps) 
                               {jobEntry.job?.jobType?.title || 'Unknown Job'}
                             </div>
                             <div className="text-sm text-muted-foreground">
-                              Job Date: {jobEntry.job?.jobDate ? new Date(jobEntry.job.jobDate).toLocaleDateString() : 'No date'}
+                              Job Date: {jobEntry.job?.jobDate ? formatDateForDisplay(jobEntry.job.jobDate) : 'No date'}
                             </div>
                             {jobEntry.job?.jobType?.company && (
                               <div className="text-sm text-muted-foreground">
@@ -243,7 +248,7 @@ export function InvoiceViewModal({ invoiceId, trigger }: InvoiceViewModalProps) 
                             )}
                             {jobEntry.invoicedAt && (
                               <div className="text-xs text-muted-foreground mt-1">
-                                Invoiced: {new Date(jobEntry.invoicedAt).toLocaleDateString()}
+                                Invoiced: {formatDateForDisplay(jobEntry.invoicedAt)}
                               </div>
                             )}
                           </div>

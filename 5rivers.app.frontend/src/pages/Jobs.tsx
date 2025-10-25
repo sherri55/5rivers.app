@@ -5,13 +5,14 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Search, Plus, Calendar, DollarSign, Truck, User, List, ChevronLeft, ChevronRight, Eye, Edit, FileText, Receipt, Clock, AlertTriangle } from "lucide-react"
+import { Search, Plus, Calendar, DollarSign, Truck, User, List, ChevronLeft, ChevronRight, Eye, Edit, FileText, Receipt, Clock, AlertTriangle, Table, Check, X } from "lucide-react"
 import { GET_JOBS } from "@/lib/graphql/jobs"
 import { DELETE_JOB } from "@/lib/graphql/mutations"
 import { UPDATE_JOB } from "@/lib/graphql/jobs"
@@ -363,6 +364,63 @@ function CalendarView({ jobs, currentDate, onDateChange, onJobSuccess, onDeleteJ
                     
                     {/* Action buttons */}
                     <div className="flex gap-2 ml-4">
+                      {/* Quick action buttons - independent of each other */}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        title={job.invoiceStatus === 'RECEIVED' ? "Mark as Not Received" : "Mark as Received"}
+                        onClick={async () => {
+                          try {
+                            await updateJob({ 
+                              variables: { 
+                                input: { id: job.id, invoiceStatus: job.invoiceStatus === 'RECEIVED' ? 'PENDING' : 'RECEIVED' } 
+                              } 
+                            })
+                            toast({
+                              title: "Success",
+                              description: job.invoiceStatus === 'RECEIVED' ? "Job marked as not received." : "Job marked as received.",
+                            })
+                            onJobSuccess()
+                          } catch (error: any) {
+                            toast({
+                              title: "Error",
+                              description: `Failed to update job: ${error.message}`,
+                              variant: "destructive"
+                            })
+                          }
+                        }}
+                      >
+                        <Check className={`h-4 w-4 ${job.invoiceStatus === 'RECEIVED' ? 'text-green-600' : 'text-gray-400'}`} />
+                      </Button>
+                      
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        title={job.driverPaid ? "Mark Driver as Unpaid" : "Mark Driver as Paid"}
+                        onClick={async () => {
+                          try {
+                            await updateJob({ 
+                              variables: { 
+                                input: { id: job.id, driverPaid: !job.driverPaid } 
+                              } 
+                            })
+                            toast({
+                              title: "Success",
+                              description: job.driverPaid ? "Driver marked as unpaid." : "Driver marked as paid.",
+                            })
+                            onJobSuccess()
+                          } catch (error: any) {
+                            toast({
+                              title: "Error",
+                              description: `Failed to update job: ${error.message}`,
+                              variant: "destructive"
+                            })
+                          }
+                        }}
+                      >
+                        <User className={`h-4 w-4 ${job.driverPaid ? 'text-green-600' : 'text-gray-400'}`} />
+                      </Button>
+
                       <JobDetailModal
                         trigger={
                           <Button variant="outline" size="sm" title="View Details">
@@ -463,6 +521,65 @@ function CalendarView({ jobs, currentDate, onDateChange, onJobSuccess, onDeleteJ
                     </div>
                   </div>
                   <div className="flex gap-1">
+                    {/* Quick action buttons - independent of each other */}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0"
+                      title={job.invoiceStatus === 'RECEIVED' ? "Mark as Not Received" : "Mark as Received"}
+                      onClick={async () => {
+                        try {
+                          await updateJob({ 
+                            variables: { 
+                              input: { id: job.id, invoiceStatus: job.invoiceStatus === 'RECEIVED' ? 'PENDING' : 'RECEIVED' } 
+                            } 
+                          })
+                          toast({
+                            title: "Success",
+                            description: job.invoiceStatus === 'RECEIVED' ? "Job marked as not received." : "Job marked as received.",
+                          })
+                          onJobSuccess()
+                        } catch (error: any) {
+                          toast({
+                            title: "Error",
+                            description: `Failed to update job: ${error.message}`,
+                            variant: "destructive"
+                          })
+                        }
+                      }}
+                    >
+                      <Check className={`h-4 w-4 ${job.invoiceStatus === 'RECEIVED' ? 'text-green-600' : 'text-gray-400'}`} />
+                    </Button>
+                    
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0"
+                      title={job.driverPaid ? "Mark Driver as Unpaid" : "Mark Driver as Paid"}
+                      onClick={async () => {
+                        try {
+                          await updateJob({ 
+                            variables: { 
+                              input: { id: job.id, driverPaid: !job.driverPaid } 
+                            } 
+                          })
+                          toast({
+                            title: "Success",
+                            description: job.driverPaid ? "Driver marked as unpaid." : "Driver marked as paid.",
+                          })
+                          onJobSuccess()
+                        } catch (error: any) {
+                          toast({
+                            title: "Error",
+                            description: `Failed to update job: ${error.message}`,
+                            variant: "destructive"
+                          })
+                        }
+                      }}
+                    >
+                      <User className={`h-4 w-4 ${job.driverPaid ? 'text-green-600' : 'text-gray-400'}`} />
+                    </Button>
+
                     <JobDetailModal 
                       trigger={
                         <Button variant="ghost" size="sm" className="h-8 w-8 p-0" title="View Job Details">
@@ -534,6 +651,429 @@ function CalendarView({ jobs, currentDate, onDateChange, onJobSuccess, onDeleteJ
 // Utility function to check if a job has missing rate
 const hasMissingRate = (job: Job): boolean => {
   return !job.jobType?.rateOfJob || job.jobType.rateOfJob <= 0
+}
+
+// Row View Component
+interface RowViewProps {
+  jobs: Job[]
+  onJobSuccess: () => void
+  onDeleteJob: (jobId: string) => void
+}
+
+function RowView({ jobs, onJobSuccess, onDeleteJob }: RowViewProps) {
+  const { toast } = useToast()
+  const [updateJob] = useMutation(UPDATE_JOB)
+  const [selectedJobIds, setSelectedJobIds] = useState<string[]>([])
+
+  const handleUpdateJobStatus = async (jobId: string, updates: Partial<Job>) => {
+    try {
+      await updateJob({ 
+        variables: { 
+          input: { id: jobId, ...updates } 
+        } 
+      })
+      toast({
+        title: "Success",
+        description: "Job updated successfully.",
+      })
+      onJobSuccess()
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: `Failed to update job: ${error.message}`,
+        variant: "destructive"
+      })
+    }
+  }
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD'
+    }).format(amount)
+  }
+
+  const addHST = (amount: number) => amount * 1.13
+  
+  const getCommission = (job: Job) => {
+    const commissionPercent = job?.dispatcher?.commissionPercent ?? 5
+    return addHST(job.calculatedAmount || 0) * (commissionPercent / 100)
+  }
+
+  const getAmountAfterCommission = (job: Job) => {
+    return addHST(job.calculatedAmount || 0) - getCommission(job)
+  }
+
+  const getDriverPay = (job: Job) => {
+    const hourlyRate = job.driver?.hourlyRate ?? 0
+    return getAmountAfterCommission(job) * (hourlyRate / 100)
+  }
+
+  const handleJobSelection = (jobId: string, checked: boolean) => {
+    setSelectedJobIds(prev => checked ? [...prev, jobId] : prev.filter(id => id !== jobId))
+  }
+
+  const handleBatchUpdate = async (changes: Partial<Job>, successMsg: string) => {
+    if (selectedJobIds.length === 0) return
+    try {
+      await Promise.all(selectedJobIds.map(jobId => updateJob({ variables: { input: { id: jobId, ...changes } } })))
+      toast({ title: successMsg, description: `${selectedJobIds.length} jobs updated.`, variant: "default" })
+      setSelectedJobIds([])
+      onJobSuccess()
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message || "Failed to update jobs.", variant: "destructive" })
+    }
+  }
+
+  // Calculate totals for selected jobs
+  const selectedJobsList = jobs.filter(job => selectedJobIds.includes(job.id))
+  const totalBeforeCommission = selectedJobsList.reduce((sum, job) => sum + addHST(job.calculatedAmount || 0), 0)
+  const totalCommission = selectedJobsList.reduce((sum, job) => sum + getCommission(job), 0)
+  const totalAfterCommission = selectedJobsList.reduce((sum, job) => sum + getAmountAfterCommission(job), 0)
+  const totalDriverPay = selectedJobsList.reduce((sum, job) => sum + getDriverPay(job), 0)
+
+  const getJobSpecificValue = (job: Job) => {
+    const dispatchType = job.jobType?.dispatchType?.toLowerCase()
+    
+    switch (dispatchType) {
+      case 'hourly':
+        return formatTimeRange(job.startTime, job.endTime)
+      case 'tonnage':
+        const weightDisplay = job.weight && Array.isArray(job.weight) 
+          ? job.weight.reduce((sum, w) => sum + (parseFloat(String(w)) || 0), 0).toFixed(1) + ' tons'
+          : job.weight 
+            ? `${job.weight} tons`
+            : 'No weight'
+        return weightDisplay
+      case 'load':
+        return `${job.loads || 0} loads`
+      case 'fixed':
+        return 'Fixed rate'
+      default:
+        return formatTimeRange(job.startTime, job.endTime)
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Selected Jobs Summary */}
+      {selectedJobIds.length > 0 && (
+        <Card className="bg-primary/5 border-primary">
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <span>Selected Jobs Summary</span>
+              <Badge variant="outline">{selectedJobIds.length} job(s) selected</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="p-4 bg-background rounded-lg border">
+                <div className="text-sm text-muted-foreground">Amount (before commission)</div>
+                <div className="text-2xl font-bold text-primary">
+                  {formatCurrency(totalBeforeCommission)}
+                </div>
+              </div>
+              <div className="p-4 bg-background rounded-lg border">
+                <div className="text-sm text-muted-foreground">Total Commission</div>
+                <div className="text-2xl font-bold text-warning">
+                  {formatCurrency(totalCommission)}
+                </div>
+              </div>
+              <div className="p-4 bg-background rounded-lg border">
+                <div className="text-sm text-muted-foreground">Amount (after commission)</div>
+                <div className="text-2xl font-bold text-accent">
+                  {formatCurrency(totalAfterCommission)}
+                </div>
+              </div>
+              <div className="p-4 bg-background rounded-lg border">
+                <div className="text-sm text-muted-foreground">Driver Pay</div>
+                <div className="text-2xl font-bold text-muted-foreground">
+                  {formatCurrency(totalDriverPay)}
+                </div>
+              </div>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2 justify-between items-center">
+              <div className="flex gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => handleBatchUpdate({ invoiceStatus: "RECEIVED" }, "Marked as Received")}
+                >
+                  Mark as Received
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => handleBatchUpdate({ driverPaid: true }, "Marked as Driver Paid")}
+                >
+                  Mark as Driver Paid
+                </Button>
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setSelectedJobIds([])}
+              >
+                Clear Selection
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[1300px]">
+              <thead>
+                <tr className="border-b bg-muted/50">
+                  <th className="text-left p-3 font-medium w-12">
+                    <Checkbox 
+                      checked={selectedJobIds.length === jobs.length && jobs.length > 0}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setSelectedJobIds(jobs.map(job => job.id))
+                        } else {
+                          setSelectedJobIds([])
+                        }
+                      }}
+                      className="h-4 w-4"
+                    />
+                  </th>
+                  <th className="text-left p-3 font-medium">Date</th>
+                  <th className="text-left p-3 font-medium">Job Type</th>
+                  <th className="text-left p-3 font-medium">Description</th>
+                  <th className="text-left p-3 font-medium">Driver</th>
+                  <th className="text-left p-3 font-medium">Dispatcher</th>
+                  <th className="text-left p-3 font-medium">Unit</th>
+                  <th className="text-left p-3 font-medium">Amount</th>
+                  <th className="text-left p-3 font-medium">Commission</th>
+                  <th className="text-left p-3 font-medium">Driver Pay</th>
+                  <th className="text-left p-3 font-medium">Status</th>
+                  <th className="text-left p-3 font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {jobs.length === 0 ? (
+                  <tr>
+                    <td colSpan={12} className="p-8 text-center text-muted-foreground">
+                      No jobs found
+                    </td>
+                  </tr>
+                ) : (
+                  jobs.map((job) => (
+                    <tr 
+                      key={job.id} 
+                      className={`border-b hover:bg-muted/20 transition-colors ${
+                        hasMissingRate(job) ? 'bg-orange-50 border-orange-200' : ''
+                      } ${selectedJobIds.includes(job.id) ? 'bg-primary/10 border-primary/20' : ''}`}
+                    >
+                      <td className="p-3">
+                        <Checkbox 
+                          checked={selectedJobIds.includes(job.id)}
+                          onCheckedChange={(checked) => handleJobSelection(job.id, checked as boolean)}
+                          className="h-4 w-4"
+                        />
+                      </td>
+                      
+                      <td className="p-3">
+                        <div className="text-sm font-medium">
+                          {formatDateForDisplay(job.jobDate, 'MMM d, yyyy')}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {formatDateForDisplay(job.jobDate, 'EEE')}
+                        </div>
+                      </td>
+                      
+                      <td className="p-3">
+                        <div className="flex items-center gap-2">
+                          <Badge 
+                            variant="outline" 
+                            className="text-xs"
+                          >
+                            {job.jobType?.dispatchType || 'Unknown'}
+                          </Badge>
+                          {hasMissingRate(job) && (
+                            <AlertTriangle className="h-3 w-3 text-orange-600" />
+                          )}
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          Rate: {job.jobType?.rateOfJob ? `$${job.jobType.rateOfJob}` : 'Not set'}
+                        </div>
+                      </td>
+                      
+                      <td className="p-3">
+                        <div className="text-sm font-medium max-w-[200px] truncate" title={job.jobType?.title || 'Unknown Job'}>
+                          {job.jobType?.title || 'Unknown Job'}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {getJobSpecificValue(job)}
+                        </div>
+                      </td>
+                      
+                      <td className="p-3">
+                        <div className="text-sm">
+                          {job.driver?.name || 'None'}
+                        </div>
+                        {job.driver?.hourlyRate && (
+                          <div className="text-xs text-muted-foreground">
+                            {job.driver.hourlyRate}% rate
+                          </div>
+                        )}
+                      </td>
+                      
+                      <td className="p-3">
+                        <div className="text-sm">
+                          {job.dispatcher?.name || 'None'}
+                        </div>
+                        {job.dispatcher?.commissionPercent && (
+                          <div className="text-xs text-muted-foreground">
+                            {job.dispatcher.commissionPercent}% comm.
+                          </div>
+                        )}
+                      </td>
+                      
+                      <td className="p-3">
+                        <div className="text-sm">
+                          {job.unit?.name || 'None'}
+                        </div>
+                      </td>
+                      
+                      <td className="p-3">
+                        <div className="text-sm font-medium">
+                          {job.calculatedAmount !== undefined 
+                            ? formatCurrency(addHST(job.calculatedAmount))
+                            : 'Not calculated'
+                          }
+                        </div>
+                      </td>
+                      
+                      <td className="p-3">
+                        <div className="text-sm">
+                          {job.calculatedAmount !== undefined 
+                            ? formatCurrency(getCommission(job))
+                            : '-'
+                          }
+                        </div>
+                      </td>
+                      
+                      <td className="p-3">
+                        <div className="text-sm font-medium">
+                          {job.calculatedAmount !== undefined 
+                            ? formatCurrency(getDriverPay(job))
+                            : '-'
+                          }
+                        </div>
+                      </td>
+                      
+                      <td className="p-3">
+                        <div className="flex flex-col gap-1">
+                          <Badge 
+                            className={
+                              job.invoiceStatus === 'RECEIVED' && job.driverPaid
+                                ? "bg-green-100 text-green-800"
+                                : job.invoiceStatus === 'RECEIVED'
+                                ? "bg-blue-100 text-blue-800"
+                                : "bg-yellow-100 text-yellow-800"
+                            }
+                            variant="secondary"
+                          >
+                            {job.invoiceStatus === "RECEIVED" && job.driverPaid ? "Completed"
+                              : job.invoiceStatus === "RECEIVED" ? "Received"
+                              : "Pending"}
+                          </Badge>
+                          {job.invoiceStatus === 'RECEIVED' && !job.driverPaid && (
+                            <div className="text-xs text-muted-foreground">
+                              Driver not paid
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      
+                      <td className="p-3">
+                        <div className="flex items-center gap-1">
+                          {/* Quick action buttons - independent of each other */}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0"
+                            title={job.invoiceStatus === 'RECEIVED' ? "Mark as Not Received" : "Mark as Received"}
+                            onClick={() => handleUpdateJobStatus(job.id, { 
+                              invoiceStatus: job.invoiceStatus === 'RECEIVED' ? 'PENDING' : 'RECEIVED' 
+                            })}
+                          >
+                            <Check className={`h-3 w-3 ${job.invoiceStatus === 'RECEIVED' ? 'text-green-600' : 'text-gray-400'}`} />
+                          </Button>
+                          
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0"
+                            title={job.driverPaid ? "Mark Driver as Unpaid" : "Mark Driver as Paid"}
+                            onClick={() => handleUpdateJobStatus(job.id, { driverPaid: !job.driverPaid })}
+                          >
+                            <User className={`h-3 w-3 ${job.driverPaid ? 'text-green-600' : 'text-gray-400'}`} />
+                          </Button>
+
+                          {/* View/Edit buttons */}
+                          <JobDetailModal
+                            trigger={
+                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="View Details">
+                                <Eye className="h-3 w-3" />
+                              </Button>
+                            }
+                            job={job}
+                          />
+                          
+                          <JobModal
+                            trigger={
+                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="Edit Job">
+                                <Edit className="h-3 w-3" />
+                              </Button>
+                            }
+                            job={job}
+                            onSuccess={onJobSuccess}
+                          />
+
+                          {job.jobType && (
+                            <JobTypeViewModal
+                              trigger={
+                                <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="View Job Type">
+                                  <FileText className="h-3 w-3" />
+                                </Button>
+                              }
+                              jobTypeId={job.jobType.id}
+                            />
+                          )}
+
+                          {job.invoice?.id && (
+                            <InvoiceViewModal
+                              trigger={
+                                <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="View Invoice">
+                                  <Receipt className="h-3 w-3" />
+                                </Button>
+                              }
+                              invoiceId={job.invoice.id}
+                            />
+                          )}
+
+                          <ConfirmDeleteDialog
+                            title="Delete Job"
+                            description="Are you sure you want to delete this job? This action cannot be undone."
+                            onConfirm={() => onDeleteJob(job.id)}
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
 }
 
 export function Jobs() {
@@ -685,6 +1225,10 @@ export function Jobs() {
               <Calendar className="h-4 w-4" />
               Calendar View
             </TabsTrigger>
+            <TabsTrigger value="row" className="flex items-center gap-2">
+              <Table className="h-4 w-4" />
+              Row View
+            </TabsTrigger>
           </TabsList>
         </Tabs>
       </div>
@@ -723,6 +1267,13 @@ export function Jobs() {
             jobs={filteredJobs}
             currentDate={currentDate}
             onDateChange={setCurrentDate}
+            onJobSuccess={handleSuccess}
+            onDeleteJob={handleDeleteJob}
+          />
+        </TabsContent>
+        <TabsContent value="row" className="space-y-6">
+          <RowView 
+            jobs={filteredJobs}
             onJobSuccess={handleSuccess}
             onDeleteJob={handleDeleteJob}
           />

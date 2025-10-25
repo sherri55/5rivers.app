@@ -12,6 +12,7 @@ import { GET_DISPATCHERS } from "@/lib/graphql/dispatchers"
 import { DELETE_DISPATCHER } from "@/lib/graphql/mutations"
 import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog"
 import { useToast } from "@/hooks/use-toast"
+import { formatDateForDisplay } from "@/lib/utils/dateUtils"
 
 export function Dispatchers() {
   const [searchTerm, setSearchTerm] = useState("")
@@ -175,7 +176,7 @@ export function Dispatchers() {
 
                 <div className="flex items-center justify-between pt-2 border-t">
                   <span className="text-xs text-muted-foreground">
-                    Added {new Date(dispatcher.createdAt).toLocaleDateString()}
+                    Added {formatDateForDisplay(dispatcher.createdAt)}
                   </span>
                 </div>
 

@@ -13,6 +13,7 @@ import { GET_JOB_TYPES } from "@/lib/graphql/jobTypes"
 import { DELETE_JOB_TYPE } from "@/lib/graphql/mutations"
 import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog"
 import { useToast } from "@/hooks/use-toast"
+import { formatDateForDisplay } from "@/lib/utils/dateUtils"
 
 export function JobTypes() {
   const [searchTerm, setSearchTerm] = useState("")
@@ -262,7 +263,7 @@ export function JobTypes() {
 
                         <div className="flex items-center justify-between pt-2 border-t">
                           <span className="text-xs text-muted-foreground">
-                            Added {new Date(jobType.createdAt).toLocaleDateString()}
+                            Added {formatDateForDisplay(jobType.createdAt)}
                           </span>
                         </div>
 

@@ -282,7 +282,11 @@ export const EditInvoiceModal = ({ trigger, invoiceId, onSuccess }: EditInvoiceM
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2">
-                    {invoice.jobs.map((jobEntry: any, index: number) => (
+                    {[...invoice.jobs].sort((a: any, b: any) => {
+                      const dateA = new Date(a.job?.jobDate || '1970-01-01')
+                      const dateB = new Date(b.job?.jobDate || '1970-01-01')
+                      return dateA.getTime() - dateB.getTime()
+                    }).map((jobEntry: any, index: number) => (
                       <div key={index} className="flex justify-between items-center p-3 border rounded bg-muted/20">
                         <div className="flex-1">
                           <div className="font-medium">{jobEntry.job?.jobType?.title || 'Unknown Job'}</div>
@@ -340,7 +344,11 @@ export const EditInvoiceModal = ({ trigger, invoiceId, onSuccess }: EditInvoiceM
                       Showing jobs managed by {invoice.dispatcher.name}
                     </div>
                     <div className="max-h-48 overflow-y-auto space-y-2 border rounded p-3">
-                      {getAvailableJobs().map((job: any) => (
+                      {getAvailableJobs().sort((a: any, b: any) => {
+                        const dateA = new Date(a.jobDate || '1970-01-01')
+                        const dateB = new Date(b.jobDate || '1970-01-01')
+                        return dateA.getTime() - dateB.getTime()
+                      }).map((job: any) => (
                         <div key={job.id} className="flex items-center space-x-3 p-2 hover:bg-muted/50 rounded">
                           <Checkbox
                             id={`job-${job.id}`}

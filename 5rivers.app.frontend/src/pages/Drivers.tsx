@@ -11,6 +11,7 @@ import { GET_DRIVERS } from "@/lib/graphql/drivers"
 import { DELETE_DRIVER } from "@/lib/graphql/mutations"
 import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog"
 import { useToast } from "@/hooks/use-toast"
+import { formatDateForDisplay } from "@/lib/utils/dateUtils"
 
 export function Drivers() {
   const [searchTerm, setSearchTerm] = useState("")
@@ -181,7 +182,7 @@ export function Drivers() {
 
                 <div className="flex items-center justify-between pt-2 border-t">
                   <span className="text-xs text-muted-foreground">
-                    Added {new Date(driver.createdAt).toLocaleDateString()}
+                    Added {formatDateForDisplay(driver.createdAt)}
                   </span>
                 </div>
                 

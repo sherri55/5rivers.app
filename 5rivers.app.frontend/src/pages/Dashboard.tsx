@@ -6,6 +6,7 @@ import { GET_DASHBOARD_STATS } from "@/lib/graphql/dashboard"
 import { DashboardStatsData } from "@/lib/types/dashboard"
 import { useState } from "react"
 import { JobDetailModal } from "@/components/modals/JobDetailModal"
+import { formatDateForDisplay } from "@/lib/utils/dateUtils"
 
 // Calculation helpers for commission and driver pay
 const getCommission = (job: any) => {
@@ -185,7 +186,7 @@ export function Dashboard() {
           <div className="mt-4 sm:mt-0 flex items-center gap-4">
             <div className="bg-white/20 backdrop-blur-sm rounded-lg px-4 py-2">
               <span className="text-sm font-medium">Last Updated</span>
-              <div className="text-lg font-bold">{new Date().toLocaleDateString()}</div>
+              <div className="text-lg font-bold">{formatDateForDisplay(new Date())}</div>
             </div>
             <div className="bg-white/20 backdrop-blur-sm rounded-lg px-4 py-2 min-w-[200px]">
               <div className="flex items-center gap-2 text-white">
@@ -328,7 +329,7 @@ export function Dashboard() {
                           </span>
                         </div>
                         <p className="text-sm text-muted-foreground">{job.jobType?.company?.name || 'No Company'}</p>
-                        <p className="text-sm text-muted-foreground">{job.driver?.name || 'No Driver'} • {new Date(job.jobDate).toLocaleDateString()}</p>
+                        <p className="text-sm text-muted-foreground">{job.driver?.name || 'No Driver'} • {formatDateForDisplay(job.jobDate)}</p>
                       </div>
                       <div className="flex items-center gap-3">
                         <div className="text-right">
