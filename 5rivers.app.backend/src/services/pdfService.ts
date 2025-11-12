@@ -267,46 +267,61 @@ export class PDFService {
     // Helper function to get images for a job
     const getJobImages = async (job: JobData): Promise<any[]> => {
       const imageElements: any[] = [];
-      
+
+      console.log(`🔍 Processing images for job ${job.id}:`);
+      console.log(`   job.images:`, job.images);
+      console.log(`   job.imageUrls:`, job.imageUrls);
+      console.log(`   job.ticketIds:`, job.ticketIds);
+
       // Handle both legacy imageUrls and new images array
       const allImages: string[] = [];
-      
+
       // Add images from images array
       if (job.images && Array.isArray(job.images)) {
+        console.log(`   Adding ${job.images.length} images from images array`);
         allImages.push(...job.images);
       }
-      
+
       // Add images from legacy imageUrls (if it contains URLs)
       if (job.imageUrls && typeof job.imageUrls === 'string' && job.imageUrls.trim()) {
+        console.log(`   Processing imageUrls string: "${job.imageUrls}"`);
         try {
           // Try to parse as JSON array first
           if (job.imageUrls.trim().startsWith('[') && job.imageUrls.trim().endsWith(']')) {
             const parsed = JSON.parse(job.imageUrls);
             if (Array.isArray(parsed)) {
+              console.log(`   Parsed JSON array with ${parsed.length} items`);
               allImages.push(...parsed);
             }
           } else {
             // Fallback to comma/space separated
             const legacyUrls = job.imageUrls.split(/[,\s]+/).filter(url => url.trim().length > 0);
+            console.log(`   Split legacy URLs into ${legacyUrls.length} items`);
             allImages.push(...legacyUrls);
           }
         } catch (error) {
           console.warn(`Error parsing imageUrls for job ${job.id}:`, error);
         }
       }
+
+      console.log(`   Total images to process: ${allImages.length}`);
+      console.log(`   Image URLs:`, allImages);
       
       // Convert URLs to base64 for PDF embedding
       for (let index = 0; index < allImages.length; index++) {
         const imageUrl = allImages[index];
+        console.log(`   Processing image ${index + 1}/${allImages.length}: ${imageUrl}`);
+
         try {
           let imagePath = '';
           let imageBase64 = '';
-          
+
           // Handle different URL formats
           if (imageUrl.startsWith('http://localhost:4001/uploads/')) {
             // Full URL from localhost
             imagePath = imageUrl.replace('http://localhost:4001/uploads/', '');
             const fullPath = path.join(process.cwd(), 'uploads', imagePath);
+            console.log(`   localhost URL -> Path: ${fullPath}`);
             
             if (fs.existsSync(fullPath)) {
               try {
@@ -458,27 +473,120 @@ export class PDFService {
             }
           } else if (imageUrl.startsWith('data:')) {
             // Already base64 encoded - validate it has content
+            console.log(`   Data URL (${imageUrl.length} chars)`);
             if (imageUrl.length > 50) { // Basic validation for data URL
               imageBase64 = imageUrl;
             }
           } else {
-            console.warn(`Unsupported image URL format: ${imageUrl}`);
+            // Try some additional path patterns that might be in the database
+            console.log(`   Trying additional path patterns for: ${imageUrl}`);
+
+            let possiblePaths = [];
+
+            // Try as direct filename in uploads/jobs/
+            if (!imageUrl.includes('/') && (imageUrl.includes('.jpg') || imageUrl.includes('.jpeg') || imageUrl.includes('.png'))) {
+              possiblePaths.push(path.join(process.cwd(), 'uploads', 'jobs', imageUrl));
+            }
+
+            // Try removing domain from potential full URLs
+            const patterns = [
+              /^https?:\/\/[^\/]+(.*)$/,  // Remove protocol and domain
+              /^.*\/uploads\/(.*)$/,      // Extract everything after uploads/
+              /^.*\/([^\/]+\.(jpg|jpeg|png|gif|webp))$/i  // Extract just filename
+            ];
+
+            for (const pattern of patterns) {
+              const match = imageUrl.match(pattern);
+              if (match) {
+                if (pattern.source.includes('filename')) {
+                  // For filename pattern, put in uploads/jobs/
+                  possiblePaths.push(path.join(process.cwd(), 'uploads', 'jobs', match[1]));
+                } else {
+                  // For other patterns, use the captured group
+                  const relativePath = match[1].startsWith('/') ? match[1].substring(1) : match[1];
+                  possiblePaths.push(path.join(process.cwd(), relativePath));
+                }
+              }
+            }
+
+            // Try the URL as-is if it looks like a relative path
+            if (imageUrl.startsWith('uploads/') || imageUrl.startsWith('./uploads/')) {
+              const cleanPath = imageUrl.replace(/^\.\//, '');
+              possiblePaths.push(path.join(process.cwd(), cleanPath));
+            }
+
+            console.log(`   Trying ${possiblePaths.length} possible paths:`, possiblePaths);
+
+            // Try each possible path
+            for (const possiblePath of possiblePaths) {
+              if (fs.existsSync(possiblePath)) {
+                console.log(`   ✅ Found file at: ${possiblePath}`);
+                try {
+                  // Read the image with Jimp 1.x API
+                  let image = await Jimp.read(possiblePath);
+
+                  // Simple width vs height comparison to detect portrait orientation
+                  const isPortrait = image.bitmap.height > image.bitmap.width;
+                  console.log(`   Dimensions: ${image.bitmap.width}w x ${image.bitmap.height}h (${isPortrait ? 'portrait' : 'landscape'})`);
+
+                  if (isPortrait) {
+                    console.log(`   🔄 Rotating portrait image`);
+                    image = image.rotate(90);
+                  }
+
+                  // Get base64 from the (potentially rotated) image
+                  const base64 = await image.getBase64('image/jpeg');
+                  imageBase64 = base64;
+                  break; // Found and processed successfully
+                } catch (jimpError) {
+                  console.warn(`   Error processing with Jimp: ${possiblePath}`, jimpError);
+                  // Fallback to raw file reading
+                  try {
+                    const imageBuffer = fs.readFileSync(possiblePath);
+                    if (imageBuffer.length > 0) {
+                      const base64 = imageBuffer.toString('base64');
+                      const ext = path.extname(possiblePath).toLowerCase();
+                      let mimeType = 'image/jpeg';
+
+                      if (ext === '.png') mimeType = 'image/png';
+                      else if (ext === '.gif') mimeType = 'image/gif';
+                      else if (ext === '.webp') mimeType = 'image/webp';
+
+                      imageBase64 = `data:${mimeType};base64,${base64}`;
+                      break; // Found and processed successfully
+                    }
+                  } catch (readError) {
+                    console.warn(`   Error reading file: ${possiblePath}`, readError);
+                  }
+                }
+              } else {
+                console.log(`   ❌ File not found: ${possiblePath}`);
+              }
+            }
+
+            if (!imageBase64) {
+              console.warn(`   ⚠️ Could not process image URL: ${imageUrl}`);
+            }
           }
           
           // Only add image if we successfully processed it
           if (imageBase64 && imageBase64.length > 0) {
+            console.log(`   ✅ Successfully processed image ${index + 1} (${imageBase64.length} chars)`);
             imageElements.push({
               image: imageBase64,
               fit: [400, 300], // Use fit instead of fixed width/height to maintain aspect ratio
               alignment: 'center',
               margin: [0, 5, 0, 5]
             });
+          } else {
+            console.warn(`   ❌ Failed to process image ${index + 1}: ${imageUrl}`);
           }
         } catch (error) {
-          console.warn(`Error processing image for job ${job.id}:`, error);
+          console.warn(`   💥 Error processing image ${index + 1} for job ${job.id}:`, error);
         }
       }
-      
+
+      console.log(`📋 Job ${job.id} summary: ${allImages.length} images processed, ${imageElements.length} successfully added to PDF`);
       return imageElements;
     };
 
@@ -613,12 +721,27 @@ export class PDFService {
         const jobImages = await getJobImages(job);
         
         // Collect images for later use in tickets section - only if images are valid and processed
-        const validImages = jobImages.filter(img => 
-          img && 
-          img.image && 
-          img.image.length > 50 && // Must be longer than a basic data URL header
-          img.image.startsWith('data:image/') // Must be a valid image data URL
-        );
+        console.log(`📊 Collecting ${jobImages.length} images for job ${job.id} (${parseDate(job.jobDate)})`);
+
+        const validImages = jobImages.filter(img => {
+          const isValid = img &&
+            img.image &&
+            img.image.length > 50 && // Must be longer than a basic data URL header
+            img.image.startsWith('data:image/'); // Must be a valid image data URL
+
+          if (!isValid) {
+            console.log(`   ❌ Invalid image:`, {
+              hasImg: !!img,
+              hasImageProp: !!(img && img.image),
+              length: img && img.image ? img.image.length : 0,
+              startsWithData: img && img.image ? img.image.startsWith('data:image/') : false
+            });
+          }
+          return isValid;
+        });
+
+        console.log(`   ✅ ${validImages.length}/${jobImages.length} images passed validation`);
+
         if (validImages.length > 0) {
           allTicketImages.push({
             jobDate: parseDate(job.jobDate),
@@ -630,6 +753,9 @@ export class PDFService {
             ticketIds: parseTicketIds(job.ticketIds),
             images: validImages
           });
+          console.log(`   📝 Added ticket entry for job ${job.id}`);
+        } else {
+          console.log(`   ⚠️ No valid images for job ${job.id} - not adding to tickets section`);
         }
         
         // Main job row (without images)
@@ -858,12 +984,17 @@ export class PDFService {
     });
 
     // Add tickets section if there are any valid images
+    console.log(`\n🎫 TICKETS SECTION PROCESSING:`);
     console.log(`Total ticket data entries: ${allTicketImages.length}`);
-    
-    const validTicketData = allTicketImages.filter(ticketData => 
+
+    allTicketImages.forEach((ticketData, index) => {
+      console.log(`  Entry ${index + 1}: Job ${ticketData.jobDate} - ${ticketData.images ? ticketData.images.length : 0} images`);
+    });
+
+    const validTicketData = allTicketImages.filter(ticketData =>
       ticketData.images && ticketData.images.length > 0
     );
-    
+
     console.log(`Ticket data with images: ${validTicketData.length}`);
     
     if (validTicketData.length > 0) {
