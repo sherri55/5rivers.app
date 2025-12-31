@@ -1,7 +1,7 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
-import { Calendar, DollarSign, Truck, Clock, Package } from "lucide-react"
+import { Calendar, DollarSign, Truck, Clock, Package, FileText, Eye } from "lucide-react"
 import { useQuery } from "@apollo/client"
 import { GET_DRIVER } from "@/lib/graphql/drivers"
 
@@ -160,7 +160,32 @@ export const DriverJobsViewModal = ({ trigger, driver }: DriverJobsViewModalProp
                         </div>
                       )}
                     </div>
-                    
+
+                    {/* Ticket and Image Information */}
+                    {(job.ticketIds?.length > 0 || ((job.images?.length || 0) + (job.imageUrls ? 1 : 0)) > 0) && (
+                      <div className="grid grid-cols-2 gap-4 mt-3">
+                        {job.ticketIds && job.ticketIds.length > 0 && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <FileText className="h-4 w-4 text-muted-foreground" />
+                            <div>
+                              <div className="text-muted-foreground">Tickets</div>
+                              <div className="font-medium text-foreground text-xs">{job.ticketIds.join(', ')}</div>
+                            </div>
+                          </div>
+                        )}
+
+                        {((job.images?.length || 0) + (job.imageUrls ? 1 : 0)) > 0 && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <Eye className="h-4 w-4 text-muted-foreground" />
+                            <div>
+                              <div className="text-muted-foreground">Images</div>
+                              <div className="font-medium text-foreground">{(job.images?.length || 0) + (job.imageUrls ? 1 : 0)} image{((job.images?.length || 0) + (job.imageUrls ? 1 : 0)) !== 1 ? 's' : ''}</div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     <div className="mt-3 pt-3 border-t flex items-center justify-between text-xs text-muted-foreground">
                       <div>Invoice Status: {job.invoiceStatus === 'RECEIVED' ? 'Received' : 'Pending'}</div>
                       <div>Driver Paid: {job.driverPaid ? 'Yes' : 'No'}</div>

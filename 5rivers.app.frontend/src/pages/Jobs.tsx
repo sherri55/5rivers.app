@@ -6,13 +6,15 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Checkbox } from "@/components/ui/checkbox"
+import { SimpleEnhancedSearch, useSimpleEnhancedSearch, type QuickFilter, type SimpleFilters } from "@/components/SimpleEnhancedSearch"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Search, Plus, Calendar, DollarSign, Truck, User, List, ChevronLeft, ChevronRight, Eye, Edit, FileText, Receipt, Clock, AlertTriangle, Table, Check, X } from "lucide-react"
+import { Plus, Calendar, DollarSign, Truck, User, List, ChevronLeft, ChevronRight, Eye, Edit, FileText, Receipt, Clock, AlertTriangle, Table, Check, X } from "lucide-react"
 import { GET_JOBS } from "@/lib/graphql/jobs"
 import { DELETE_JOB } from "@/lib/graphql/mutations"
 import { UPDATE_JOB } from "@/lib/graphql/jobs"
@@ -36,6 +38,9 @@ interface Job {
   driverPaid: boolean
   calculatedAmount?: number
   driverPay?: number
+  ticketIds?: string[]
+  imageUrls?: string
+  images?: string[]
   jobType?: {
     id: string
     title: string
@@ -271,6 +276,23 @@ function CalendarView({ jobs, currentDate, onDateChange, onJobSuccess, onDeleteJ
                             {formatTimeRange(job.startTime, job.endTime)}
                           </div>
                         )}
+
+                        {(job.ticketIds?.length || job.images?.length || job.imageUrls) && (
+                          <div className="flex flex-wrap gap-2 mt-1">
+                            {job.ticketIds && job.ticketIds.length > 0 && (
+                              <div className="text-xs text-muted-foreground flex items-center gap-1">
+                                <FileText className="h-2.5 w-2.5" />
+                                <span>{job.ticketIds.length} ticket{job.ticketIds.length !== 1 ? 's' : ''}</span>
+                              </div>
+                            )}
+                            {((job.images?.length || 0) + (job.imageUrls ? 1 : 0)) > 0 && (
+                              <div className="text-xs text-muted-foreground flex items-center gap-1">
+                                <Eye className="h-2.5 w-2.5" />
+                                <span>{(job.images?.length || 0) + (job.imageUrls ? 1 : 0)} image{((job.images?.length || 0) + (job.imageUrls ? 1 : 0)) !== 1 ? 's' : ''}</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     ))}
                     
@@ -347,7 +369,21 @@ function CalendarView({ jobs, currentDate, onDateChange, onJobSuccess, onDeleteJ
                             <span>{formatTimeRange(job.startTime, job.endTime)}</span>
                           </div>
                         )}
-                        
+
+                        {job.ticketIds && job.ticketIds.length > 0 && (
+                          <div className="flex items-center gap-1">
+                            <FileText className="h-4 w-4" />
+                            <span>Tickets: {job.ticketIds.join(', ')}</span>
+                          </div>
+                        )}
+
+                        {((job.images?.length || 0) + (job.imageUrls ? 1 : 0)) > 0 && (
+                          <div className="flex items-center gap-1">
+                            <Eye className="h-4 w-4" />
+                            <span>{(job.images?.length || 0) + (job.imageUrls ? 1 : 0)} image{((job.images?.length || 0) + (job.imageUrls ? 1 : 0)) !== 1 ? 's' : ''}</span>
+                          </div>
+                        )}
+
                         {job.calculatedAmount && (
                           <div className="flex items-center gap-1">
                             <DollarSign className="h-4 w-4" />
@@ -504,6 +540,18 @@ function CalendarView({ jobs, currentDate, onDateChange, onJobSuccess, onDeleteJ
                           <span className="flex items-center gap-1">
                             <Clock className="h-3 w-3" />
                             {formatTimeRange(job.startTime, job.endTime)}
+                          </span>
+                        )}
+                        {job.ticketIds && job.ticketIds.length > 0 && (
+                          <span className="flex items-center gap-1">
+                            <FileText className="h-3 w-3" />
+                            {job.ticketIds.length} ticket{job.ticketIds.length !== 1 ? 's' : ''}
+                          </span>
+                        )}
+                        {((job.images?.length || 0) + (job.imageUrls ? 1 : 0)) > 0 && (
+                          <span className="flex items-center gap-1">
+                            <Eye className="h-3 w-3" />
+                            {(job.images?.length || 0) + (job.imageUrls ? 1 : 0)} image{((job.images?.length || 0) + (job.imageUrls ? 1 : 0)) !== 1 ? 's' : ''}
                           </span>
                         )}
                         {job.calculatedAmount && (
@@ -846,6 +894,8 @@ function RowView({ jobs, onJobSuccess, onDeleteJob }: RowViewProps) {
                   <th className="text-left p-3 font-medium">Driver</th>
                   <th className="text-left p-3 font-medium">Dispatcher</th>
                   <th className="text-left p-3 font-medium">Unit</th>
+                  <th className="text-left p-3 font-medium">Ticket IDs</th>
+                  <th className="text-left p-3 font-medium">Image Count</th>
                   <th className="text-left p-3 font-medium">Amount</th>
                   <th className="text-left p-3 font-medium">Commission</th>
                   <th className="text-left p-3 font-medium">Driver Pay</th>
@@ -856,7 +906,7 @@ function RowView({ jobs, onJobSuccess, onDeleteJob }: RowViewProps) {
               <tbody>
                 {jobs.length === 0 ? (
                   <tr>
-                    <td colSpan={12} className="p-8 text-center text-muted-foreground">
+                    <td colSpan={14} className="p-8 text-center text-muted-foreground">
                       No jobs found
                     </td>
                   </tr>
@@ -938,10 +988,25 @@ function RowView({ jobs, onJobSuccess, onDeleteJob }: RowViewProps) {
                           {job.unit?.name || 'None'}
                         </div>
                       </td>
-                      
+
+                      <td className="p-3">
+                        <div className="text-sm">
+                          {job.ticketIds && job.ticketIds.length > 0
+                            ? job.ticketIds.join(', ')
+                            : 'No tickets'
+                          }
+                        </div>
+                      </td>
+
+                      <td className="p-3">
+                        <div className="text-sm">
+                          {(job.images?.length || 0) + (job.imageUrls ? 1 : 0)} images
+                        </div>
+                      </td>
+
                       <td className="p-3">
                         <div className="text-sm font-medium">
-                          {job.calculatedAmount !== undefined 
+                          {job.calculatedAmount !== undefined
                             ? formatCurrency(addHST(job.calculatedAmount))
                             : 'Not calculated'
                           }
@@ -1080,6 +1145,7 @@ export function Jobs() {
   const [searchTerm, setSearchTerm] = useState("")
   const [activeView, setActiveView] = useState("list")
   const [currentDate, setCurrentDate] = useState(new Date())
+  const [filters, setFilters] = useState<SimpleFilters>({})
   const { toast } = useToast()
   
   const { data, loading, error, refetch } = useQuery(GET_JOBS, {
@@ -1123,24 +1189,124 @@ export function Jobs() {
   if (error) return <div className="flex items-center justify-center h-64 text-destructive">Error loading jobs: {error.message}</div>
 
   const jobs: Job[] = data?.jobs?.nodes || []
-  const filteredJobs = jobs.filter((job: Job) => {
-    const searchLower = searchTerm.toLowerCase();
-    
-    // Check job date
-    if (job.jobDate?.toLowerCase().includes(searchLower)) return true;
-    
-    // Check weight (handle array format)
-    if (job.weight && Array.isArray(job.weight)) {
-      if (job.weight.some(w => w.toString().includes(searchLower))) return true;
+
+  // Define search fields for jobs
+  const getJobSearchFields = (job: Job): string[] => [
+    // Job basic fields
+    job.jobDate,
+    job.invoiceStatus,
+    job.id,
+    job.amount?.toString(),
+    job.loads?.toString(),
+    job.startTime,
+    job.endTime,
+    job.driverPaid ? 'paid' : 'unpaid',
+    job.calculatedAmount?.toString(),
+
+    // Job Type fields
+    job.jobType?.title,
+    job.jobType?.dispatchType,
+    job.jobType?.startLocation,
+    job.jobType?.endLocation,
+    job.jobType?.rateOfJob?.toString(),
+    job.jobType?.company?.name,
+    job.jobType?.company?.description,
+    job.jobType?.company?.industry,
+    job.jobType?.company?.location,
+
+    // Driver fields
+    job.driver?.name,
+    job.driver?.email,
+    job.driver?.hourlyRate?.toString(),
+
+    // Dispatcher fields
+    job.dispatcher?.name,
+    job.dispatcher?.email,
+    job.dispatcher?.commissionPercent?.toString(),
+
+    // Unit fields
+    job.unit?.name,
+    job.unit?.plateNumber,
+    job.unit?.color,
+
+    // Invoice fields
+    job.invoice?.invoiceNumber,
+    job.invoice?.status,
+
+    // Handle array fields
+    ...(job.weight && Array.isArray(job.weight) ? job.weight.map(w => w.toString()) : []),
+    ...(job.ticketIds || []),
+    ...(job.imageUrls ? [job.imageUrls] : []),
+    ...(job.images || [])
+  ].filter(Boolean) as string[]
+
+  // Custom filter function for jobs
+  const applyJobFilters = (job: Job, filters: SimpleFilters): boolean => {
+    if (filters.driverId && job.driver?.id !== filters.driverId) return false;
+    if (filters.dispatcherId && job.dispatcher?.id !== filters.dispatcherId) return false;
+    if (filters.unitId && job.unit?.id !== filters.unitId) return false;
+    if (filters.jobTypeId && job.jobType?.id !== filters.jobTypeId) return false;
+    if (filters.companyId && job.jobType?.company?.id !== filters.companyId) return false;
+    if (filters.invoiceStatus && job.invoiceStatus !== filters.invoiceStatus) return false;
+    if (filters.driverPaid !== undefined && job.driverPaid !== filters.driverPaid) return false;
+    if (filters.dispatchType && job.jobType?.dispatchType !== filters.dispatchType) return false;
+
+    // Date range filtering
+    if (filters.dateFrom || filters.dateTo) {
+      const jobDate = parseBackendDate(job.jobDate);
+      if (!jobDate) return false;
+
+      if (filters.dateFrom) {
+        const fromDate = new Date(filters.dateFrom);
+        if (jobDate < fromDate) return false;
+      }
+
+      if (filters.dateTo) {
+        const toDate = new Date(filters.dateTo);
+        toDate.setHours(23, 59, 59, 999);
+        if (jobDate > toDate) return false;
+      }
     }
-    
-    // Check other fields
-    if (job.jobType?.title?.toLowerCase().includes(searchLower)) return true;
-    if (job.driver?.name?.toLowerCase().includes(searchLower)) return true;
-    if (job.dispatcher?.name?.toLowerCase().includes(searchLower)) return true;
-    
-    return false;
-  })
+
+    return true;
+  }
+
+  // Quick filter buttons
+  const quickFilters: QuickFilter[] = [
+    {
+      label: 'Pending',
+      icon: Clock,
+      filterKey: 'invoiceStatus',
+      filterValue: 'PENDING'
+    },
+    {
+      label: 'Received',
+      icon: Check,
+      filterKey: 'invoiceStatus',
+      filterValue: 'RECEIVED'
+    },
+    {
+      label: 'Unpaid',
+      icon: User,
+      filterKey: 'driverPaid',
+      filterValue: false
+    },
+    {
+      label: 'Paid',
+      icon: DollarSign,
+      filterKey: 'driverPaid',
+      filterValue: true
+    }
+  ]
+
+  // Use enhanced search hook
+  const filteredJobs = useSimpleEnhancedSearch(
+    jobs,
+    searchTerm,
+    filters,
+    getJobSearchFields,
+    applyJobFilters
+  )
 
   // Group jobs by month-year for list view
   const groupJobsByMonth = (jobList: Job[]) => {
@@ -1205,32 +1371,169 @@ export function Jobs() {
         />
       </div>
 
-      <div className="flex items-center space-x-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search jobs by date, weight, type, driver, dispatcher..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-8"
-          />
-        </div>
-        <Tabs value={activeView} onValueChange={setActiveView} className="w-auto">
+      {/* Enhanced Search and Filter Section */}
+      <div className="flex items-center justify-between">
+        <SimpleEnhancedSearch
+          searchTerm={searchTerm}
+          onSearchChange={setSearchTerm}
+          filters={filters}
+          onFiltersChange={setFilters}
+          quickFilters={quickFilters}
+          searchPlaceholder="Search jobs... Use & for multiple terms (e.g. 'farmer & pending' or 'amritinder & driver & unpaid')"
+          className="flex-1"
+        >
+          {/* Custom filter content */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Driver</label>
+              <Select
+                value={filters.driverId || ""}
+                onValueChange={(value) => setFilters(prev => ({
+                  ...prev,
+                  driverId: value || undefined
+                }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select driver" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">All Drivers</SelectItem>
+                  {Array.from(new Set(jobs.map(job => job.driver).filter(Boolean)))
+                    .map(driver => (
+                      <SelectItem key={driver!.id} value={driver!.id}>
+                        {driver!.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Dispatcher</label>
+              <Select
+                value={filters.dispatcherId || ""}
+                onValueChange={(value) => setFilters(prev => ({
+                  ...prev,
+                  dispatcherId: value || undefined
+                }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select dispatcher" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">All Dispatchers</SelectItem>
+                  {Array.from(new Set(jobs.map(job => job.dispatcher).filter(Boolean)))
+                    .map(dispatcher => (
+                      <SelectItem key={dispatcher!.id} value={dispatcher!.id}>
+                        {dispatcher!.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Unit</label>
+              <Select
+                value={filters.unitId || ""}
+                onValueChange={(value) => setFilters(prev => ({
+                  ...prev,
+                  unitId: value || undefined
+                }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select unit" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">All Units</SelectItem>
+                  {Array.from(new Set(jobs.map(job => job.unit).filter(Boolean)))
+                    .map(unit => (
+                      <SelectItem key={unit!.id} value={unit!.id}>
+                        {unit!.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Dispatch Type</label>
+              <Select
+                value={filters.dispatchType || ""}
+                onValueChange={(value) => setFilters(prev => ({
+                  ...prev,
+                  dispatchType: value || undefined
+                }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">All Types</SelectItem>
+                  {Array.from(new Set(jobs.map(job => job.jobType?.dispatchType).filter(Boolean)))
+                    .map(type => (
+                      <SelectItem key={type} value={type}>
+                        {type}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Date From</label>
+              <Input
+                type="date"
+                value={filters.dateFrom || ""}
+                onChange={(e) => setFilters(prev => ({
+                  ...prev,
+                  dateFrom: e.target.value || undefined
+                }))}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Date To</label>
+              <Input
+                type="date"
+                value={filters.dateTo || ""}
+                onChange={(e) => setFilters(prev => ({
+                  ...prev,
+                  dateTo: e.target.value || undefined
+                }))}
+              />
+            </div>
+          </div>
+        </SimpleEnhancedSearch>
+        <Tabs value={activeView} onValueChange={setActiveView} className="ml-4">
           <TabsList>
             <TabsTrigger value="list" className="flex items-center gap-2">
               <List className="h-4 w-4" />
-              List View
+              List
             </TabsTrigger>
             <TabsTrigger value="calendar" className="flex items-center gap-2">
               <Calendar className="h-4 w-4" />
-              Calendar View
+              Calendar
             </TabsTrigger>
             <TabsTrigger value="row" className="flex items-center gap-2">
               <Table className="h-4 w-4" />
-              Row View
+              Table
             </TabsTrigger>
           </TabsList>
         </Tabs>
+      </div>
+
+      {/* Results summary */}
+      <div className="flex items-center justify-between text-sm text-muted-foreground">
+        <span>
+          Showing {filteredJobs.length} of {jobs.length} jobs
+          {searchTerm && ` for "${searchTerm}"`}
+        </span>
+        {(searchTerm || Object.keys(filters).some(key => filters[key] != null)) && (
+          <span className="text-xs">
+            Use & to search multiple terms (e.g. "farmer & pending")
+          </span>
+        )}
       </div>
 
       <Tabs value={activeView} onValueChange={setActiveView}>

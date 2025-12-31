@@ -3,7 +3,7 @@ import { useQuery } from "@apollo/client"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
-import { Calendar, DollarSign, Building, Loader2 } from "lucide-react"
+import { Calendar, DollarSign, Building, Loader2, FileText, Eye } from "lucide-react"
 import { GET_JOBS } from "@/lib/graphql/jobs"
 
 interface DispatcherJobsViewModalProps {
@@ -141,6 +141,31 @@ export const DispatcherJobsViewModal = ({ trigger, dispatcher }: DispatcherJobsV
                       <div className="mt-3 text-sm">
                         <span className="text-muted-foreground">Hours: </span>
                         <span className="font-medium">{job.calculatedHours.toFixed(2)}</span>
+                      </div>
+                    )}
+
+                    {/* Ticket and Image Information */}
+                    {(job.ticketIds?.length > 0 || ((job.images?.length || 0) + (job.imageUrls ? 1 : 0)) > 0) && (
+                      <div className="grid grid-cols-2 gap-4 mt-3">
+                        {job.ticketIds && job.ticketIds.length > 0 && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <FileText className="h-4 w-4 text-muted-foreground" />
+                            <div>
+                              <div className="text-muted-foreground">Tickets</div>
+                              <div className="font-medium text-foreground text-xs">{job.ticketIds.join(', ')}</div>
+                            </div>
+                          </div>
+                        )}
+
+                        {((job.images?.length || 0) + (job.imageUrls ? 1 : 0)) > 0 && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <Eye className="h-4 w-4 text-muted-foreground" />
+                            <div>
+                              <div className="text-muted-foreground">Images</div>
+                              <div className="font-medium text-foreground">{(job.images?.length || 0) + (job.imageUrls ? 1 : 0)} image{((job.images?.length || 0) + (job.imageUrls ? 1 : 0)) !== 1 ? 's' : ''}</div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </CardContent>

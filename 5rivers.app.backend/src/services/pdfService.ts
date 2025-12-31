@@ -347,9 +347,10 @@ export class PDFService {
                 }
                 
                 // Get base64 from the (potentially rotated) image - using newer API
-                const base64 = await image.getBase64('image/jpeg');
-                console.log(`   Base64 generated: ${base64.length} characters`);
-                imageBase64 = base64;
+                const base64String = await image.getBase64('image/jpeg');
+                console.log(`   Base64 generated: ${base64String.length} characters`);
+                // Ensure it's a full data URL (Jimp returns base64 without prefix)
+                imageBase64 = base64String.startsWith('data:') ? base64String : `data:image/jpeg;base64,${base64String}`;
               } catch (jimpError) {
                 console.warn(`Error processing image with Jimp: ${fullPath}`, jimpError);
                 // Fallback to original processing without rotation
@@ -398,9 +399,10 @@ export class PDFService {
                 }
                 
                 // Get base64 from the (potentially rotated) image - using newer API
-                const base64 = await image.getBase64('image/jpeg');
-                console.log(`   Base64 generated: ${base64.length} characters`);
-                imageBase64 = base64;
+                const base64String = await image.getBase64('image/jpeg');
+                console.log(`   Base64 generated: ${base64String.length} characters`);
+                // Ensure it's a full data URL (Jimp returns base64 without prefix)
+                imageBase64 = base64String.startsWith('data:') ? base64String : `data:image/jpeg;base64,${base64String}`;
               } catch (jimpError) {
                 console.warn(`Error processing image with Jimp: ${fullPath}`, jimpError);
                 // Fallback to original processing without rotation
@@ -449,9 +451,10 @@ export class PDFService {
                 }
                 
                 // Get base64 from the (potentially rotated) image - using newer API
-                const base64 = await image.getBase64('image/jpeg');
-                console.log(`   Base64 generated: ${base64.length} characters`);
-                imageBase64 = base64;
+                const base64String = await image.getBase64('image/jpeg');
+                console.log(`   Base64 generated: ${base64String.length} characters`);
+                // Ensure it's a full data URL (Jimp returns base64 without prefix)
+                imageBase64 = base64String.startsWith('data:') ? base64String : `data:image/jpeg;base64,${base64String}`;
               } catch (jimpError) {
                 console.warn(`Error processing image with Jimp: ${fullPath}`, jimpError);
                 // Fallback to original processing without rotation
@@ -1000,11 +1003,11 @@ export class PDFService {
     if (validTicketData.length > 0) {
       // Check if there are any actual valid images to render
       const totalValidImages = validTicketData.reduce((total, ticketData) => {
-        const validImages = ticketData.images.filter(img => 
+        const validImages = ticketData.images.filter((img: any) => 
           img && 
           img.image && 
           img.image.length > 50 && 
-          img.image.startsWith('data:image/')
+          (img.image.startsWith('data:image/') || img.image.startsWith('/9j/') || img.image.startsWith('iVBORw0KGgo'))
         );
         console.log(`Job ${ticketData.jobDate}: ${ticketData.images.length} total images, ${validImages.length} valid images`);
         return total + validImages.length;
@@ -1013,52 +1016,78 @@ export class PDFService {
       console.log(`Total valid images for rendering: ${totalValidImages}`);
       
       if (totalValidImages > 0) {
-        // Add page break and centered "Tickets" title - title and first image on same page
-        // content.push({ text: '', pageBreak: 'before' });
+        // Add page break before tickets section
+        content.push({ text: '', pageBreak: 'before' });
+        
+        // Add centered "Tickets" title
         content.push({
           text: 'Tickets',
           style: 'ticketsTitle',
           alignment: 'center',
-          margin: [0, 100, 0, 50] // Reduced margins - title at top, space for first image below
+          margin: [0, 20, 0, 30]
         });
 
-        // Sort ticket images by date (ascending)
-        validTicketData.sort((a, b) => {
-          const dateA = new Date(a.jobDate);
-          const dateB = new Date(b.jobDate);
-          return dateA.getTime() - dateB.getTime();
-        });
-
-        // Build array of all valid images first
+        // Collect all valid images from all jobs
         const allValidImages: any[] = [];
         validTicketData.forEach((ticketData) => {
-          const validImages = ticketData.images.filter(img => 
+          const validImages = ticketData.images.filter((img: any) => 
             img && 
             img.image && 
             img.image.length > 50 && 
-            img.image.startsWith('data:image/')
+            (img.image.startsWith('data:image/') || img.image.startsWith('/9j/') || img.image.startsWith('iVBORw0KGgo'))
           );
           allValidImages.push(...validImages);
         });
-        
-        console.log(`Final valid images to render: ${allValidImages.length}`);
-        
-        // Add each image with simple approach - portrait images are now rotated to landscape
-        allValidImages.forEach((img, index) => {
-          // Add page break before image (except first one, which goes with Tickets title)
-          if (index > 0) {
-            content.push({ text: '', pageBreak: 'before' });
-          }
+
+        // Add each image directly without job details
+        allValidImages.forEach((img: any, imgIndex: number) => {
+          // Ensure image is in correct format for pdfMake
+          let imageData = img.image;
           
-          // Add image with conservative sizing to prevent empty pages
-          content.push({
-            image: img.image,
-            fit: [500, 350], // Conservative fit to prevent layout issues
+          // If it's already a data URL, use it directly
+          // If it's just base64, add the data URL prefix
+          if (!imageData.startsWith('data:')) {
+            // Determine MIME type from base64 or default to JPEG
+            let mimeType = 'image/jpeg';
+            if (imageData.startsWith('iVBORw0KGgo')) {
+              mimeType = 'image/png';
+            } else if (imageData.startsWith('/9j/')) {
+              mimeType = 'image/jpeg';
+            }
+            imageData = `data:${mimeType};base64,${imageData}`;
+          }
+
+          // Add page break before image (except first one)
+          if (imgIndex > 0) {
+            content.push({ 
+              text: '',
+              pageBreak: 'before',
+              margin: [0, 0, 0, 0]
+            });
+          }
+
+          // Add image with smaller size to prevent empty pages
+          // Page size in landscape: 792x612, margins: [30,60,30,60]
+          // Available space: 732x492
+          // Using smaller size (600x400) to ensure it fits comfortably without page breaks
+          const imageElement: any = {
+            image: imageData,
+            fit: [600, 400], // Smaller size to prevent empty pages
             alignment: 'center',
-            margin: index === 0 ? [0, 20, 0, 50] : [0, 50, 0, 50] // Less top margin for first image after title
-          });
+            margin: [0, 0, 0, 0]
+          };
+
+          content.push(imageElement);
+
+          console.log(`✅ Added image ${imgIndex + 1}/${allValidImages.length}`);
         });
+        
+        console.log(`✅ Successfully added ${totalValidImages} images to PDF`);
+      } else {
+        console.warn(`⚠️ No valid images found after filtering - images may be in wrong format`);
       }
+    } else {
+      console.log(`ℹ️ No ticket data with images found`);
     }
 
     return {

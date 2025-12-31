@@ -25,6 +25,9 @@ interface Job {
   driverPaid: boolean
   calculatedAmount?: number
   driverPay?: number
+  ticketIds?: string[]
+  imageUrls?: string
+  images?: string[]
   jobType?: {
     id: string
     title: string
@@ -576,6 +579,32 @@ export function JobList({ jobs, onJobSuccess, onDeleteJob }: JobListProps) {
                         <div className={`flex items-center justify-between rounded px-2 py-1 ${getDispatchTypeColors(job.jobType?.dispatchType || 'unknown').background}`}>
                           {getJobSpecificAttributeForGrid(job)}
                         </div>
+
+                        {/* Ticket IDs */}
+                        {job.ticketIds && job.ticketIds.length > 0 && (
+                          <div className="flex items-center justify-between rounded px-2 py-1 bg-blue-50">
+                            <div className="flex items-center gap-1 text-blue-700">
+                              <FileText className="h-3 w-3 text-blue-600" />
+                              <span>Tickets:</span>
+                            </div>
+                            <div className="truncate ml-1 text-blue-700">
+                              <span className="font-medium text-xs">{job.ticketIds.join(', ')}</span>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Image Count */}
+                        {((job.images?.length || 0) + (job.imageUrls ? 1 : 0)) > 0 && (
+                          <div className="flex items-center justify-between rounded px-2 py-1 bg-purple-50">
+                            <div className="flex items-center gap-1 text-purple-700">
+                              <Eye className="h-3 w-3 text-purple-600" />
+                              <span>Images:</span>
+                            </div>
+                            <div className="truncate ml-1 text-purple-700">
+                              <span className="font-medium">{(job.images?.length || 0) + (job.imageUrls ? 1 : 0)} image{((job.images?.length || 0) + (job.imageUrls ? 1 : 0)) !== 1 ? 's' : ''}</span>
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       {/* Financial breakdown - compact for grid */}

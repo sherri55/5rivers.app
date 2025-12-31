@@ -4,7 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Search, Plus, User, DollarSign, Copy } from "lucide-react"
+import { Plus, User, DollarSign, Copy, Clock, Check } from "lucide-react"
+import { EnhancedSearch, useEnhancedSearch, type FilterOption, type QuickFilterButton, type EnhancedSearchFilters } from "@/components/EnhancedSearch"
 import { DriverModal } from "@/components/modals/DriverModal"
 import { DriverJobsViewModal } from "@/components/modals/DriverJobsViewModal"
 import { GET_DRIVERS } from "@/lib/graphql/drivers"
@@ -13,8 +14,20 @@ import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog"
 import { useToast } from "@/hooks/use-toast"
 import { formatDateForDisplay } from "@/lib/utils/dateUtils"
 
+interface Driver {
+  id: string
+  name: string
+  description?: string
+  email: string
+  phone?: string
+  hourlyRate: number
+  createdAt: string
+  updatedAt: string
+}
+
 export function Drivers() {
   const [searchTerm, setSearchTerm] = useState("")
+  const [filters, setFilters] = useState<EnhancedSearchFilters>({})
   const { toast } = useToast()
   
   const { data, loading, error, refetch } = useQuery(GET_DRIVERS, {
@@ -65,10 +78,80 @@ export function Drivers() {
     }
   }
 
-  const drivers = data?.drivers || []
-  const filteredDrivers = drivers.filter((driver: any) =>
-    driver.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    driver.email.toLowerCase().includes(searchTerm.toLowerCase())
+  const drivers: Driver[] = data?.drivers || []
+
+  // Define search fields for drivers
+  const getDriverSearchFields = (driver: Driver): string[] => [
+    driver.name,
+    driver.email,
+    driver.description,
+    driver.phone,
+    driver.hourlyRate?.toString(),
+    formatDateForDisplay(driver.createdAt),
+    formatDateForDisplay(driver.updatedAt)
+  ].filter(Boolean) as string[]
+
+  // Custom filter function for drivers
+  const applyDriverFilters = (driver: Driver, filters: EnhancedSearchFilters): boolean => {
+    if (filters.hourlyRateMin && driver.hourlyRate < parseFloat(filters.hourlyRateMin)) return false;
+    if (filters.hourlyRateMax && driver.hourlyRate > parseFloat(filters.hourlyRateMax)) return false;
+    if (filters.hasPhone !== undefined && filters.hasPhone && !driver.phone) return false;
+    if (filters.hasPhone !== undefined && !filters.hasPhone && driver.phone) return false;
+    if (filters.hasDescription !== undefined && filters.hasDescription && !driver.description) return false;
+    if (filters.hasDescription !== undefined && !filters.hasDescription && driver.description) return false;
+
+    return true;
+  }
+
+  // Filter configuration for drivers
+  const filterConfig: FilterOption[] = [
+    {
+      key: 'hourlyRateMin',
+      label: 'Min Hourly Rate',
+      type: 'number',
+      placeholder: 'Enter minimum rate'
+    },
+    {
+      key: 'hourlyRateMax',
+      label: 'Max Hourly Rate',
+      type: 'number',
+      placeholder: 'Enter maximum rate'
+    },
+    {
+      key: 'hasPhone',
+      label: 'Has Phone',
+      type: 'boolean'
+    },
+    {
+      key: 'hasDescription',
+      label: 'Has Description',
+      type: 'boolean'
+    }
+  ]
+
+  // Quick filter buttons for drivers
+  const quickFilters: QuickFilterButton[] = [
+    {
+      label: 'High Rate (>$30)',
+      icon: DollarSign,
+      filterKey: 'hourlyRateMin',
+      filterValue: '30'
+    },
+    {
+      label: 'Has Phone',
+      icon: User,
+      filterKey: 'hasPhone',
+      filterValue: true
+    }
+  ]
+
+  // Use enhanced search hook
+  const filteredDrivers = useEnhancedSearch(
+    drivers,
+    searchTerm,
+    filters,
+    getDriverSearchFields,
+    applyDriverFilters
   )
 
   const formatCurrency = (amount: number) => {
@@ -112,16 +195,31 @@ export function Drivers() {
         />
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-4 sm:items-center sm:justify-between">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search drivers..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-8"
-          />
-        </div>
+      {/* Enhanced Search and Filter Section */}
+      <EnhancedSearch
+        searchTerm={searchTerm}
+        onSearchChange={setSearchTerm}
+        filters={filters}
+        onFiltersChange={setFilters}
+        data={drivers}
+        filterConfig={filterConfig}
+        quickFilters={quickFilters}
+        searchPlaceholder="Search drivers... Use & for multiple terms (e.g. 'john & driver & 30')"
+        searchFields={getDriverSearchFields}
+        className="mb-4"
+      />
+
+      {/* Results summary */}
+      <div className="flex items-center justify-between text-sm text-muted-foreground mb-4">
+        <span>
+          Showing {filteredDrivers.length} of {drivers.length} drivers
+          {searchTerm && ` for "${searchTerm}"`}
+        </span>
+        {(searchTerm || Object.keys(filters).some(key => filters[key] != null)) && (
+          <span className="text-xs">
+            Use & to search multiple terms (e.g. "john & 30")
+          </span>
+        )}
       </div>
 
       {loading ? (
