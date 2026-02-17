@@ -137,7 +137,7 @@ export const EditInvoiceModal = ({ trigger, invoiceId, onSuccess }: EditInvoiceM
             variables: {
               input: {
                 id: jobId,
-                invoiceStatus: 'INVOICED'
+                invoiceStatus: 'RAISED'
               }
             }
           })

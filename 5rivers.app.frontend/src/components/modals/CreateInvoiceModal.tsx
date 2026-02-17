@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox"
 import { useToast } from "@/hooks/use-toast"
 import { useQuery, useMutation } from "@apollo/client"
-import { GET_JOBS } from "@/lib/graphql/jobs"
+import { GET_JOBS, UPDATE_JOB } from "@/lib/graphql/jobs"
 import { GET_DISPATCHERS } from "@/lib/graphql/dispatchers"
 import { CREATE_INVOICE } from "@/lib/graphql/invoices"
 
@@ -110,6 +110,22 @@ export const CreateInvoiceModal = ({ trigger, onSuccess }: CreateInvoiceModalPro
     }
     
     await createInvoice({ variables: { input: invoiceInput } })
+    
+    // Update job statuses to RAISED
+    for (const jobId of formData.selectedJobIds) {
+      try {
+        await updateJob({
+          variables: {
+            input: {
+              id: jobId,
+              invoiceStatus: "RAISED"
+            }
+          }
+        })
+      } catch (error) {
+        console.error(`Failed to update job ${jobId} status:`, error)
+      }
+    }
   }
 
   return (

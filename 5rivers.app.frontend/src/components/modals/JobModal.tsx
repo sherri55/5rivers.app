@@ -209,7 +209,7 @@ export function JobModal({ job, trigger, onSuccess, isDuplicate = false }: JobMo
     loads: job?.loads || 0,
     startTime: job ? formatDateTimeLocal(job.startTime || "", job.jobDate) : "",
     endTime: job ? formatDateTimeLocal(job.endTime || "", job.jobDate) : "",
-    invoiceStatus: job?.invoiceStatus || "Pending",
+    invoiceStatus: job?.invoiceStatus || "PENDING",
     driverPaid: job?.driverPaid || false,
     ticketIds: (() => {
       if (!job) return ""
@@ -397,7 +397,7 @@ export function JobModal({ job, trigger, onSuccess, isDuplicate = false }: JobMo
           loads: 0,
           startTime: "",
           endTime: "",
-          invoiceStatus: "Pending",
+          invoiceStatus: "PENDING",
           driverPaid: false,
           ticketIds: "",
         })

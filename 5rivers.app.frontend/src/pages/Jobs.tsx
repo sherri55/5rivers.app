@@ -69,6 +69,15 @@ interface Job {
   }
 }
 
+// Helper function to get effective invoice status
+// If job is PENDING but has an invoice, it should be displayed as RAISED
+const getEffectiveInvoiceStatus = (job: Job): string => {
+  if (job.invoiceStatus === 'PENDING' && job.invoice?.id) {
+    return 'RAISED'
+  }
+  return job.invoiceStatus
+}
+
 // Calculation helpers for commission and driver pay
 // Add HST (1.13%) to amount
 const addHST = (amount: number) => amount * 1.13;
@@ -139,8 +148,10 @@ function CalendarView({ jobs, currentDate, onDateChange, onJobSuccess, onDeleteJ
   }
 
   const getStatusColor = (job: Job) => {
-    if (job.invoiceStatus === 'RECEIVED' && job.driverPaid) return "bg-green-500"
-    if (job.invoiceStatus === 'RECEIVED') return "bg-blue-500"
+    const effectiveStatus = getEffectiveInvoiceStatus(job)
+    if (effectiveStatus === 'RECEIVED' && job.driverPaid) return "bg-green-500"
+    if (effectiveStatus === 'RECEIVED') return "bg-blue-500"
+    if (effectiveStatus === 'RAISED') return "bg-purple-500"
     return "bg-yellow-500"
   }
 
@@ -228,11 +239,13 @@ function CalendarView({ jobs, currentDate, onDateChange, onJobSuccess, onDeleteJ
                         className={`text-xs rounded-md p-1.5 border-l-2 transition-all ${
                           hasMissingRate(job)
                             ? "bg-orange-50 border-orange-500 text-orange-800"
-                            : job.invoiceStatus === 'RECEIVED' && job.driverPaid
-                            ? "bg-green-50 border-green-500 text-green-800"
-                            : job.invoiceStatus === 'RECEIVED'
-                            ? "bg-blue-50 border-blue-500 text-blue-800"
-                            : "bg-yellow-50 border-yellow-500 text-yellow-800"
+                            : (() => {
+                                const effectiveStatus = getEffectiveInvoiceStatus(job)
+                                if (effectiveStatus === 'RECEIVED' && job.driverPaid) return "bg-green-50 border-green-500 text-green-800"
+                                if (effectiveStatus === 'RECEIVED') return "bg-blue-50 border-blue-500 text-blue-800"
+                                if (effectiveStatus === 'RAISED') return "bg-purple-50 border-purple-500 text-purple-800"
+                                return "bg-yellow-50 border-yellow-500 text-yellow-800"
+                              })()
                         }`}
                         onClick={(e) => e.stopPropagation()}
                       >
@@ -343,7 +356,7 @@ function CalendarView({ jobs, currentDate, onDateChange, onJobSuccess, onDeleteJ
                           </span>
                         )}
                         <Badge variant="outline" className="text-xs">
-                          {job.invoiceStatus}
+                          {getEffectiveInvoiceStatus(job)}
                         </Badge>
                       </div>
                       
@@ -404,17 +417,29 @@ function CalendarView({ jobs, currentDate, onDateChange, onJobSuccess, onDeleteJ
                       <Button
                         variant="outline"
                         size="sm"
-                        title={job.invoiceStatus === 'RECEIVED' ? "Mark as Not Received" : "Mark as Received"}
+                        title={(() => {
+                          const effectiveStatus = getEffectiveInvoiceStatus(job)
+                          return effectiveStatus === 'RECEIVED' ? "Mark as Raised" : effectiveStatus === 'RAISED' ? "Mark as Received" : "Mark as Received"
+                        })()}
                         onClick={async () => {
                           try {
+                            const effectiveStatus = getEffectiveInvoiceStatus(job)
+                            let newStatus: string
+                            if (effectiveStatus === 'RECEIVED') {
+                              newStatus = 'RAISED'
+                            } else if (effectiveStatus === 'RAISED') {
+                              newStatus = 'RECEIVED'
+                            } else {
+                              newStatus = 'RECEIVED'
+                            }
                             await updateJob({ 
                               variables: { 
-                                input: { id: job.id, invoiceStatus: job.invoiceStatus === 'RECEIVED' ? 'PENDING' : 'RECEIVED' } 
+                                input: { id: job.id, invoiceStatus: newStatus } 
                               } 
                             })
                             toast({
                               title: "Success",
-                              description: job.invoiceStatus === 'RECEIVED' ? "Job marked as not received." : "Job marked as received.",
+                              description: `Job status updated to ${newStatus}.`,
                             })
                             onJobSuccess()
                           } catch (error: any) {
@@ -426,7 +451,10 @@ function CalendarView({ jobs, currentDate, onDateChange, onJobSuccess, onDeleteJ
                           }
                         }}
                       >
-                        <Check className={`h-4 w-4 ${job.invoiceStatus === 'RECEIVED' ? 'text-green-600' : 'text-gray-400'}`} />
+                        <Check className={`h-4 w-4 ${(() => {
+                          const effectiveStatus = getEffectiveInvoiceStatus(job)
+                          return effectiveStatus === 'RECEIVED' ? 'text-green-600' : effectiveStatus === 'RAISED' ? 'text-purple-600' : 'text-gray-400'
+                        })()}`} />
                       </Button>
                       
                       <Button
@@ -574,17 +602,29 @@ function CalendarView({ jobs, currentDate, onDateChange, onJobSuccess, onDeleteJ
                       variant="ghost"
                       size="sm"
                       className="h-8 w-8 p-0"
-                      title={job.invoiceStatus === 'RECEIVED' ? "Mark as Not Received" : "Mark as Received"}
+                      title={(() => {
+                        const effectiveStatus = getEffectiveInvoiceStatus(job)
+                        return effectiveStatus === 'RECEIVED' ? "Mark as Raised" : effectiveStatus === 'RAISED' ? "Mark as Received" : "Mark as Received"
+                      })()}
                       onClick={async () => {
                         try {
+                          const effectiveStatus = getEffectiveInvoiceStatus(job)
+                          let newStatus: string
+                          if (effectiveStatus === 'RECEIVED') {
+                            newStatus = 'RAISED'
+                          } else if (effectiveStatus === 'RAISED') {
+                            newStatus = 'RECEIVED'
+                          } else {
+                            newStatus = 'RECEIVED'
+                          }
                           await updateJob({ 
                             variables: { 
-                              input: { id: job.id, invoiceStatus: job.invoiceStatus === 'RECEIVED' ? 'PENDING' : 'RECEIVED' } 
+                              input: { id: job.id, invoiceStatus: newStatus } 
                             } 
                           })
                           toast({
                             title: "Success",
-                            description: job.invoiceStatus === 'RECEIVED' ? "Job marked as not received." : "Job marked as received.",
+                            description: `Job status updated to ${newStatus}.`,
                           })
                           onJobSuccess()
                         } catch (error: any) {
@@ -596,7 +636,10 @@ function CalendarView({ jobs, currentDate, onDateChange, onJobSuccess, onDeleteJ
                         }
                       }}
                     >
-                      <Check className={`h-4 w-4 ${job.invoiceStatus === 'RECEIVED' ? 'text-green-600' : 'text-gray-400'}`} />
+                      <Check className={`h-4 w-4 ${(() => {
+                        const effectiveStatus = getEffectiveInvoiceStatus(job)
+                        return effectiveStatus === 'RECEIVED' ? 'text-green-600' : effectiveStatus === 'RAISED' ? 'text-purple-600' : 'text-gray-400'
+                      })()}`} />
                     </Button>
                     
                     <Button
@@ -660,21 +703,24 @@ function CalendarView({ jobs, currentDate, onDateChange, onJobSuccess, onDeleteJ
                         jobTypeId={job.jobType.id}
                       />
                     )}
-                    {job.invoiceStatus && job.invoiceStatus !== 'Not Invoiced' && (
-                      <InvoiceViewModal
-                        trigger={
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            className="h-8 w-8 p-0" 
-                            title={`Invoice Status: ${job.invoiceStatus}`}
-                          >
-                            <Receipt className="h-4 w-4" />
-                          </Button>
-                        }
-                        invoiceId={job.invoice?.id}
-                      />
-                    )}
+                    {(() => {
+                      const effectiveStatus = getEffectiveInvoiceStatus(job)
+                      return effectiveStatus && effectiveStatus !== 'Not Invoiced' && job.invoice?.id && (
+                        <InvoiceViewModal
+                          trigger={
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="h-8 w-8 p-0" 
+                              title={`Invoice Status: ${effectiveStatus}`}
+                            >
+                              <Receipt className="h-4 w-4" />
+                            </Button>
+                          }
+                          invoiceId={job.invoice.id}
+                        />
+                      )
+                    })()}
                     <ConfirmDeleteDialog
                       title="Delete Job"
                       description="Are you sure you want to delete this job? This action cannot be undone."
@@ -1034,24 +1080,34 @@ function RowView({ jobs, onJobSuccess, onDeleteJob }: RowViewProps) {
                       <td className="p-3">
                         <div className="flex flex-col gap-1">
                           <Badge 
-                            className={
-                              job.invoiceStatus === 'RECEIVED' && job.driverPaid
+                            className={(() => {
+                              const effectiveStatus = getEffectiveInvoiceStatus(job)
+                              return effectiveStatus === 'RECEIVED' && job.driverPaid
                                 ? "bg-green-100 text-green-800"
-                                : job.invoiceStatus === 'RECEIVED'
+                                : effectiveStatus === 'RECEIVED'
                                 ? "bg-blue-100 text-blue-800"
+                                : effectiveStatus === 'RAISED'
+                                ? "bg-purple-100 text-purple-800"
                                 : "bg-yellow-100 text-yellow-800"
-                            }
+                            })()}
                             variant="secondary"
                           >
-                            {job.invoiceStatus === "RECEIVED" && job.driverPaid ? "Completed"
-                              : job.invoiceStatus === "RECEIVED" ? "Received"
-                              : "Pending"}
+                            {(() => {
+                              const effectiveStatus = getEffectiveInvoiceStatus(job)
+                              return effectiveStatus === "RECEIVED" && job.driverPaid ? "Completed"
+                                : effectiveStatus === "RECEIVED" ? "Received"
+                                : effectiveStatus === "RAISED" ? "Raised"
+                                : "Pending"
+                            })()}
                           </Badge>
-                          {job.invoiceStatus === 'RECEIVED' && !job.driverPaid && (
-                            <div className="text-xs text-muted-foreground">
-                              Driver not paid
-                            </div>
-                          )}
+                          {(() => {
+                            const effectiveStatus = getEffectiveInvoiceStatus(job)
+                            return effectiveStatus === 'RECEIVED' && !job.driverPaid && (
+                              <div className="text-xs text-muted-foreground">
+                                Driver not paid
+                              </div>
+                            )
+                          })()}
                         </div>
                       </td>
                       
@@ -1062,12 +1118,27 @@ function RowView({ jobs, onJobSuccess, onDeleteJob }: RowViewProps) {
                             variant="ghost"
                             size="sm"
                             className="h-7 w-7 p-0"
-                            title={job.invoiceStatus === 'RECEIVED' ? "Mark as Not Received" : "Mark as Received"}
-                            onClick={() => handleUpdateJobStatus(job.id, { 
-                              invoiceStatus: job.invoiceStatus === 'RECEIVED' ? 'PENDING' : 'RECEIVED' 
-                            })}
+                            title={(() => {
+                              const effectiveStatus = getEffectiveInvoiceStatus(job)
+                              return effectiveStatus === 'RECEIVED' ? "Mark as Raised" : effectiveStatus === 'RAISED' ? "Mark as Received" : "Mark as Received"
+                            })()}
+                            onClick={() => {
+                              const effectiveStatus = getEffectiveInvoiceStatus(job)
+                              let newStatus: string
+                              if (effectiveStatus === 'RECEIVED') {
+                                newStatus = 'RAISED'
+                              } else if (effectiveStatus === 'RAISED') {
+                                newStatus = 'RECEIVED'
+                              } else {
+                                newStatus = 'RECEIVED'
+                              }
+                              handleUpdateJobStatus(job.id, { invoiceStatus: newStatus })
+                            }}
                           >
-                            <Check className={`h-3 w-3 ${job.invoiceStatus === 'RECEIVED' ? 'text-green-600' : 'text-gray-400'}`} />
+                            <Check className={`h-3 w-3 ${(() => {
+                              const effectiveStatus = getEffectiveInvoiceStatus(job)
+                              return effectiveStatus === 'RECEIVED' ? 'text-green-600' : effectiveStatus === 'RAISED' ? 'text-purple-600' : 'text-gray-400'
+                            })()}`} />
                           </Button>
                           
                           <Button
@@ -1247,7 +1318,7 @@ export function Jobs() {
     if (filters.unitId && job.unit?.id !== filters.unitId) return false;
     if (filters.jobTypeId && job.jobType?.id !== filters.jobTypeId) return false;
     if (filters.companyId && job.jobType?.company?.id !== filters.companyId) return false;
-    if (filters.invoiceStatus && job.invoiceStatus !== filters.invoiceStatus) return false;
+    if (filters.invoiceStatus && getEffectiveInvoiceStatus(job) !== filters.invoiceStatus) return false;
     if (filters.driverPaid !== undefined && job.driverPaid !== filters.driverPaid) return false;
     if (filters.dispatchType && job.jobType?.dispatchType !== filters.dispatchType) return false;
 
@@ -1278,6 +1349,12 @@ export function Jobs() {
       icon: Clock,
       filterKey: 'invoiceStatus',
       filterValue: 'PENDING'
+    },
+    {
+      label: 'Raised',
+      icon: FileText,
+      filterKey: 'invoiceStatus',
+      filterValue: 'RAISED'
     },
     {
       label: 'Received',

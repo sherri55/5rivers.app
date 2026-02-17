@@ -256,19 +256,41 @@ export const InvoiceModal = ({ invoice, invoiceId, trigger, onSuccess }: Invoice
           }
         })
 
-        // Update job statuses for removed jobs
+        // Update job statuses for added/removed jobs
         const originalJobIds = resolvedInvoice?.jobs?.map((jobEntry: any) => jobEntry.job.id) || []
-        const removedJobIds = originalJobIds.filter((id: string) => !selectedJobIds.includes(id))
+        const jobsToAdd = selectedJobIds.filter((id: string) => !originalJobIds.includes(id))
+        const jobsToRemove = originalJobIds.filter((id: string) => !selectedJobIds.includes(id))
 
-        for (const jobId of removedJobIds) {
-          await updateJob({
-            variables: {
-              input: {
-                id: jobId,
-                invoiceStatus: "NOT_INVOICED"
+        // Set added jobs to RAISED
+        for (const jobId of jobsToAdd) {
+          try {
+            await updateJob({
+              variables: {
+                input: {
+                  id: jobId,
+                  invoiceStatus: "RAISED"
+                }
               }
-            }
-          })
+            })
+          } catch (error) {
+            console.error(`Failed to update job ${jobId} status:`, error)
+          }
+        }
+
+        // Set removed jobs back to PENDING
+        for (const jobId of jobsToRemove) {
+          try {
+            await updateJob({
+              variables: {
+                input: {
+                  id: jobId,
+                  invoiceStatus: "PENDING"
+                }
+              }
+            })
+          } catch (error) {
+            console.error(`Failed to update job ${jobId} status:`, error)
+          }
         }
 
         toast({
@@ -284,6 +306,22 @@ export const InvoiceModal = ({ invoice, invoiceId, trigger, onSuccess }: Invoice
             input
           }
         })
+
+        // Update job statuses to RAISED when creating invoice
+        for (const jobId of selectedJobIds) {
+          try {
+            await updateJob({
+              variables: {
+                input: {
+                  id: jobId,
+                  invoiceStatus: "RAISED"
+                }
+              }
+            })
+          } catch (error) {
+            console.error(`Failed to update job ${jobId} status:`, error)
+          }
+        }
 
         toast({
           title: "Invoice Created",

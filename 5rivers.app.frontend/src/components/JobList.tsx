@@ -119,10 +119,22 @@ export function JobList({ jobs, onJobSuccess, onDeleteJob }: JobListProps) {
     return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
   }
 
+  // Helper function to get effective invoice status
+  // If job is PENDING but has an invoice, it should be displayed as RAISED
+  const getEffectiveInvoiceStatus = (job: Job): string => {
+    if (job.invoiceStatus === 'PENDING' && job.invoice?.id) {
+      return 'RAISED'
+    }
+    return job.invoiceStatus
+  }
+
   const getStatusColor = (job: Job) => {
-    switch (job.invoiceStatus) {
+    const effectiveStatus = getEffectiveInvoiceStatus(job)
+    switch (effectiveStatus) {
       case "RECEIVED":
         return job.driverPaid ? "bg-green-100 text-green-800" : "bg-blue-100 text-blue-800";
+      case "RAISED":
+        return "bg-purple-100 text-purple-800";
       case "PENDING":
       default:
         return "bg-yellow-100 text-yellow-800";
@@ -496,9 +508,13 @@ export function JobList({ jobs, onJobSuccess, onDeleteJob }: JobListProps) {
                         </div>
                       </div>
                       <Badge className={getStatusColor(job)} variant="secondary">
-                        {job.invoiceStatus === "RECEIVED" && job.driverPaid ? "Completed"
-                          : job.invoiceStatus === "RECEIVED" ? "Received"
-                          : "Pending"}
+                        {(() => {
+                          const effectiveStatus = getEffectiveInvoiceStatus(job)
+                          return effectiveStatus === "RECEIVED" && job.driverPaid ? "Completed"
+                            : effectiveStatus === "RECEIVED" ? "Received"
+                            : effectiveStatus === "RAISED" ? "Raised"
+                            : "Pending"
+                        })()}
                       </Badge>
                     </div>
                   </CardHeader>
@@ -632,17 +648,29 @@ export function JobList({ jobs, onJobSuccess, onDeleteJob }: JobListProps) {
                         variant="ghost"
                         size="sm"
                         className="h-7 w-7 p-0"
-                        title={job.invoiceStatus === 'RECEIVED' ? "Mark as Not Received" : "Mark as Received"}
+                        title={(() => {
+                          const effectiveStatus = getEffectiveInvoiceStatus(job)
+                          return effectiveStatus === 'RECEIVED' ? "Mark as Raised" : effectiveStatus === 'RAISED' ? "Mark as Received" : "Mark as Received"
+                        })()}
                         onClick={async () => {
                           try {
+                            const effectiveStatus = getEffectiveInvoiceStatus(job)
+                            let newStatus: string
+                            if (effectiveStatus === 'RECEIVED') {
+                              newStatus = 'RAISED'
+                            } else if (effectiveStatus === 'RAISED') {
+                              newStatus = 'RECEIVED'
+                            } else {
+                              newStatus = 'RECEIVED'
+                            }
                             await updateJob({ 
                               variables: { 
-                                input: { id: job.id, invoiceStatus: job.invoiceStatus === 'RECEIVED' ? 'PENDING' : 'RECEIVED' } 
+                                input: { id: job.id, invoiceStatus: newStatus } 
                               } 
                             })
                             toast({
                               title: "Success",
-                              description: job.invoiceStatus === 'RECEIVED' ? "Job marked as not received." : "Job marked as received.",
+                              description: `Job status updated to ${newStatus}.`,
                             })
                             onJobSuccess()
                           } catch (error: any) {
@@ -654,7 +682,10 @@ export function JobList({ jobs, onJobSuccess, onDeleteJob }: JobListProps) {
                           }
                         }}
                       >
-                        <Check className={`h-3 w-3 ${job.invoiceStatus === 'RECEIVED' ? 'text-green-600' : 'text-gray-400'}`} />
+                        <Check className={`h-3 w-3 ${(() => {
+                          const effectiveStatus = getEffectiveInvoiceStatus(job)
+                          return effectiveStatus === 'RECEIVED' ? 'text-green-600' : effectiveStatus === 'RAISED' ? 'text-purple-600' : 'text-gray-400'
+                        })()}`} />
                       </Button>
                       
                       <Button
