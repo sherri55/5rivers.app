@@ -1,47 +1,32 @@
-// Image upload service
-// This includes both mock implementation and backend endpoint support
-
 import { config } from '../config'
+import { getStoredToken } from '@/features/auth'
 
 export const uploadImage = async (file: File, folder: string = 'jobs'): Promise<string> => {
-  // Try to use the backend upload endpoint first
-  try {
-    const formData = new FormData()
-    formData.append('image', file)
-    formData.append('folder', folder)
-    
-    // Use configured upload endpoint from environment
-    const uploadUrl = config.api.uploadEndpoint
-    
-    const response = await fetch(uploadUrl, {
-      method: 'POST',
-      body: formData
-    })
-    
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`Upload failed: ${response.statusText} - ${errorText}`)
+  const formData = new FormData()
+  formData.append('image', file)
+  formData.append('folder', folder)
+
+  const token = getStoredToken()
+  const headers: Record<string, string> = {}
+  if (token) headers['Authorization'] = `Bearer ${token}`
+
+  const response = await fetch(config.api.uploadEndpoint, {
+    method: 'POST',
+    headers,
+    body: formData,
+  })
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    const message = errorData.error || response.statusText
+    if (response.status === 401) {
+      throw new Error('Session expired. Please sign in again.')
     }
-    
-    const result = await response.json()
-    return result.url
-  } catch (error) {
-    console.warn('Backend upload failed, falling back to mock:', error)
-    
-    // Mock implementation for development/demo
-    // Simulate upload delay
-    await new Promise(resolve => setTimeout(resolve, 500 + Math.random() * 1000))
-    
-    // Generate a mock URL using the configured base
-    const timestamp = Date.now()
-    const randomId = Math.random().toString(36).substring(2, 8)
-    const extension = file.name.split('.').pop() || 'jpg'
-    // Extract base URL from upload endpoint (remove /api/upload part)
-    const baseUrl = config.api.uploadEndpoint.replace('/api/upload', '')
-    const mockUrl = `${baseUrl}/uploads/${folder}/${timestamp}_${randomId}.${extension}`
-    
-    return mockUrl
+    throw new Error(`Upload failed: ${message}`)
   }
+
+  const result = await response.json()
+  return result.url
 }
 
 export const uploadMultipleImages = async (files: File[], folder: string = 'jobs'): Promise<string[]> => {

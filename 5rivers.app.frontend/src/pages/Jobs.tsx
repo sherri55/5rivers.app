@@ -15,9 +15,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Plus, Calendar, DollarSign, Truck, User, List, ChevronLeft, ChevronRight, Eye, Edit, FileText, Receipt, Clock, AlertTriangle, Table, Check, X } from "lucide-react"
-import { GET_JOBS } from "@/lib/graphql/jobs"
+import { GET_JOBS } from "@/features/jobs/api"
+import { UPDATE_JOB } from "@/features/jobs/api"
 import { DELETE_JOB } from "@/lib/graphql/mutations"
-import { UPDATE_JOB } from "@/lib/graphql/jobs"
 import { JobModal } from "@/components/modals/JobModal"
 import { JobDetailModal } from "@/components/modals/JobDetailModal"
 import { JobTypeViewModal } from "@/components/modals/JobTypeViewModal"
@@ -26,48 +26,14 @@ import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog"
 import { JobList } from "@/components/JobList"
 import { useToast } from "@/hooks/use-toast"
 import { parseBackendDate, formatDateForDisplay, formatTimeRange, formatWeightForDisplay } from "@/lib/utils/dateUtils"
-
-interface Job {
-  id: string
-  jobDate: string
-  invoiceStatus: string
-  weight?: number[]
-  loads?: number
-  startTime?: string
-  endTime?: string
-  driverPaid: boolean
-  calculatedAmount?: number
-  driverPay?: number
-  ticketIds?: string[]
-  imageUrls?: string
-  images?: string[]
-  jobType?: {
-    id: string
-    title: string
-    rateOfJob?: number
-    dispatchType?: string
-    company?: {
-      id: string
-      name: string
-    }
-  }
-  driver?: {
-    id: string
-    name: string
-  }
-  dispatcher?: {
-    id: string
-    name: string
-  }
-  unit?: {
-    id: string
-    name: string
-  }
-  invoice?: {
-    id: string
-    invoiceNumber: string
-  }
-}
+import {
+  addHST,
+  getCommission,
+  getAmountAfterCommission,
+  getDriverPay,
+  formatCurrency,
+} from '@/lib/calculations/jobCalculations'
+import type { Job } from '@/features/jobs/types'
 
 // Helper function to get effective invoice status
 // If job is PENDING but has an invoice, it should be displayed as RAISED
@@ -77,21 +43,6 @@ const getEffectiveInvoiceStatus = (job: Job): string => {
   }
   return job.invoiceStatus
 }
-
-// Calculation helpers for commission and driver pay
-// Add HST (1.13%) to amount
-const addHST = (amount: number) => amount * 1.13;
-const getCommission = (job: Job) => {
-  const commissionPercent = job?.dispatcher?.commissionPercent ?? 5;
-  return addHST(job.calculatedAmount || 0) * (commissionPercent / 100);
-};
-const getAmountAfterCommission = (job: Job) => {
-  return addHST(job.calculatedAmount || 0) - getCommission(job);
-};
-const getDriverPay = (job: Job) => {
-  const hourlyRate = job.driver?.hourlyRate ?? 0;
-  return getAmountAfterCommission(job) * (hourlyRate / 100);
-};
 
 // Calendar View Component
 interface CalendarViewProps {
@@ -778,29 +729,6 @@ function RowView({ jobs, onJobSuccess, onDeleteJob }: RowViewProps) {
         variant: "destructive"
       })
     }
-  }
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(amount)
-  }
-
-  const addHST = (amount: number) => amount * 1.13
-  
-  const getCommission = (job: Job) => {
-    const commissionPercent = job?.dispatcher?.commissionPercent ?? 5
-    return addHST(job.calculatedAmount || 0) * (commissionPercent / 100)
-  }
-
-  const getAmountAfterCommission = (job: Job) => {
-    return addHST(job.calculatedAmount || 0) - getCommission(job)
-  }
-
-  const getDriverPay = (job: Job) => {
-    const hourlyRate = job.driver?.hourlyRate ?? 0
-    return getAmountAfterCommission(job) * (hourlyRate / 100)
   }
 
   const handleJobSelection = (jobId: string, checked: boolean) => {

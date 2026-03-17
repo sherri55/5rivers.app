@@ -1,17 +1,18 @@
 import { ApolloClient, InMemoryCache, createHttpLink } from '@apollo/client'
 import { setContext } from '@apollo/client/link/context'
 import { config } from './config'
+import { getStoredToken } from '@/features/auth'
 
 const httpLink = createHttpLink({
   uri: config.api.graphqlEndpoint,
 })
 
 const authLink = setContext((_, { headers }) => {
-  // Add any authentication headers here if needed
+  const token = getStoredToken()
   return {
     headers: {
       ...headers,
-      // authorization: token ? `Bearer ${token}` : "",
+      ...(token ? { authorization: `Bearer ${token}` } : {}),
     }
   }
 })

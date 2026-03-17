@@ -9,59 +9,60 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    --background: 210 20% 98%;
-    --foreground: 210 10% 15%;
+    /* Command Center theme - navy + mint primary #0df2aa */
+    --background: 222 47% 11%;
+    --foreground: 210 40% 98%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 210 10% 15%;
+    --card: 222 47% 14%;
+    --card-foreground: 210 40% 98%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 210 10% 15%;
+    --popover: 222 47% 14%;
+    --popover-foreground: 210 40% 98%;
 
-    --primary: 210 95% 45%;
-    --primary-foreground: 0 0% 100%;
-    --primary-hover: 210 95% 40%;
+    --primary: 165 91% 50%;
+    --primary-foreground: 222 47% 11%;
+    --primary-hover: 165 91% 45%;
 
-    --secondary: 210 15% 95%;
-    --secondary-foreground: 210 10% 25%;
+    --secondary: 217 33% 18%;
+    --secondary-foreground: 210 40% 98%;
 
-    --muted: 210 15% 96%;
-    --muted-foreground: 210 8% 45%;
+    --muted: 217 33% 18%;
+    --muted-foreground: 215 20% 65%;
 
-    --accent: 25 85% 55%;
-    --accent-foreground: 0 0% 100%;
-    --accent-hover: 25 85% 50%;
+    --accent: 217 33% 18%;
+    --accent-foreground: 210 40% 98%;
+    --accent-hover: 217 33% 22%;
 
-    --destructive: 0 75% 55%;
-    --destructive-foreground: 0 0% 100%;
+    --destructive: 0 63% 31%;
+    --destructive-foreground: 210 40% 98%;
 
-    --border: 210 20% 88%;
-    --input: 210 20% 90%;
-    --ring: 210 95% 45%;
+    --border: 217 33% 20%;
+    --input: 217 33% 20%;
+    --ring: 165 91% 50%;
 
-    /* Logistics themed gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(210 95% 45%), hsl(210 95% 55%));
-    --gradient-hero: linear-gradient(135deg, hsl(210 95% 45%), hsl(25 85% 55%));
-    --gradient-card: linear-gradient(145deg, hsl(0 0% 100%), hsl(210 15% 98%));
-    
-    /* Professional shadows */
-    --shadow-card: 0 2px 8px -2px hsl(210 10% 15% / 0.08);
-    --shadow-elevated: 0 8px 24px -4px hsl(210 10% 15% / 0.12);
-    --shadow-header: 0 1px 3px 0 hsl(210 10% 15% / 0.1);
+    /* Command Center gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(165 91% 50%), hsl(165 91% 60%));
+    --gradient-hero: linear-gradient(135deg, hsl(165 91% 50%), hsl(165 91% 40%));
+    --gradient-card: linear-gradient(145deg, hsl(222 47% 16%), hsl(222 47% 12%));
+
+    /* Shadows */
+    --shadow-card: 0 2px 8px -2px hsl(0 0% 0% / 0.3);
+    --shadow-elevated: 0 8px 24px -4px hsl(0 0% 0% / 0.4);
+    --shadow-header: 0 1px 3px 0 hsl(0 0% 0% / 0.2);
 
     /* Smooth transitions */
     --transition-smooth: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 
     --radius: 0.5rem;
 
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-background: 222 47% 7%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 165 91% 50%;
+    --sidebar-primary-foreground: 222 47% 11%;
+    --sidebar-accent: 217 33% 18%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 217 33% 15%;
+    --sidebar-ring: 165 91% 50%;
   }
 
   .dark {
@@ -158,4 +159,57 @@ All colors MUST be HSL.
 
 .transition-smooth {
   transition: var(--transition-smooth);
+}
+
+/* Material Symbols utility */
+.material-symbols-outlined {
+  font-family: "Material Symbols Outlined";
+  font-weight: 400;
+  font-style: normal;
+  font-size: 24px;
+  display: inline-block;
+  line-height: 1;
+  text-transform: none;
+  letter-spacing: normal;
+  word-wrap: normal;
+  white-space: nowrap;
+  direction: ltr;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Material Symbols utility */
+.material-symbols-outlined {
+  font-family: "Material Symbols Outlined";
+  font-weight: 400;
+  font-style: normal;
+  font-size: 24px;
+  display: inline-block;
+  line-height: 1;
+  text-transform: none;
+  letter-spacing: normal;
+  word-wrap: normal;
+  white-space: nowrap;
+  direction: ltr;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Hide scrollbar but keep functionality */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }

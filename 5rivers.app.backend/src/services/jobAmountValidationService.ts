@@ -1,11 +1,13 @@
-import { Neo4jService } from '../database/neo4j'
+import { Neo4jService, neo4jService } from '../database/neo4j'
 import CalculationService from './calculationService'
 
 export class JobAmountValidationService {
   private neo4jService: Neo4jService
+  private readonly ownedDriver: boolean
 
-  constructor() {
-    this.neo4jService = new Neo4jService()
+  constructor(neo4jServiceInstance?: Neo4jService) {
+    this.ownedDriver = neo4jServiceInstance === undefined
+    this.neo4jService = neo4jServiceInstance ?? neo4jService
   }
 
   /**
@@ -176,8 +178,10 @@ export class JobAmountValidationService {
     }
   }
 
-  async close() {
-    await this.neo4jService.close()
+  async close(): Promise<void> {
+    if (this.ownedDriver) {
+      await this.neo4jService.close()
+    }
   }
 }
 

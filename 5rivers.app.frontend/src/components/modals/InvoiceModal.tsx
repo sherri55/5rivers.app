@@ -11,9 +11,15 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
 import { GET_INVOICE, CREATE_INVOICE, UPDATE_INVOICE } from "@/lib/graphql/invoices"
-import { GET_JOBS, UPDATE_JOB } from "@/lib/graphql/jobs"
+import { GET_JOBS, UPDATE_JOB } from "@/features/jobs/api"
 import { GET_DISPATCHERS } from "@/lib/graphql/dispatchers"
 import { formatDateForDisplay } from "@/lib/utils/dateUtils"
+import {
+  addHST,
+  getCommission,
+  getAmountAfterCommission,
+  formatCurrency,
+} from "@/lib/calculations/jobCalculations"
 
 interface InvoiceModalProps {
   invoice?: any // Optional - if provided, it's an edit modal; if not, it's a create modal
@@ -65,15 +71,12 @@ export const InvoiceModal = ({ invoice, invoiceId, trigger, onSuccess }: Invoice
     },
     pagination: { limit: 1000 }
   }
-  console.log('Jobs Query Variables:', jobsQueryVariables)
-
   const { data: jobsData, loading: jobsLoading } = useQuery(GET_JOBS, {
     variables: jobsQueryVariables,
     skip: !open || (isEditMode && !resolvedInvoice?.dispatcher?.id) || (!isEditMode && formData.dispatcherId === "")
   })
 
   const allJobs = jobsData?.jobs?.nodes || []
-  console.log('Jobs returned:', allJobs)
 
   const [createInvoice] = useMutation(CREATE_INVOICE)
   const [updateInvoice] = useMutation(UPDATE_INVOICE)
@@ -130,28 +133,13 @@ export const InvoiceModal = ({ invoice, invoiceId, trigger, onSuccess }: Invoice
     }
   }
 
-  // Add HST (13%) to amount
-  const addHST = (amount: number) => amount * 1.13;
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(amount)
-  }
-
-  // Calculate commission for a job
-  const getCommission = (job: any) => {
-    const commissionPercent = job?.dispatcher?.commissionPercent ?? 5;
-    return addHST(job.calculatedAmount || 0) * (commissionPercent / 100);
-  };
-
-  // Calculate amount after commission for a job
-  const getAmountAfterCommission = (job: any) => {
-    return addHST(job.calculatedAmount || 0) - getCommission(job);
-  };
-
-  // Calculate driver pay for a job using hourlyRate from driverRates (by jobType), based on after-commission amount
-  const getDriverPay = (job: any) => {
+  // Driver pay: uses driverRates (jobType-specific) when available, else driver.hourlyRate
+  const getDriverPay = (job: {
+    driver?: { driverRates?: Array<{ jobType?: { id: string }; hourlyRate?: number }>; hourlyRate?: number };
+    jobType?: { id: string };
+    calculatedAmount?: number;
+    dispatcher?: { commissionPercent?: number };
+  }) => {
     if (!job.driver || !job.driver.driverRates || !job.jobType) return 0;
     const rateObj = job.driver.driverRates.find(
       (rate: any) => rate.jobType && rate.jobType.id === job.jobType.id
@@ -161,9 +149,11 @@ export const InvoiceModal = ({ invoice, invoiceId, trigger, onSuccess }: Invoice
     return getAmountAfterCommission(job) * (hourlyRate / 100);
   };
 
-  // Calculate totals for selected jobs
-  const selectedJobs = allJobs.filter((job: any) => selectedJobIds.includes(job.id));
-  const totalBeforeCommission = selectedJobs.reduce((sum: number, job: any) => sum + (job.calculatedAmount || 0), 0);
+  const selectedJobs = allJobs.filter((job: { id: string }) => selectedJobIds.includes(job.id));
+  const totalBeforeCommission = selectedJobs.reduce(
+    (sum: number, job: { calculatedAmount?: number }) => sum + addHST(job.calculatedAmount || 0),
+    0
+  );
   const totalCommission = selectedJobs.reduce((sum: number, job: any) => sum + getCommission(job), 0);
   const totalAfterCommission = selectedJobs.reduce((sum: number, job: any) => sum + getAmountAfterCommission(job), 0);
   const totalDriverPay = selectedJobs.reduce((sum: number, job: any) => sum + getDriverPay(job), 0);

@@ -10,6 +10,10 @@ const config: Config = {
   ],
   prefix: "",
   theme: {
+  	fontFamily: {
+  		sans: ["Inter", "system-ui", "sans-serif"],
+  		mono: ["JetBrains Mono", "monospace"],
+  	},
   	container: {
   		center: true,
   		padding: "2rem",
@@ -19,6 +23,12 @@ const config: Config = {
   	},
   	extend: {
   		colors: {
+  			// Command Center palette
+  			navy: {
+  				DEFAULT: "#0f172a",
+  				light: "#1e293b",
+  				deep: "#0a192f",
+  			},
   			border: "hsl(var(--border))",
   			input: "hsl(var(--input))",
   			ring: "hsl(var(--ring))",
@@ -86,11 +96,16 @@ const config: Config = {
   				to: {
   					height: "0"
   				}
-  			}
+  			},
+  			slideUp: {
+  				from: { opacity: "0", transform: "translateY(10px)" },
+  				to: { opacity: "1", transform: "translateY(0)" },
+  			},
   		},
   		animation: {
   			"accordion-down": "accordion-down 0.2s ease-out",
-  			"accordion-up": "accordion-up 0.2s ease-out"
+  			"accordion-up": "accordion-up 0.2s ease-out",
+  			"slide-up": "slideUp 0.3s ease-out forwards",
   		},
       	backgroundImage: {
         	'gradient-primary': 'var(--gradient-primary)',

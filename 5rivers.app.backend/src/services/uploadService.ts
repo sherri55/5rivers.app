@@ -1,6 +1,7 @@
 import fs from 'fs/promises'
 import path from 'path'
 import { randomBytes } from 'crypto'
+import { config } from '../config'
 
 export interface UploadResult {
   url: string
@@ -51,10 +52,7 @@ export class UploadService {
     
     await fs.writeFile(filePath, buffer)
     
-    // Generate URL for serving the file
-    const baseUrl = process.env.NODE_ENV === 'production' 
-      ? 'https://5riverstruckinginc.ca' 
-      : 'http://localhost:4002'
+    const baseUrl = config.upload.baseUrl
     const url = `${baseUrl}/uploads/${folder}/${fileName}`
     
     return {

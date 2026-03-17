@@ -152,6 +152,112 @@ export class CalculationService {
     }
   }
 
+  /**
+   * Batch: get calculatedAmount, calculatedHours, driverPay for many jobs in one query.
+   * Used by the jobs list resolver to avoid N+1.
+   */
+  static async batchGetJobAmountsAndDriverPay(
+    jobIds: string[]
+  ): Promise<Map<string, { calculatedAmount: number; calculatedHours: number | null; driverPay: number }>> {
+    const result = new Map<string, { calculatedAmount: number; calculatedHours: number | null; driverPay: number }>();
+    if (jobIds.length === 0) return result;
+
+    const rows = await neo4jService.runQuery<{
+      jobId: string;
+      startTime?: string;
+      endTime?: string;
+      loads?: number;
+      weight?: number | number[];
+      amount?: number;
+      rate?: number;
+      dispatchType?: string;
+      driverHourlyRate?: number;
+    }>(
+      `
+      MATCH (j:Job) WHERE j.id IN $jobIds
+      OPTIONAL MATCH (j)-[:OF_TYPE]->(jt:JobType)
+      OPTIONAL MATCH (j)-[:ASSIGNED_TO]->(d:Driver)
+      RETURN j.id AS jobId,
+             j.startTime AS startTime,
+             j.endTime AS endTime,
+             j.loads AS loads,
+             j.weight AS weight,
+             j.amount AS amount,
+             jt.rateOfJob AS rate,
+             jt.dispatchType AS dispatchType,
+             d.hourlyRate AS driverHourlyRate
+      `,
+      { jobIds }
+    );
+
+    for (const row of rows) {
+      const jobId = row.jobId;
+      if (!jobId) continue;
+      const { startTime, endTime, loads, weight, amount: fixedAmount, rate, dispatchType } = row;
+      const driverHourlyRate = row.driverHourlyRate ?? 0;
+
+      let calculatedAmount = 0;
+      switch ((dispatchType || '').toLowerCase()) {
+        case 'hourly': {
+          let hours = 0;
+          if (startTime && endTime) {
+            try {
+              const today = new Date().toISOString().split('T')[0];
+              const start = new Date(`${today}T${startTime}`);
+              let end = new Date(`${today}T${endTime}`);
+              if (end < start) end.setDate(end.getDate() + 1);
+              hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+            } catch {
+              // ignore
+            }
+          }
+          calculatedAmount = Math.max(0, hours * (parseFloat(String(rate)) || 0));
+          break;
+        }
+        case 'load':
+        case 'loads':
+          calculatedAmount = Math.max(0, (parseInt(String(loads)) || 0) * (parseFloat(String(rate)) || 0));
+          break;
+        case 'tonnage': {
+          let totalWeight = 0;
+          if (weight !== undefined && weight !== null) {
+            if (Array.isArray(weight)) {
+              totalWeight = weight.reduce((s: number, w: number) => s + (parseFloat(String(w)) || 0), 0);
+            } else if (typeof weight === 'string') {
+              try {
+                const parsed = JSON.parse(weight);
+                if (Array.isArray(parsed)) totalWeight = parsed.reduce((s: number, w: number) => s + (parseFloat(String(w)) || 0), 0);
+              } catch {
+                totalWeight = parseFloat(weight) || 0;
+              }
+            } else {
+              totalWeight = parseFloat(String(weight)) || 0;
+            }
+          }
+          calculatedAmount = Math.max(0, totalWeight * (parseFloat(String(rate)) || 0));
+          break;
+        }
+        case 'fixed':
+          calculatedAmount = parseFloat(String(fixedAmount)) || parseFloat(String(rate)) || 0;
+          break;
+        default:
+          break;
+      }
+
+      const calculatedHours = this.calculateJobHours({ startTime, endTime });
+      const driverPay = driverHourlyRate
+        ? Math.round((calculatedAmount * driverHourlyRate) / 100 * 100) / 100
+        : 0;
+
+      result.set(jobId, {
+        calculatedAmount: Math.round(calculatedAmount * 100) / 100,
+        calculatedHours: calculatedHours ?? null,
+        driverPay,
+      });
+    }
+    return result;
+  }
+
   // ===============================
   // INVOICE CALCULATIONS  
   // ===============================

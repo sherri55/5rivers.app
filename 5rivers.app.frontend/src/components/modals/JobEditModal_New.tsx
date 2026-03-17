@@ -23,7 +23,7 @@ import {
   UPDATE_JOB_STATUS, 
   ASSIGN_JOB_TO_DRIVER, 
   ASSIGN_JOB_TO_UNIT 
-} from "@/lib/graphql/jobs"
+} from "@/features/jobs/api"
 import { formatDateForDisplay } from "@/lib/utils/dateUtils"
 
 interface JobEditModalProps {

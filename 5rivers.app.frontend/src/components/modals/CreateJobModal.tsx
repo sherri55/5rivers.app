@@ -9,7 +9,7 @@ import { useQuery, useMutation } from "@apollo/client"
 import { GET_JOB_TYPES } from "@/lib/graphql/jobTypes"
 import { GET_DRIVERS } from "@/lib/graphql/drivers"
 import { GET_DISPATCHERS } from "@/lib/graphql/dispatchers"
-import { CREATE_JOB, GET_JOBS } from "@/lib/graphql/jobs"
+import { CREATE_JOB, GET_JOBS } from "@/features/jobs/api"
 import { X, Plus } from "lucide-react"
 
 interface CreateJobModalProps {

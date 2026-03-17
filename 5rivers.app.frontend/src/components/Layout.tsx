@@ -1,12 +1,16 @@
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/AppSidebar"
-import { Truck } from "lucide-react"
+import { Truck, LogOut } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { useAuth } from "@/features/auth"
 
 interface LayoutProps {
   children: React.ReactNode
 }
 
 export function Layout({ children }: LayoutProps) {
+  const { logout } = useAuth()
+
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full bg-background">
@@ -21,6 +25,10 @@ export function Layout({ children }: LayoutProps) {
                 <h1 className="text-xl font-bold text-foreground">5Rivers Trucking Management</h1>
               </div>
             </div>
+            <Button variant="ghost" size="sm" onClick={logout} className="gap-2">
+              <LogOut className="h-4 w-4" />
+              Sign out
+            </Button>
           </header>
           
           <main className="flex-1 p-6">

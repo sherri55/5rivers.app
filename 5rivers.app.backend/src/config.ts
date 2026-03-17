@@ -6,7 +6,14 @@ export const config = {
   server: {
     port: parseInt(process.env.PORT || '4001', 10),
     environment: process.env.NODE_ENV || 'development',
-    allowedOrigins: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'],
+    allowedOrigins:
+      (process.env.ALLOWED_ORIGINS?.split(',').map((o) => o.trim()).filter(Boolean) as string[]) ||
+      [
+        'http://localhost:3000',
+        'http://localhost:5173',
+        'http://127.0.0.1:3000',
+        'http://127.0.0.1:5173',
+      ],
   },
   neo4j: {
     uri: process.env.NEO4J_URI || 'neo4j://127.0.0.1:7687',
@@ -32,5 +39,8 @@ export const config = {
   rateLimit: {
     windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000', 10), // 15 minutes
     maxRequests: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100', 10),
+  },
+  upload: {
+    baseUrl: process.env.APP_URL || process.env.UPLOAD_BASE_URL || 'http://localhost:4001',
   },
 };

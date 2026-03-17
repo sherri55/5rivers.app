@@ -26,7 +26,7 @@ import { GET_DRIVERS } from "@/lib/graphql/drivers"
 import { GET_DISPATCHERS } from "@/lib/graphql/dispatchers"
 import { GET_UNITS } from "@/lib/graphql/units"
 import { GET_JOB_TYPES } from "@/lib/graphql/jobTypes"
-import { UPDATE_JOB } from "@/lib/graphql/jobs"
+import { UPDATE_JOB } from "@/features/jobs/api"
 
 interface JobEditModalProps {
   job: any

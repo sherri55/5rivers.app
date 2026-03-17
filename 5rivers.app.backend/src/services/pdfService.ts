@@ -1,7 +1,8 @@
 import pdfMake from 'pdfmake/build/pdfmake';
 import pdfFonts from 'pdfmake/build/vfs_fonts';
-import { Neo4jService } from '../database/neo4j';
+import { Neo4jService, neo4jService } from '../database/neo4j';
 import CalculationService from './calculationService';
+import { getImageById } from './imageStorageService';
 import fs from 'fs';
 import path from 'path';
 import { Jimp } from 'jimp';
@@ -56,9 +57,11 @@ interface InvoiceData {
 
 export class PDFService {
   private neo4jService: Neo4jService;
+  private readonly ownedDriver: boolean;
 
-  constructor() {
-    this.neo4jService = new Neo4jService();
+  constructor(neo4jServiceInstance?: Neo4jService) {
+    this.ownedDriver = neo4jServiceInstance === undefined;
+    this.neo4jService = neo4jServiceInstance ?? neo4jService;
   }
 
   async generateInvoicePDF(invoiceId: string): Promise<Buffer> {
@@ -184,7 +187,7 @@ export class PDFService {
     // Calculate correct amounts for each job to ensure consistency
     // Import validation service
     const { JobAmountValidationService } = await import('./jobAmountValidationService');
-    const validationService = new JobAmountValidationService();
+    const validationService = new JobAmountValidationService(this.neo4jService);
     
     for (const jobEntry of jobs) {
       try {
@@ -316,8 +319,18 @@ export class PDFService {
           let imagePath = '';
           let imageBase64 = '';
 
-          // Handle different URL formats
-          if (imageUrl.startsWith('http://localhost:4001/uploads/')) {
+          // Stored in Neo4j: /api/images/:id (new uploads)
+          const dbImageMatch = imageUrl.match(/\/api\/images\/([a-f0-9-]{36})/i);
+          if (dbImageMatch) {
+            const imageId = dbImageMatch[1];
+            const stored = await getImageById(imageId);
+            if (stored && stored.dataBase64) {
+              imageBase64 = `data:${stored.mimeType};base64,${stored.dataBase64}`;
+            }
+          }
+
+          // Handle different URL formats (legacy files on disk)
+          if (!imageBase64 && imageUrl.startsWith('http://localhost:4001/uploads/')) {
             // Full URL from localhost
             imagePath = imageUrl.replace('http://localhost:4001/uploads/', '');
             const fullPath = path.join(process.cwd(), 'uploads', imagePath);
@@ -1148,8 +1161,10 @@ export class PDFService {
     };
   }
 
-  async close() {
-    await this.neo4jService.close();
+  async close(): Promise<void> {
+    if (this.ownedDriver) {
+      await this.neo4jService.close();
+    }
   }
 }
 

@@ -8,20 +8,13 @@ import { useState } from "react"
 import { JobDetailModal } from "@/components/modals/JobDetailModal"
 import { formatDateForDisplay } from "@/lib/utils/dateUtils"
 
-// Calculation helpers for commission and driver pay
-const getCommission = (job: any) => {
-  const commissionPercent = job?.dispatcher?.commissionPercent ?? 5;
-  return (job.calculatedAmount || 0) * (commissionPercent / 100);
-};
-const getAmountAfterCommission = (job: any) => {
-  return (job.calculatedAmount || 0) - getCommission(job);
-};
-// Add HST (1.13%) to amount
-const addHST = (amount: number) => amount * 1.13;
-const getDriverPay = (job: any) => {
-  const hourlyRate = job.driver?.hourlyRate ?? 0;
-  return getAmountAfterCommission(job) * (hourlyRate / 100);
-};
+import {
+  addHST,
+  getCommission,
+  getAmountAfterCommission,
+  getDriverPay,
+  formatCurrency,
+} from '@/lib/calculations/jobCalculations'
 
 export function Dashboard() {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -72,15 +65,8 @@ export function Dashboard() {
     setSelectedMonth(month);
   };
 
-  // Format currency
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
+  const formatStatCurrency = (amount: number) =>
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount);
 
   // Format percentage
   const formatPercentage = (percentage: number) => {
@@ -108,7 +94,7 @@ export function Dashboard() {
     },
     {
       title: "Revenue This Month",
-      value: formatCurrency(monthlyComparison.current.totalAmount),
+      value: formatStatCurrency(monthlyComparison.current.totalAmount),
       change: formatPercentage(monthlyComparison.percentageChange) + " vs last month",
       icon: DollarSign,
       color: "text-emerald-600",
@@ -147,7 +133,7 @@ export function Dashboard() {
     },
     {
       title: "Total Revenue",
-      value: formatCurrency(overallStats.totalAmount),
+      value: formatStatCurrency(overallStats.totalAmount),
       subtitle: "All time",
       icon: DollarSign,
       color: "text-emerald-600",
@@ -163,7 +149,7 @@ export function Dashboard() {
     },
     {
       title: "Avg Job Value",
-      value: formatCurrency(overallStats.averageJobValue),
+      value: formatStatCurrency(overallStats.averageJobValue),
       subtitle: "All time average",
       icon: TrendingUp,
       color: "text-green-600",

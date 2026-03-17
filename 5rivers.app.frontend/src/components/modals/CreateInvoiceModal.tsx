@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox"
 import { useToast } from "@/hooks/use-toast"
 import { useQuery, useMutation } from "@apollo/client"
-import { GET_JOBS, UPDATE_JOB } from "@/lib/graphql/jobs"
+import { GET_JOBS, UPDATE_JOB } from "@/features/jobs/api"
 import { GET_DISPATCHERS } from "@/lib/graphql/dispatchers"
 import { CREATE_INVOICE } from "@/lib/graphql/invoices"
 

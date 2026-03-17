@@ -2,6 +2,8 @@ import { DateTimeResolver } from 'graphql-scalars';
 import { GraphQLContext } from '../types/context';
 import { companyService } from '../services/companyService';
 import CalculationService from '../services/calculationService';
+
+const JOBS_MAX_PAGE_SIZE = 100;
 import PDFService from '../services/pdfService';
 import { Neo4jService } from '../database/neo4j';
 import neo4j from 'neo4j-driver';
@@ -540,66 +542,56 @@ export const resolvers = {
       return null;
     },
 
-    // Job queries
+    // Job queries (batched: one query with relations + batch calculation to avoid N+1)
     jobs: async (
       _parent: any,
       args: { filters?: any; pagination?: PaginationInput },
       context: GraphQLContext
     ) => {
       const page = args.pagination?.page || 1;
-      const limit = args.pagination?.limit || 10;
-      const offset = args.pagination?.offset || (page - 1) * limit;
+      const requestedLimit = args.pagination?.limit ?? 10;
+      const limit = Math.min(Math.max(1, requestedLimit), JOBS_MAX_PAGE_SIZE);
+      const offset = args.pagination?.offset ?? (page - 1) * limit;
 
-      // Build match pattern and where clauses based on filters
       let matchClauses = ['MATCH (j:Job)'];
       const whereClauses = [];
-      const params: any = { 
-        offset: neo4j.int(offset), 
-        limit: neo4j.int(limit) 
+      const params: any = {
+        offset: neo4j.int(offset),
+        limit: neo4j.int(limit),
       };
 
       if (args.filters?.dispatcherId) {
         matchClauses.push('MATCH (j)-[:MANAGED_BY]->(d:Dispatcher {id: $dispatcherId})');
         params.dispatcherId = args.filters.dispatcherId;
       }
-
       if (args.filters?.driverId) {
         matchClauses.push('MATCH (j)-[:ASSIGNED_TO]->(dr:Driver {id: $driverId})');
         params.driverId = args.filters.driverId;
       }
-
       if (args.filters?.unitId) {
         matchClauses.push('MATCH (j)-[:USES_UNIT]->(u:Unit {id: $unitId})');
         params.unitId = args.filters.unitId;
       }
-
       if (args.filters?.jobTypeId) {
         matchClauses.push('MATCH (j)-[:OF_TYPE]->(jt:JobType {id: $jobTypeId})');
         params.jobTypeId = args.filters.jobTypeId;
       }
-
       if (args.filters?.companyId) {
-        matchClauses.push('MATCH (j)-[:OF_TYPE]->(jt:JobType)-[:BELONGS_TO]->(c:Company {id: $companyId})');
+        matchClauses.push('MATCH (j)-[:OF_TYPE]->(jt:JobType)<-[:HAS_JOB_TYPE]-(c:Company {id: $companyId})');
         params.companyId = args.filters.companyId;
       }
-
       if (args.filters?.invoiceStatus) {
         whereClauses.push('j.invoiceStatus = $invoiceStatus');
         params.invoiceStatus = args.filters.invoiceStatus;
       }
-
-
-
       if (args.filters?.driverPaid !== undefined) {
         whereClauses.push('j.driverPaid = $driverPaid');
         params.driverPaid = args.filters.driverPaid;
       }
-
       if (args.filters?.dateFrom) {
         whereClauses.push('j.jobDate >= $dateFrom');
         params.dateFrom = args.filters.dateFrom;
       }
-
       if (args.filters?.dateTo) {
         whereClauses.push('j.jobDate <= $dateTo');
         params.dateTo = args.filters.dateTo;
@@ -608,36 +600,69 @@ export const resolvers = {
       const whereClause = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
       const matchClause = matchClauses.join('\n        ');
 
-      const query = `
-        ${matchClause}
-        ${whereClause}
-        RETURN j
-        ORDER BY j.jobDate DESC
-        SKIP $offset LIMIT $limit
-      `;
-      
       const countQuery = `
         ${matchClause}
         ${whereClause}
         RETURN count(j) as totalCount
       `;
 
-      const [jobsResult, countResult] = await Promise.all([
-        context.neo4jService.runQuery(query, params),
+      const listQuery = `
+        ${matchClause}
+        ${whereClause}
+        WITH j
+        ORDER BY j.jobDate DESC
+        SKIP $offset LIMIT $limit
+        OPTIONAL MATCH (j)-[:OF_TYPE]->(jt:JobType)
+        OPTIONAL MATCH (jt)<-[:HAS_JOB_TYPE]-(c:Company)
+        OPTIONAL MATCH (j)-[:ASSIGNED_TO]->(dr:Driver)
+        OPTIONAL MATCH (j)-[:MANAGED_BY]->(d:Dispatcher)
+        OPTIONAL MATCH (j)-[:USES_UNIT]->(u:Unit)
+        OPTIONAL MATCH (j)-[:INVOICED_IN]->(i:Invoice)
+        OPTIONAL MATCH (j)-[:HAS_INVOICE]->(i2:Invoice)
+        RETURN j, jt, c, dr, d, u, i, i2
+      `;
+
+      const [listResult, countResult] = await Promise.all([
+        context.neo4jService.runQuery(listQuery, params),
         context.neo4jService.runQuery(countQuery, params),
       ]);
 
-      const jobs = jobsResult.map((record: any) => ({
-        ...record.j.properties,
-        jobDate: formatDateForDisplay(record.j.properties.jobDate), // Format date for EST display
-        ticketIds: parseTicketIds(record.j.properties.ticketIds), // Convert string to array
-        createdAt: new Date(record.j.properties.createdAt),
-        updatedAt: new Date(record.j.properties.updatedAt),
-      }));
-
-      const totalCount = countResult[0]?.totalCount || 0;
+      const rawTotal = countResult[0]?.totalCount;
+      const totalCount = typeof rawTotal === 'number' ? rawTotal : (rawTotal?.toNumber?.() ?? rawTotal?.low ?? 0);
       const hasNextPage = offset + limit < totalCount;
       const hasPreviousPage = offset > 0;
+
+      const jobIds: string[] = [];
+      const jobs = listResult.map((record: any) => {
+        const j = record.j?.properties ?? record.j;
+        if (j?.id) jobIds.push(j.id);
+        const invoiceNode = record.i?.properties ?? record.i ?? record.i2?.properties ?? record.i2;
+        return {
+          ...j,
+          jobDate: formatDateForDisplay(j?.jobDate),
+          ticketIds: parseTicketIds(j?.ticketIds),
+          createdAt: j?.createdAt ? new Date(j.createdAt) : undefined,
+          updatedAt: j?.updatedAt ? new Date(j.updatedAt) : undefined,
+          jobType: record.jt ? {
+            ...(record.jt.properties ?? record.jt),
+            company: record.c ? (record.c.properties ?? record.c) : null,
+          } : null,
+          driver: record.dr ? (record.dr.properties ?? record.dr) : null,
+          dispatcher: record.d ? (record.d.properties ?? record.d) : null,
+          unit: record.u ? (record.u.properties ?? record.u) : null,
+          invoice: invoiceNode ?? null,
+        };
+      });
+
+      const batchCalc = await CalculationService.batchGetJobAmountsAndDriverPay(jobIds);
+      for (const job of jobs) {
+        const calc = batchCalc.get(job.id);
+        if (calc) {
+          job.calculatedAmount = calc.calculatedAmount;
+          job.calculatedHours = calc.calculatedHours;
+          job.driverPay = calc.driverPay;
+        }
+      }
 
       return {
         nodes: jobs,
@@ -703,18 +728,18 @@ export const resolvers = {
               avg(j.calculatedAmount) as averageJobValue
           `;
 
-          // Get dispatcher count
+          // Get dispatcher count (Job)-[:MANAGED_BY]->(Dispatcher)
           const dispatcherQuery = `
             MATCH (d:Dispatcher)
-            OPTIONAL MATCH (d)-[:DISPATCHED]->(j:Job)
+            OPTIONAL MATCH (d)<-[:MANAGED_BY]-(j:Job)
             WHERE j.jobDate >= $startDate AND j.jobDate < $endDate
             RETURN count(DISTINCT d) as totalDispatchers
           `;
 
-          // Get driver count
+          // Get driver count (Job)-[:ASSIGNED_TO]->(Driver)
           const driverQuery = `
             MATCH (dr:Driver)
-            OPTIONAL MATCH (dr)-[:DROVE]->(j:Job)
+            OPTIONAL MATCH (dr)<-[:ASSIGNED_TO]-(j:Job)
             WHERE j.jobDate >= $startDate AND j.jobDate < $endDate
             RETURN count(DISTINCT dr) as totalDrivers
           `;
@@ -801,10 +826,10 @@ export const resolvers = {
         // Get recent jobs (last 10)
         const recentJobsQuery = `
           MATCH (j:Job)
-          OPTIONAL MATCH (j)-[:BELONGS_TO]->(jt:JobType)
-          OPTIONAL MATCH (jt)-[:BELONGS_TO]->(c:Company)
-          OPTIONAL MATCH (j)-[:DROVE]-(dr:Driver)
-          OPTIONAL MATCH (j)-[:DISPATCHED]-(d:Dispatcher)
+          OPTIONAL MATCH (j)-[:OF_TYPE]->(jt:JobType)
+          OPTIONAL MATCH (jt)<-[:HAS_JOB_TYPE]-(c:Company)
+          OPTIONAL MATCH (j)-[:ASSIGNED_TO]->(dr:Driver)
+          OPTIONAL MATCH (j)-[:MANAGED_BY]->(d:Dispatcher)
           RETURN j, jt, c, dr, d
           ORDER BY j.jobDate DESC, j.createdAt DESC
           LIMIT 10
@@ -830,7 +855,7 @@ export const resolvers = {
 
         // Get top companies by job volume
         const topCompaniesQuery = `
-          MATCH (c:Company)<-[:BELONGS_TO]-(jt:JobType)<-[:BELONGS_TO]-(j:Job)
+          MATCH (c:Company)-[:HAS_JOB_TYPE]->(jt:JobType)<-[:OF_TYPE]-(j:Job)
           RETURN c, count(j) as jobCount
           ORDER BY jobCount DESC
           LIMIT 5
@@ -1045,47 +1070,48 @@ export const resolvers = {
         images: args.input.images || []
       };
 
-      const result = await context.neo4jService.runQuery(query, params);
-      
-      // Create relationships if provided
-      if (args.input.jobTypeId) {
-        await context.neo4jService.runQuery(
-          `MATCH (j:Job {id: $jobId}), (jt:JobType {id: $jobTypeId})
-           CREATE (j)-[:OF_TYPE]->(jt)`,
-          { jobId, jobTypeId: args.input.jobTypeId }
-        );
-      }
-      
-      if (args.input.driverId) {
-        await context.neo4jService.runQuery(
-          `MATCH (j:Job {id: $jobId}), (d:Driver {id: $driverId})
-           CREATE (j)-[:ASSIGNED_TO]->(d)`,
-          { jobId, driverId: args.input.driverId }
-        );
-      }
-      
-      if (args.input.dispatcherId) {
-        await context.neo4jService.runQuery(
-          `MATCH (j:Job {id: $jobId}), (d:Dispatcher {id: $dispatcherId})
-           CREATE (j)-[:MANAGED_BY]->(d)`,
-          { jobId, dispatcherId: args.input.dispatcherId }
-        );
-      }
-      
-      if (args.input.unitId) {
-        await context.neo4jService.runQuery(
-          `MATCH (j:Job {id: $jobId}), (u:Unit {id: $unitId})
-           CREATE (j)-[:USES_UNIT]->(u)`,
-          { jobId, unitId: args.input.unitId }
-        );
-      }
+      // Create job and all relationships in one transaction (atomic)
+      const transactionResult = await context.neo4jService.executeTransaction(async (tx: any) => {
+        const createResult = await tx.run(query, params);
+        const jobRecord = createResult.records[0];
+        if (!jobRecord) throw new Error('Job creation failed');
 
-      // Calculate and set the calculatedAmount for the job
+        if (args.input.jobTypeId) {
+          await tx.run(
+            `MATCH (j:Job {id: $jobId}), (jt:JobType {id: $jobTypeId}) CREATE (j)-[:OF_TYPE]->(jt)`,
+            { jobId, jobTypeId: args.input.jobTypeId }
+          );
+        }
+        if (args.input.driverId) {
+          await tx.run(
+            `MATCH (j:Job {id: $jobId}), (d:Driver {id: $driverId}) CREATE (j)-[:ASSIGNED_TO]->(d)`,
+            { jobId, driverId: args.input.driverId }
+          );
+        }
+        if (args.input.dispatcherId) {
+          await tx.run(
+            `MATCH (j:Job {id: $jobId}), (d:Dispatcher {id: $dispatcherId}) CREATE (j)-[:MANAGED_BY]->(d)`,
+            { jobId, dispatcherId: args.input.dispatcherId }
+          );
+        }
+        if (args.input.unitId) {
+          await tx.run(
+            `MATCH (j:Job {id: $jobId}), (u:Unit {id: $unitId}) CREATE (j)-[:USES_UNIT]->(u)`,
+            { jobId, unitId: args.input.unitId }
+          );
+        }
+
+        return jobRecord.toObject();
+      });
+
+      const jobProps = transactionResult.j?.properties ?? transactionResult.j;
+      if (!jobProps) throw new Error('Job creation failed');
+
+      // Calculate and set the calculatedAmount after commit (uses separate read)
       try {
         const calculatedAmount = await CalculationService.calculateJobAmount(jobId);
         await context.neo4jService.runQuery(
-          `MATCH (j:Job {id: $jobId})
-           SET j.calculatedAmount = $calculatedAmount`,
+          `MATCH (j:Job {id: $jobId}) SET j.calculatedAmount = $calculatedAmount`,
           { jobId, calculatedAmount }
         );
       } catch (error) {
@@ -1093,10 +1119,10 @@ export const resolvers = {
       }
 
       return {
-        ...result[0].j.properties,
-        jobDate: formatDateForDisplay(result[0].j.properties.jobDate), // Format date for EST display
-        createdAt: new Date(result[0].j.properties.createdAt),
-        updatedAt: new Date(result[0].j.properties.updatedAt),
+        ...jobProps,
+        jobDate: formatDateForDisplay(jobProps.jobDate),
+        createdAt: new Date(jobProps.createdAt),
+        updatedAt: new Date(jobProps.updatedAt),
       };
     },
 
@@ -1396,7 +1422,7 @@ export const resolvers = {
 
     downloadInvoicePDF: async (_parent: any, args: { invoiceId: string }, context: GraphQLContext) => {
       try {
-        const pdfService = new PDFService();
+        const pdfService = new PDFService(context.neo4jService);
         // Fetch invoice data to get the invoice number for filename
         const invoiceData = await pdfService.getInvoiceData(args.invoiceId);
         if (!invoiceData) {
@@ -1423,7 +1449,7 @@ export const resolvers = {
     validateAndFixJobAmounts: async (_parent: any, args: { invoiceId?: string }, context: GraphQLContext) => {
       try {
         const { JobAmountValidationService } = await import('../services/jobAmountValidationService');
-        const validationService = new JobAmountValidationService();
+        const validationService = new JobAmountValidationService(context.neo4jService);
         
         if (args.invoiceId) {
           const result = await validationService.validateInvoiceJobAmounts(args.invoiceId);
@@ -2201,7 +2227,7 @@ export const resolvers = {
       
       // Import validation service to ensure amounts are correct
       const { JobAmountValidationService } = await import('../services/jobAmountValidationService');
-      const validationService = new JobAmountValidationService();
+      const validationService = new JobAmountValidationService(context.neo4jService);
       
       const jobs = [];
       
@@ -2253,55 +2279,62 @@ export const resolvers = {
 
   Job: {
     jobType: async (parent: any, _args: any, context: GraphQLContext) => {
-      const query = `
-        MATCH (j:Job {id: $jobId})-[:OF_TYPE]->(jt:JobType)
-        RETURN jt
-      `;
-      const result = await context.neo4jService.runQuery(query, { jobId: parent.id });
-      return result[0]?.jt.properties;
+      if (parent.jobType !== undefined) return parent.jobType;
+      const result = await context.neo4jService.runQuery(
+        `MATCH (j:Job {id: $jobId})-[:OF_TYPE]->(jt:JobType) RETURN jt`,
+        { jobId: parent.id }
+      );
+      return result[0]?.jt?.properties ?? null;
     },
 
     driver: async (parent: any, _args: any, context: GraphQLContext) => {
-      const query = `
-        MATCH (j:Job {id: $jobId})-[:ASSIGNED_TO]->(d:Driver)
-        RETURN d
-      `;
-      const result = await context.neo4jService.runQuery(query, { jobId: parent.id });
-      return result[0]?.d.properties;
+      if (parent.driver !== undefined) return parent.driver;
+      const result = await context.neo4jService.runQuery(
+        `MATCH (j:Job {id: $jobId})-[:ASSIGNED_TO]->(d:Driver) RETURN d`,
+        { jobId: parent.id }
+      );
+      return result[0]?.d?.properties ?? null;
     },
 
     dispatcher: async (parent: any, _args: any, context: GraphQLContext) => {
-      const query = `
-        MATCH (j:Job {id: $jobId})-[:MANAGED_BY]->(d:Dispatcher)
-        RETURN d
-      `;
-      const result = await context.neo4jService.runQuery(query, { jobId: parent.id });
-      return result[0]?.d.properties;
+      if (parent.dispatcher !== undefined) return parent.dispatcher;
+      const result = await context.neo4jService.runQuery(
+        `MATCH (j:Job {id: $jobId})-[:MANAGED_BY]->(d:Dispatcher) RETURN d`,
+        { jobId: parent.id }
+      );
+      return result[0]?.d?.properties ?? null;
     },
 
     unit: async (parent: any, _args: any, context: GraphQLContext) => {
-      const query = `
-        MATCH (j:Job {id: $jobId})-[:USES_UNIT]->(u:Unit)
-        RETURN u
-      `;
-      const result = await context.neo4jService.runQuery(query, { jobId: parent.id });
-      return result[0]?.u.properties;
+      if (parent.unit !== undefined) return parent.unit;
+      const result = await context.neo4jService.runQuery(
+        `MATCH (j:Job {id: $jobId})-[:USES_UNIT]->(u:Unit) RETURN u`,
+        { jobId: parent.id }
+      );
+      return result[0]?.u?.properties ?? null;
     },
 
     invoice: async (parent: any, _args: any, context: GraphQLContext) => {
-      const query = `
-        MATCH (j:Job {id: $jobId})-[:HAS_INVOICE]->(i:Invoice)
-        RETURN i
-      `;
-      const result = await context.neo4jService.runQuery(query, { jobId: parent.id });
-      return result[0]?.i.properties;
+      if (parent.invoice !== undefined) return parent.invoice;
+      let result = await context.neo4jService.runQuery(
+        `MATCH (j:Job {id: $jobId})-[:INVOICED_IN]->(i:Invoice) RETURN i`,
+        { jobId: parent.id }
+      );
+      if (result.length > 0 && result[0].i) return result[0].i.properties ?? result[0].i;
+      result = await context.neo4jService.runQuery(
+        `MATCH (j:Job {id: $jobId})-[:HAS_INVOICE]->(i:Invoice) RETURN i`,
+        { jobId: parent.id }
+      );
+      return result[0]?.i?.properties ?? result[0]?.i ?? null;
     },
 
     amount: async (parent: any, _args: any, _context: GraphQLContext) => {
+      if (typeof parent.calculatedAmount === 'number') return parent.calculatedAmount;
       return await CalculationService.calculateJobAmount(parent.id);
     },
 
     calculatedAmount: async (parent: any, _args: any, _context: GraphQLContext) => {
+      if (typeof parent.calculatedAmount === 'number') return parent.calculatedAmount;
       try {
         return await CalculationService.calculateJobAmount(parent.id);
       } catch (error) {
@@ -2311,10 +2344,12 @@ export const resolvers = {
     },
 
     calculatedHours: async (parent: any, _args: any, _context: GraphQLContext) => {
+      if (parent.calculatedHours !== undefined && parent.calculatedHours !== null) return parent.calculatedHours;
       return CalculationService.calculateJobHours(parent);
     },
 
     driverPay: async (parent: any, _args: any, _context: GraphQLContext) => {
+      if (typeof parent.driverPay === 'number') return parent.driverPay;
       return await CalculationService.calculateDriverPay(parent.id);
     },
   },

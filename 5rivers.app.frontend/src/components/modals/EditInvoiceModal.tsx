@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
 import { GET_INVOICE, UPDATE_INVOICE } from "@/lib/graphql/invoices"
-import { GET_JOBS, UPDATE_JOB } from "@/lib/graphql/jobs"
+import { GET_JOBS, UPDATE_JOB } from "@/features/jobs/api"
 
 interface EditInvoiceModalProps {
   trigger: React.ReactNode

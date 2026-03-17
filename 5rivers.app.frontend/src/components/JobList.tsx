@@ -11,52 +11,16 @@ import { InvoiceViewModal } from "@/components/modals/InvoiceViewModal"
 import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog"
 import { formatDateForDisplay, formatTimeForDisplay } from "@/lib/utils/dateUtils"
 import { useMutation } from "@apollo/client"
-import { UPDATE_JOB } from "@/lib/graphql/jobs"
+import { UPDATE_JOB } from "@/features/jobs/api"
 import { useToast } from "@/hooks/use-toast"
-
-interface Job {
-  id: string
-  jobDate: string
-  invoiceStatus: string
-  weight?: number[]
-  loads?: number
-  startTime?: string
-  endTime?: string
-  driverPaid: boolean
-  calculatedAmount?: number
-  driverPay?: number
-  ticketIds?: string[]
-  imageUrls?: string
-  images?: string[]
-  jobType?: {
-    id: string
-    title: string
-    rateOfJob?: number
-    dispatchType?: string
-    company?: {
-      id: string
-      name: string
-    }
-  }
-  driver?: {
-    id: string
-    name: string
-    hourlyRate?: number
-  }
-  dispatcher?: {
-    id: string
-    name: string
-    commissionPercent?: number
-  }
-  unit?: {
-    id: string
-    name: string
-  }
-  invoice?: {
-    id: string
-    invoiceNumber: string
-  }
-}
+import {
+  addHST,
+  getCommission,
+  getAmountAfterCommission,
+  getDriverPay,
+  formatCurrency,
+} from "@/lib/calculations/jobCalculations"
+import type { Job } from "@/lib/types/job"
 
 interface JobListProps {
   jobs: Job[]
@@ -141,37 +105,8 @@ export function JobList({ jobs, onJobSuccess, onDeleteJob }: JobListProps) {
     }
   }
 
-  // Check if a job has missing rate
-  const hasMissingRate = (job: Job): boolean => {
-    return !job.jobType?.rateOfJob || job.jobType.rateOfJob <= 0
-  }
-
-  // Format currency
-  // Add HST (1.13%) to amount
-  const addHST = (amount: number) => amount * 1.13;
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(amount)
-  }
-
-  // Calculate commission for a job
-  const getCommission = (job: Job) => {
-    const commissionPercent = job?.dispatcher?.commissionPercent ?? 5;
-    return addHST(job.calculatedAmount || 0) * (commissionPercent / 100);
-  };
-
-  // Calculate amount after commission for a job
-  const getAmountAfterCommission = (job: Job) => {
-    return addHST(job.calculatedAmount || 0) - getCommission(job);
-  };
-
-  // Calculate driver pay for a job
-  const getDriverPay = (job: Job) => {
-    const hourlyRate = job.driver?.hourlyRate ?? 0;
-    return getAmountAfterCommission(job) * (hourlyRate / 100);
-  };
+  const hasMissingRate = (job: Job): boolean =>
+    !job.jobType?.rateOfJob || job.jobType.rateOfJob <= 0
 
   // Get job-specific attribute based on dispatch type
   const getJobSpecificAttribute = (job: Job) => {

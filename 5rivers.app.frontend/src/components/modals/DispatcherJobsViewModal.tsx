@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { Calendar, DollarSign, Building, Loader2, FileText, Eye } from "lucide-react"
-import { GET_JOBS } from "@/lib/graphql/jobs"
+import { GET_JOBS } from "@/features/jobs/api"
 
 interface DispatcherJobsViewModalProps {
   trigger: React.ReactNode

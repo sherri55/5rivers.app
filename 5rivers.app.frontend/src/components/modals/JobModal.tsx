@@ -28,7 +28,7 @@ import { GET_DRIVERS } from "@/lib/graphql/drivers"
 import { GET_DISPATCHERS } from "@/lib/graphql/dispatchers"
 import { GET_UNITS } from "@/lib/graphql/units"
 import { GET_JOB_TYPES } from "@/lib/graphql/jobTypes"
-import { CREATE_JOB, UPDATE_JOB, GET_JOBS } from "@/lib/graphql/jobs"
+import { CREATE_JOB, UPDATE_JOB, GET_JOBS } from "@/features/jobs/api"
 
 interface JobModalProps {
   job?: any // Optional - if provided, it's an edit modal; if not, it's a create modal
