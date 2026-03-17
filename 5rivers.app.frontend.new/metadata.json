@@ -1,0 +1,8 @@
+
+{
+  "name": "5Rivers Command Center",
+  "description": "A high-performance logistics and fleet management platform featuring real-time job tracking, automated invoicing, and AI-powered dispatch assistance.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
