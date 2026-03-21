@@ -2,8 +2,12 @@ import { v4 as uuid } from 'uuid';
 import { query } from '../db/connection';
 import { type Pagination, type ListResult, type SortOrder } from '../types';
 
-const SORT_COLUMNS = ['name', 'description', 'color', 'plateNumber', 'vin', 'createdAt'] as const;
-const FILTER_COLUMNS = ['name', 'plateNumber', 'vin', 'color'] as const;
+const SORT_COLUMNS = ['name', 'description', 'color', 'plateNumber', 'vin', 'status', 'year', 'make', 'model', 'mileage', 'insuranceExpiry', 'lastMaintenanceDate', 'nextMaintenanceDate', 'createdAt'] as const;
+const FILTER_COLUMNS = ['name', 'plateNumber', 'vin', 'color', 'status', 'make', 'model'] as const;
+
+const ALL_COLUMNS = 'id, organizationId, name, description, color, plateNumber, vin, status, year, make, model, mileage, insuranceExpiry, lastMaintenanceDate, nextMaintenanceDate, createdAt, updatedAt';
+
+export type UnitStatus = 'ACTIVE' | 'INACTIVE' | 'MAINTENANCE' | 'RETIRED';
 
 export interface Unit {
   id: string;
@@ -13,6 +17,14 @@ export interface Unit {
   color: string | null;
   plateNumber: string | null;
   vin: string | null;
+  status: UnitStatus;
+  year: number | null;
+  make: string | null;
+  model: string | null;
+  mileage: number | null;
+  insuranceExpiry: string | null;
+  lastMaintenanceDate: string | null;
+  nextMaintenanceDate: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -23,6 +35,14 @@ export interface CreateUnitInput {
   color?: string | null;
   plateNumber?: string | null;
   vin?: string | null;
+  status?: UnitStatus;
+  year?: number | null;
+  make?: string | null;
+  model?: string | null;
+  mileage?: number | null;
+  insuranceExpiry?: string | null;
+  lastMaintenanceDate?: string | null;
+  nextMaintenanceDate?: string | null;
 }
 
 export interface UpdateUnitInput extends Partial<CreateUnitInput> {
@@ -58,7 +78,7 @@ export async function listUnits(
   FILTER_COLUMNS.forEach((col) => { if (params[`filter_${col}`] != null) countParams[`filter_${col}`] = params[`filter_${col}`]; });
   const [rows, countRows] = await Promise.all([
     query<Unit[]>(
-      `SELECT id, organizationId, name, description, color, plateNumber, vin, createdAt, updatedAt
+      `SELECT ${ALL_COLUMNS}
        FROM Units WHERE organizationId = @organizationId${whereExtra}
        ORDER BY ${sortBy} ${order} OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY`,
       { params }
@@ -80,7 +100,7 @@ export async function listUnits(
 
 export async function getUnitById(id: string, organizationId: string): Promise<Unit | null> {
   const rows = await query<Unit[]>(
-    `SELECT id, organizationId, name, description, color, plateNumber, vin, createdAt, updatedAt
+    `SELECT ${ALL_COLUMNS}
      FROM Units WHERE id = @id AND organizationId = @organizationId`,
     { params: { id, organizationId } }
   );
@@ -91,13 +111,19 @@ export async function createUnit(organizationId: string, input: CreateUnitInput)
   const id = uuid();
   const now = new Date();
   await query(
-    `INSERT INTO Units (id, organizationId, name, description, color, plateNumber, vin, createdAt, updatedAt)
-     VALUES (@id, @organizationId, @name, @description, @color, @plateNumber, @vin, @createdAt, @updatedAt)`,
+    `INSERT INTO Units (id, organizationId, name, description, color, plateNumber, vin, status, year, make, model, mileage, insuranceExpiry, lastMaintenanceDate, nextMaintenanceDate, createdAt, updatedAt)
+     VALUES (@id, @organizationId, @name, @description, @color, @plateNumber, @vin, @status, @year, @make, @model, @mileage, @insuranceExpiry, @lastMaintenanceDate, @nextMaintenanceDate, @createdAt, @updatedAt)`,
     {
       params: {
         id, organizationId, name: input.name,
         description: input.description ?? null, color: input.color ?? null,
         plateNumber: input.plateNumber ?? null, vin: input.vin ?? null,
+        status: input.status ?? 'ACTIVE',
+        year: input.year ?? null, make: input.make ?? null, model: input.model ?? null,
+        mileage: input.mileage ?? null,
+        insuranceExpiry: input.insuranceExpiry ?? null,
+        lastMaintenanceDate: input.lastMaintenanceDate ?? null,
+        nextMaintenanceDate: input.nextMaintenanceDate ?? null,
         createdAt: now, updatedAt: now,
       },
     }
@@ -117,10 +143,21 @@ export async function updateUnit(organizationId: string, input: UpdateUnitInput)
     color: input.color !== undefined ? input.color : existing.color,
     plateNumber: input.plateNumber !== undefined ? input.plateNumber : existing.plateNumber,
     vin: input.vin !== undefined ? input.vin : existing.vin,
+    status: input.status !== undefined ? input.status : existing.status,
+    year: input.year !== undefined ? input.year : existing.year,
+    make: input.make !== undefined ? input.make : existing.make,
+    model: input.model !== undefined ? input.model : existing.model,
+    mileage: input.mileage !== undefined ? input.mileage : existing.mileage,
+    insuranceExpiry: input.insuranceExpiry !== undefined ? input.insuranceExpiry : existing.insuranceExpiry,
+    lastMaintenanceDate: input.lastMaintenanceDate !== undefined ? input.lastMaintenanceDate : existing.lastMaintenanceDate,
+    nextMaintenanceDate: input.nextMaintenanceDate !== undefined ? input.nextMaintenanceDate : existing.nextMaintenanceDate,
     updatedAt: new Date(),
   };
   await query(
-    `UPDATE Units SET name = @name, description = @description, color = @color, plateNumber = @plateNumber, vin = @vin, updatedAt = @updatedAt
+    `UPDATE Units SET name = @name, description = @description, color = @color, plateNumber = @plateNumber, vin = @vin,
+       status = @status, year = @year, make = @make, model = @model, mileage = @mileage,
+       insuranceExpiry = @insuranceExpiry, lastMaintenanceDate = @lastMaintenanceDate, nextMaintenanceDate = @nextMaintenanceDate,
+       updatedAt = @updatedAt
      WHERE id = @id AND organizationId = @organizationId`,
     { params }
   );

@@ -14,7 +14,7 @@ export async function listJobsOnInvoice(
   organizationId: string
 ): Promise<JobInvoiceLine[]> {
   const invoice = await getInvoiceById(invoiceId, organizationId);
-  if (!invoice) return []; // or throw notFound – caller can check invoice first
+  if (!invoice) return [];
 
   const rows = await query<JobInvoiceLine[]>(
     `SELECT jobId, invoiceId, amount, addedAt
@@ -40,6 +40,18 @@ export async function getJobInvoice(
   return Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
 }
 
+/**
+ * Check if a job is already on ANY invoice.
+ * JobInvoice has jobId as PK so a job can only be on one invoice.
+ */
+async function getExistingJobInvoice(jobId: string): Promise<JobInvoiceLine | null> {
+  const rows = await query<JobInvoiceLine[]>(
+    `SELECT jobId, invoiceId, amount, addedAt FROM JobInvoice WHERE jobId = @jobId`,
+    { params: { jobId } }
+  );
+  return Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
+}
+
 export async function addJobToInvoice(
   organizationId: string,
   invoiceId: string,
@@ -51,8 +63,29 @@ export async function addJobToInvoice(
   const job = await getJobById(jobId, organizationId);
   if (!job) throw new Error('Job not found');
 
-  const existing = await getJobInvoice(invoiceId, jobId, organizationId);
-  if (existing) throw new Error('Job is already on this invoice');
+  // Check if job is already on ANY invoice (not just this one)
+  const alreadyInvoiced = await getExistingJobInvoice(jobId);
+  if (alreadyInvoiced) {
+    if (alreadyInvoiced.invoiceId === invoiceId) {
+      throw new Error('Job is already on this invoice');
+    }
+    throw new Error('Job is already on another invoice');
+  }
+
+  // Validate dispatcher/company match:
+  // - Dispatcher invoice: job must belong to the same dispatcher
+  // - Company/direct invoice: job must be DIRECT sourceType (no dispatcher mismatch concern)
+  if (invoice.dispatcherId) {
+    if (job.dispatcherId !== invoice.dispatcherId) {
+      throw new Error('Job dispatcher does not match invoice dispatcher');
+    }
+  } else if (invoice.companyId) {
+    // For direct invoices, verify the job is a DIRECT-source job
+    // and its jobType belongs to the invoice's company
+    if (job.sourceType !== 'DIRECT') {
+      throw new Error('Only direct-source jobs can be added to a company invoice');
+    }
+  }
 
   await query(
     `INSERT INTO JobInvoice (jobId, invoiceId, amount, addedAt) VALUES (@jobId, @invoiceId, @amount, @addedAt)`,

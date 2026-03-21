@@ -106,7 +106,8 @@ router.post(
   '/invoices',
   asyncHandler(async (req: Request, res: Response) => {
     const body = req.body ?? {};
-    if (!body.invoiceNumber || !body.invoiceDate || !body.dispatcherId) throw badRequest('invoiceNumber, invoiceDate and dispatcherId are required');
+    if (!body.invoiceNumber || !body.invoiceDate) throw badRequest('invoiceNumber and invoiceDate are required');
+    if (!body.dispatcherId && !body.companyId) throw badRequest('Either dispatcherId or companyId is required');
     const invoice = await invoiceService.createInvoice(
       req.user!.organizationId,
       body

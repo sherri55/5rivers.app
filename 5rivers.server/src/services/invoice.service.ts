@@ -5,13 +5,16 @@ import { type Pagination, type ListResult, type SortOrder } from '../types';
 const SORT_COLUMNS = ['invoiceNumber', 'invoiceDate', 'status', 'billedTo', 'billedEmail', 'createdAt'] as const;
 const FILTER_COLUMNS = ['invoiceNumber', 'status', 'billedTo', 'billedEmail'] as const;
 
+const ALL_COLUMNS = 'id, organizationId, invoiceNumber, invoiceDate, status, dispatcherId, companyId, billedTo, billedEmail, createdAt, updatedAt';
+
 export interface Invoice {
   id: string;
   organizationId: string;
   invoiceNumber: string;
   invoiceDate: string;
   status: string;
-  dispatcherId: string;
+  dispatcherId: string | null;
+  companyId: string | null;
   billedTo: string | null;
   billedEmail: string | null;
   createdAt: Date;
@@ -21,7 +24,8 @@ export interface Invoice {
 export interface CreateInvoiceInput {
   invoiceNumber: string;
   invoiceDate: string;
-  dispatcherId: string;
+  dispatcherId?: string | null;
+  companyId?: string | null;
   status?: string;
   billedTo?: string | null;
   billedEmail?: string | null;
@@ -60,7 +64,7 @@ export async function listInvoices(
   FILTER_COLUMNS.forEach((col) => { if (params[`filter_${col}`] != null) countParams[`filter_${col}`] = params[`filter_${col}`]; });
   const [rows, countRows] = await Promise.all([
     query<Invoice[]>(
-      `SELECT id, organizationId, invoiceNumber, invoiceDate, status, dispatcherId, billedTo, billedEmail, createdAt, updatedAt
+      `SELECT ${ALL_COLUMNS}
        FROM Invoices WHERE organizationId = @organizationId${whereExtra}
        ORDER BY ${sortBy} ${order}, invoiceNumber DESC OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY`,
       { params }
@@ -85,7 +89,7 @@ export async function getInvoiceById(
   organizationId: string
 ): Promise<Invoice | null> {
   const rows = await query<Invoice[]>(
-    `SELECT id, organizationId, invoiceNumber, invoiceDate, status, dispatcherId, billedTo, billedEmail, createdAt, updatedAt
+    `SELECT ${ALL_COLUMNS}
      FROM Invoices WHERE id = @id AND organizationId = @organizationId`,
     { params: { id, organizationId } }
   );
@@ -100,8 +104,8 @@ export async function createInvoice(
   const now = new Date();
   const status = input.status && ['CREATED', 'RAISED', 'RECEIVED'].includes(input.status) ? input.status : 'CREATED';
   await query(
-    `INSERT INTO Invoices (id, organizationId, invoiceNumber, invoiceDate, status, dispatcherId, billedTo, billedEmail, createdAt, updatedAt)
-     VALUES (@id, @organizationId, @invoiceNumber, @invoiceDate, @status, @dispatcherId, @billedTo, @billedEmail, @createdAt, @updatedAt)`,
+    `INSERT INTO Invoices (id, organizationId, invoiceNumber, invoiceDate, status, dispatcherId, companyId, billedTo, billedEmail, createdAt, updatedAt)
+     VALUES (@id, @organizationId, @invoiceNumber, @invoiceDate, @status, @dispatcherId, @companyId, @billedTo, @billedEmail, @createdAt, @updatedAt)`,
     {
       params: {
         id,
@@ -109,7 +113,8 @@ export async function createInvoice(
         invoiceNumber: input.invoiceNumber,
         invoiceDate: input.invoiceDate,
         status,
-        dispatcherId: input.dispatcherId,
+        dispatcherId: input.dispatcherId ?? null,
+        companyId: input.companyId ?? null,
         billedTo: input.billedTo ?? null,
         billedEmail: input.billedEmail ?? null,
         createdAt: now,
@@ -134,14 +139,15 @@ export async function updateInvoice(
     organizationId,
     invoiceDate: input.invoiceDate ?? existing.invoiceDate,
     status: input.status && ['CREATED', 'RAISED', 'RECEIVED'].includes(input.status) ? input.status : existing.status,
-    dispatcherId: input.dispatcherId ?? existing.dispatcherId,
+    dispatcherId: input.dispatcherId !== undefined ? input.dispatcherId : existing.dispatcherId,
+    companyId: input.companyId !== undefined ? input.companyId : existing.companyId,
     billedTo: input.billedTo !== undefined ? input.billedTo : existing.billedTo,
     billedEmail: input.billedEmail !== undefined ? input.billedEmail : existing.billedEmail,
     updatedAt: new Date(),
   };
 
   await query(
-    `UPDATE Invoices SET invoiceDate = @invoiceDate, status = @status, dispatcherId = @dispatcherId, billedTo = @billedTo, billedEmail = @billedEmail, updatedAt = @updatedAt
+    `UPDATE Invoices SET invoiceDate = @invoiceDate, status = @status, dispatcherId = @dispatcherId, companyId = @companyId, billedTo = @billedTo, billedEmail = @billedEmail, updatedAt = @updatedAt
      WHERE id = @id AND organizationId = @organizationId`,
     { params }
   );

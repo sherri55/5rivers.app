@@ -6,8 +6,10 @@ import {
   type SortOrder,
 } from '../types';
 
-const SORT_COLUMNS = ['name', 'description', 'email', 'phone', 'hourlyRate', 'createdAt'] as const;
-const FILTER_COLUMNS = ['name', 'email', 'phone'] as const;
+const SORT_COLUMNS = ['name', 'description', 'email', 'phone', 'hourlyRate', 'percentageRate', 'payType', 'createdAt'] as const;
+const FILTER_COLUMNS = ['name', 'email', 'phone', 'payType'] as const;
+
+export type DriverPayType = 'HOURLY' | 'PERCENTAGE' | 'CUSTOM';
 
 export interface Driver {
   id: string;
@@ -16,7 +18,9 @@ export interface Driver {
   description: string | null;
   email: string | null;
   phone: string | null;
+  payType: DriverPayType;
   hourlyRate: number;
+  percentageRate: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -26,7 +30,9 @@ export interface CreateDriverInput {
   description?: string | null;
   email?: string | null;
   phone?: string | null;
+  payType?: DriverPayType;
   hourlyRate?: number;
+  percentageRate?: number;
 }
 
 export interface UpdateDriverInput extends Partial<CreateDriverInput> {
@@ -64,7 +70,7 @@ export async function listDrivers(
   });
   const [rows, countRows] = await Promise.all([
     query<Driver[]>(
-      `SELECT id, organizationId, name, description, email, phone, hourlyRate, createdAt, updatedAt
+      `SELECT id, organizationId, name, description, email, phone, payType, hourlyRate, percentageRate, createdAt, updatedAt
        FROM Drivers WHERE organizationId = @organizationId${whereExtra}
        ORDER BY ${sortBy} ${order}
        OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY`,
@@ -90,7 +96,7 @@ export async function getDriverById(
   organizationId: string
 ): Promise<Driver | null> {
   const rows = await query<Driver[]>(
-    `SELECT id, organizationId, name, description, email, phone, hourlyRate, createdAt, updatedAt
+    `SELECT id, organizationId, name, description, email, phone, payType, hourlyRate, percentageRate, createdAt, updatedAt
      FROM Drivers WHERE id = @id AND organizationId = @organizationId`,
     { params: { id, organizationId } }
   );
@@ -104,8 +110,8 @@ export async function createDriver(
   const id = uuid();
   const now = new Date();
   await query(
-    `INSERT INTO Drivers (id, organizationId, name, description, email, phone, hourlyRate, createdAt, updatedAt)
-     VALUES (@id, @organizationId, @name, @description, @email, @phone, @hourlyRate, @createdAt, @updatedAt)`,
+    `INSERT INTO Drivers (id, organizationId, name, description, email, phone, payType, hourlyRate, percentageRate, createdAt, updatedAt)
+     VALUES (@id, @organizationId, @name, @description, @email, @phone, @payType, @hourlyRate, @percentageRate, @createdAt, @updatedAt)`,
     {
       params: {
         id,
@@ -114,7 +120,9 @@ export async function createDriver(
         description: input.description ?? null,
         email: input.email ?? null,
         phone: input.phone ?? null,
+        payType: input.payType ?? 'HOURLY',
         hourlyRate: input.hourlyRate ?? 0,
+        percentageRate: input.percentageRate ?? 0,
         createdAt: now,
         updatedAt: now,
       },
@@ -139,13 +147,15 @@ export async function updateDriver(
     description: input.description !== undefined ? input.description : existing.description,
     email: input.email !== undefined ? input.email : existing.email,
     phone: input.phone !== undefined ? input.phone : existing.phone,
+    payType: input.payType !== undefined ? input.payType : existing.payType,
     hourlyRate: input.hourlyRate !== undefined ? input.hourlyRate : existing.hourlyRate,
+    percentageRate: input.percentageRate !== undefined ? input.percentageRate : existing.percentageRate,
     updatedAt: new Date(),
   };
 
   await query(
     `UPDATE Drivers SET
-       name = @name, description = @description, email = @email, phone = @phone, hourlyRate = @hourlyRate, updatedAt = @updatedAt
+       name = @name, description = @description, email = @email, phone = @phone, payType = @payType, hourlyRate = @hourlyRate, percentageRate = @percentageRate, updatedAt = @updatedAt
      WHERE id = @id AND organizationId = @organizationId`,
     { params }
   );

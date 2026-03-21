@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(npm run typecheck:*)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(xargs wc:*)",
+      "Bash(find D:Personal5rivers.app5rivers.app.frontendsrccomponentsmodals -name *.tsx -type f)"
     ],
     "deny": [],
     "ask": []

@@ -2,8 +2,12 @@ import { v4 as uuid } from 'uuid';
 import { query } from '../db/connection';
 import { type Pagination, type ListResult, type SortOrder } from '../types';
 
-const SORT_COLUMNS = ['jobDate', 'amount', 'createdAt'] as const;
-const FILTER_COLUMNS = ['jobDate', 'amount'] as const;
+const SORT_COLUMNS = ['jobDate', 'amount', 'sourceType', 'createdAt'] as const;
+const FILTER_COLUMNS = ['jobDate', 'amount', 'sourceType'] as const;
+
+export type JobSourceType = 'DISPATCHED' | 'DIRECT';
+
+const ALL_COLUMNS = 'id, organizationId, jobDate, jobTypeId, driverId, dispatcherId, unitId, carrierId, sourceType, weight, loads, startTime, endTime, amount, carrierAmount, ticketIds, driverPaid, createdAt, updatedAt';
 
 export interface Job {
   id: string;
@@ -13,11 +17,14 @@ export interface Job {
   driverId: string | null;
   dispatcherId: string | null;
   unitId: string | null;
+  carrierId: string | null;
+  sourceType: JobSourceType;
   weight: string | null;
   loads: number | null;
   startTime: string | null;
   endTime: string | null;
   amount: number | null;
+  carrierAmount: number | null;
   ticketIds: string | null;
   driverPaid: boolean;
   createdAt: Date;
@@ -30,11 +37,14 @@ export interface CreateJobInput {
   driverId?: string | null;
   dispatcherId?: string | null;
   unitId?: string | null;
+  carrierId?: string | null;
+  sourceType?: JobSourceType;
   weight?: string | null;
   loads?: number | null;
   startTime?: string | null;
   endTime?: string | null;
   amount?: number | null;
+  carrierAmount?: number | null;
   ticketIds?: string | null;
   driverPaid?: boolean;
 }
@@ -46,6 +56,7 @@ export interface UpdateJobInput extends Partial<CreateJobInput> {
 export interface ListJobsOptions {
   sortBy?: string;
   order?: SortOrder;
+  filters?: Record<string, string>;
 }
 
 export async function listJobs(
@@ -65,6 +76,9 @@ export async function listJobs(
         if (col === 'jobDate') {
           filterClauses.push("(jobDate IS NOT NULL AND jobDate LIKE @filter_jobDate ESCAPE '\\')");
           params['filter_jobDate'] = `%${escaped}%`;
+        } else if (col === 'sourceType') {
+          filterClauses.push("(sourceType = @filter_sourceType)");
+          params['filter_sourceType'] = v;
         } else {
           filterClauses.push("(amount IS NOT NULL AND CAST(amount AS VARCHAR(20)) LIKE @filter_amount ESCAPE '\\')");
           params['filter_amount'] = `%${escaped}%`;
@@ -79,7 +93,7 @@ export async function listJobs(
   });
   const [rows, countRows] = await Promise.all([
     query<Job[]>(
-      `SELECT id, organizationId, jobDate, jobTypeId, driverId, dispatcherId, unitId, weight, loads, startTime, endTime, amount, ticketIds, driverPaid, createdAt, updatedAt
+      `SELECT ${ALL_COLUMNS}
        FROM Jobs WHERE organizationId = @organizationId${whereExtra}
        ORDER BY ${sortBy} ${order}, createdAt DESC OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY`,
       { params }
@@ -101,7 +115,7 @@ export async function listJobs(
 
 export async function getJobById(id: string, organizationId: string): Promise<Job | null> {
   const rows = await query<Job[]>(
-    `SELECT id, organizationId, jobDate, jobTypeId, driverId, dispatcherId, unitId, weight, loads, startTime, endTime, amount, ticketIds, driverPaid, createdAt, updatedAt
+    `SELECT ${ALL_COLUMNS}
      FROM Jobs WHERE id = @id AND organizationId = @organizationId`,
     { params: { id, organizationId } }
   );
@@ -113,14 +127,16 @@ export async function createJob(organizationId: string, input: CreateJobInput): 
   const now = new Date();
   const driverPaid = input.driverPaid ?? false;
   await query(
-    `INSERT INTO Jobs (id, organizationId, jobDate, jobTypeId, driverId, dispatcherId, unitId, weight, loads, startTime, endTime, amount, ticketIds, driverPaid, createdAt, updatedAt)
-     VALUES (@id, @organizationId, @jobDate, @jobTypeId, @driverId, @dispatcherId, @unitId, @weight, @loads, @startTime, @endTime, @amount, @ticketIds, @driverPaid, @createdAt, @updatedAt)`,
+    `INSERT INTO Jobs (id, organizationId, jobDate, jobTypeId, driverId, dispatcherId, unitId, carrierId, sourceType, weight, loads, startTime, endTime, amount, carrierAmount, ticketIds, driverPaid, createdAt, updatedAt)
+     VALUES (@id, @organizationId, @jobDate, @jobTypeId, @driverId, @dispatcherId, @unitId, @carrierId, @sourceType, @weight, @loads, @startTime, @endTime, @amount, @carrierAmount, @ticketIds, @driverPaid, @createdAt, @updatedAt)`,
     {
       params: {
         id, organizationId, jobDate: input.jobDate, jobTypeId: input.jobTypeId,
         driverId: input.driverId ?? null, dispatcherId: input.dispatcherId ?? null, unitId: input.unitId ?? null,
+        carrierId: input.carrierId ?? null, sourceType: input.sourceType ?? 'DISPATCHED',
         weight: input.weight ?? null, loads: input.loads ?? null, startTime: input.startTime ?? null, endTime: input.endTime ?? null,
-        amount: input.amount ?? null, ticketIds: input.ticketIds ?? null, driverPaid, createdAt: now, updatedAt: now,
+        amount: input.amount ?? null, carrierAmount: input.carrierAmount ?? null,
+        ticketIds: input.ticketIds ?? null, driverPaid, createdAt: now, updatedAt: now,
       },
     }
   );
@@ -138,17 +154,22 @@ export async function updateJob(organizationId: string, input: UpdateJobInput): 
     driverId: input.driverId !== undefined ? input.driverId : existing.driverId,
     dispatcherId: input.dispatcherId !== undefined ? input.dispatcherId : existing.dispatcherId,
     unitId: input.unitId !== undefined ? input.unitId : existing.unitId,
+    carrierId: input.carrierId !== undefined ? input.carrierId : existing.carrierId,
+    sourceType: input.sourceType !== undefined ? input.sourceType : existing.sourceType,
     weight: input.weight !== undefined ? input.weight : existing.weight,
     loads: input.loads !== undefined ? input.loads : existing.loads,
     startTime: input.startTime !== undefined ? input.startTime : existing.startTime,
     endTime: input.endTime !== undefined ? input.endTime : existing.endTime,
     amount: input.amount !== undefined ? input.amount : existing.amount,
+    carrierAmount: input.carrierAmount !== undefined ? input.carrierAmount : existing.carrierAmount,
     ticketIds: input.ticketIds !== undefined ? input.ticketIds : existing.ticketIds,
     driverPaid: input.driverPaid !== undefined ? input.driverPaid : existing.driverPaid,
     updatedAt: new Date(),
   };
   await query(
-    `UPDATE Jobs SET jobDate = @jobDate, jobTypeId = @jobTypeId, driverId = @driverId, dispatcherId = @dispatcherId, unitId = @unitId, weight = @weight, loads = @loads, startTime = @startTime, endTime = @endTime, amount = @amount, ticketIds = @ticketIds, driverPaid = @driverPaid, updatedAt = @updatedAt
+    `UPDATE Jobs SET jobDate = @jobDate, jobTypeId = @jobTypeId, driverId = @driverId, dispatcherId = @dispatcherId, unitId = @unitId,
+       carrierId = @carrierId, sourceType = @sourceType, weight = @weight, loads = @loads, startTime = @startTime, endTime = @endTime,
+       amount = @amount, carrierAmount = @carrierAmount, ticketIds = @ticketIds, driverPaid = @driverPaid, updatedAt = @updatedAt
      WHERE id = @id AND organizationId = @organizationId`,
     { params }
   );

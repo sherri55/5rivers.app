@@ -91,6 +91,11 @@ export async function deleteTestData(orgId: string, userId: string): Promise<voi
   const pool = await getPool();
 
   const steps: { sql: string; params: Record<string, string> }[] = [
+    // New join/child tables
+    { sql: 'DELETE FROM DriverJobTypeRate WHERE driverId IN (SELECT id FROM Drivers WHERE organizationId = @orgId)', params: { orgId } },
+    { sql: 'DELETE FROM UnitEvents WHERE organizationId = @orgId', params: { orgId } },
+    { sql: 'DELETE FROM CarrierPayments WHERE organizationId = @orgId', params: { orgId } },
+    // Existing child tables
     { sql: 'DELETE FROM JobDriverPay WHERE jobId IN (SELECT id FROM Jobs WHERE organizationId = @orgId)', params: { orgId } },
     { sql: 'DELETE FROM DriverPayment WHERE organizationId = @orgId', params: { orgId } },
     { sql: 'DELETE FROM JobInvoice WHERE jobId IN (SELECT id FROM Jobs WHERE organizationId = @orgId)', params: { orgId } },
@@ -99,6 +104,7 @@ export async function deleteTestData(orgId: string, userId: string): Promise<voi
     { sql: 'DELETE FROM Invoices WHERE organizationId = @orgId', params: { orgId } },
     { sql: 'DELETE FROM JobTypes WHERE companyId IN (SELECT id FROM Companies WHERE organizationId = @orgId)', params: { orgId } },
     { sql: 'DELETE FROM Companies WHERE organizationId = @orgId', params: { orgId } },
+    { sql: 'DELETE FROM Carriers WHERE organizationId = @orgId', params: { orgId } },
     { sql: 'DELETE FROM Drivers WHERE organizationId = @orgId', params: { orgId } },
     { sql: 'DELETE FROM Dispatchers WHERE organizationId = @orgId', params: { orgId } },
     { sql: 'DELETE FROM Units WHERE organizationId = @orgId', params: { orgId } },
