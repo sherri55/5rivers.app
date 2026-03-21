@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Invoices | 5Rivers Trucking</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "secondary": "#495c95",
+                        "secondary-fixed-dim": "#b4c5ff",
+                        "surface-container-highest": "#e0e3e5",
+                        "on-secondary-container": "#394c84",
+                        "surface-container-lowest": "#ffffff",
+                        "on-surface": "#191c1e",
+                        "tertiary-fixed": "#ffdbcd",
+                        "background": "#f7f9fb",
+                        "on-secondary": "#ffffff",
+                        "on-error-container": "#93000a",
+                        "surface-tint": "#0053db",
+                        "primary-fixed-dim": "#b4c5ff",
+                        "primary-fixed": "#dbe1ff",
+                        "on-tertiary-fixed": "#360f00",
+                        "outline-variant": "#c3c6d7",
+                        "surface-container-high": "#e6e8ea",
+                        "primary-container": "#2563eb",
+                        "on-tertiary-container": "#ffede6",
+                        "inverse-primary": "#b4c5ff",
+                        "surface-container": "#eceef0",
+                        "on-background": "#191c1e",
+                        "inverse-surface": "#2d3133",
+                        "tertiary": "#943700",
+                        "on-tertiary": "#ffffff",
+                        "primary": "#004ac6",
+                        "outline": "#737686",
+                        "surface-dim": "#d8dadc",
+                        "secondary-container": "#acbfff",
+                        "surface-variant": "#e0e3e5",
+                        "on-tertiary-fixed-variant": "#7d2d00",
+                        "on-primary-fixed-variant": "#003ea8",
+                        "error-container": "#ffdad6",
+                        "on-secondary-fixed": "#00174b",
+                        "on-secondary-fixed-variant": "#31447b",
+                        "on-error": "#ffffff",
+                        "surface": "#f7f9fb",
+                        "secondary-fixed": "#dbe1ff",
+                        "tertiary-fixed-dim": "#ffb596",
+                        "inverse-on-surface": "#eff1f3",
+                        "on-surface-variant": "#434655",
+                        "on-primary": "#ffffff",
+                        "on-primary-fixed": "#00174b",
+                        "tertiary-container": "#bc4800",
+                        "surface-bright": "#f7f9fb",
+                        "on-primary-container": "#eeefff",
+                        "surface-container-low": "#f2f4f6",
+                        "error": "#ba1a1a"
+                    },
+                    fontFamily: {
+                        "headline": ["Inter"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    },
+                    borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        body { font-family: 'Inter', sans-serif; }
+        .ghost-border { border: 1px solid rgba(195, 198, 215, 0.15); }
+    </style>
+</head>
+<body class="bg-background text-on-surface antialiased">
+<!-- SideNavBar (Shared Component) -->
+<aside class="h-screen w-64 fixed left-0 top-0 overflow-y-auto bg-slate-50 dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col gap-y-4 p-4 z-50">
+<div class="mb-6 px-2">
+<h1 class="text-xl font-black text-blue-700 dark:text-blue-500">5Rivers</h1>
+<p class="text-[10px] tracking-[0.1em] uppercase font-bold text-slate-400">Logistics Management</p>
+</div>
+<nav class="flex flex-col gap-y-1">
+<a class="flex items-center gap-3 px-3 py-2.5 text-[13px] tracking-wide uppercase font-semibold text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-300 hover:bg-slate-100/50 dark:hover:bg-slate-800/50 transition-all duration-200" href="#">
+<span class="material-symbols-outlined">dashboard</span> Dashboard
+            </a>
+<a class="flex items-center gap-3 px-3 py-2.5 text-[13px] tracking-wide uppercase font-semibold text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-300 hover:bg-slate-100/50 dark:hover:bg-slate-800/50 transition-all duration-200" href="#">
+<span class="material-symbols-outlined">work</span> Jobs
+            </a>
+<a class="flex items-center gap-3 px-3 py-2.5 text-[13px] tracking-wide uppercase font-semibold text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-300 hover:bg-slate-100/50 dark:hover:bg-slate-800/50 transition-all duration-200" href="#">
+<span class="material-symbols-outlined">person</span> Drivers
+            </a>
+<a class="flex items-center gap-3 px-3 py-2.5 text-[13px] tracking-wide uppercase font-semibold text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-300 hover:bg-slate-100/50 dark:hover:bg-slate-800/50 transition-all duration-200" href="#">
+<span class="material-symbols-outlined">local_shipping</span> Units
+            </a>
+<a class="flex items-center gap-3 px-3 py-2.5 text-[13px] tracking-wide uppercase font-semibold text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-300 hover:bg-slate-100/50 dark:hover:bg-slate-800/50 transition-all duration-200" href="#">
+<span class="material-symbols-outlined">business</span> Companies
+            </a>
+<a class="flex items-center gap-3 px-3 py-2.5 text-[13px] tracking-wide uppercase font-semibold text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-300 hover:bg-slate-100/50 dark:hover:bg-slate-800/50 transition-all duration-200" href="#">
+<span class="material-symbols-outlined">support_agent</span> Dispatchers
+            </a>
+<a class="flex items-center gap-3 px-3 py-2.5 text-[13px] tracking-wide uppercase font-semibold text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-300 hover:bg-slate-100/50 dark:hover:bg-slate-800/50 transition-all duration-200" href="#">
+<span class="material-symbols-outlined">conveyor_belt</span> Carriers
+            </a>
+<!-- Active State: Invoices -->
+<a class="flex items-center gap-3 px-3 py-2.5 text-[13px] tracking-wide uppercase font-semibold bg-white dark:bg-slate-800 text-blue-700 dark:text-blue-400 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700 transition-all duration-200" href="#">
+<span class="material-symbols-outlined">description</span> Invoices
+            </a>
+<a class="flex items-center gap-3 px-3 py-2.5 text-[13px] tracking-wide uppercase font-semibold text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-300 hover:bg-slate-100/50 dark:hover:bg-slate-800/50 transition-all duration-200" href="#">
+<span class="material-symbols-outlined">settings</span> Settings
+            </a>
+</nav>
+<div class="mt-auto pt-6">
+<button class="w-full bg-gradient-to-b from-primary-container to-primary text-on-primary py-3 rounded-xl font-semibold text-sm shadow-md hover:opacity-90 transition-all flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-sm">add</span> Create New Job
+            </button>
+</div>
+</aside>
+<!-- Main Content Wrapper -->
+<main class="ml-64 min-h-screen">
+<!-- TopAppBar (Shared Component) -->
+<header class="w-full sticky top-0 z-40 bg-white/80 dark:bg-slate-950/80 backdrop-blur-md border-b border-slate-200/50 dark:border-slate-800/50 shadow-sm dark:shadow-none flex items-center justify-between px-8 h-16 font-inter antialiased">
+<div class="flex items-center gap-8 flex-1">
+<div class="relative w-96">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
+<input class="w-full bg-surface-container-low border-none rounded-xl pl-10 pr-4 py-2 text-sm focus:ring-2 focus:ring-primary focus:bg-white transition-all" placeholder="Search Invoices..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="p-2 rounded-full hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors text-slate-500">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="p-2 rounded-full hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors text-slate-500">
+<span class="material-symbols-outlined">help_outline</span>
+</button>
+<div class="h-8 w-[1px] bg-slate-200 dark:bg-slate-800 mx-2"></div>
+<button class="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary font-bold text-xs uppercase tracking-wider rounded-lg hover:bg-primary/20 transition-all">
+                    Quick Dispatch
+                </button>
+<img alt="User profile" class="h-9 w-9 rounded-full object-cover ring-2 ring-primary/20" data-alt="Professional user portrait with neutral background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAwA6bj9Hz4q5oiEtgR-t20rUEJoWKqWzo7RqJSiB2qSSV259bvKnAXawAOAo0LLEg6riI2vddjK77fCCwGxcd0yMru2A8ViwCYHFL1XumwSCKbGzJGNVeJwwKqyRje4LlIu1jZdRJfpQjoMKomCgcV9GhlvcgbUTJ0gpEN9fv1lnm0GO1ZThJqOW5ijVuLLB912r4nHD_C5RTRDG-dFDmotsDxPJtk_NQI2QSXWQH3W4h5MnQDAYhkvle54DSKdBT3xkweWGVXytY"/>
+</div>
+</header>
+<!-- Page Canvas -->
+<div class="p-8 max-w-[1400px] mx-auto">
+<!-- Page Header Section -->
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
+<div class="space-y-1">
+<span class="label-sm uppercase tracking-[0.1em] font-semibold text-primary">Billing &amp; Invoices</span>
+<h2 class="text-4xl font-extrabold tracking-tight text-on-surface">Invoices</h2>
+</div>
+<div class="flex items-center gap-3">
+<button class="px-5 py-2.5 bg-surface-container-highest text-on-surface text-sm font-semibold rounded-xl flex items-center gap-2 hover:bg-surface-container-high transition-colors">
+<span class="material-symbols-outlined text-lg">file_download</span> Export
+                    </button>
+<button class="px-6 py-2.5 bg-gradient-to-b from-primary-container to-primary text-on-primary text-sm font-bold rounded-xl flex items-center gap-2 shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all">
+<span class="material-symbols-outlined text-lg">add</span> + New Invoice
+                    </button>
+</div>
+</div>
+<!-- Dashboard Analytics Bento (Subtle Tonal Layering) -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+<div class="bg-surface-container-lowest p-6 rounded-xl ghost-border">
+<p class="text-[11px] font-bold uppercase tracking-wider text-outline mb-2">Total Outstanding</p>
+<div class="flex items-baseline gap-2">
+<span class="text-3xl font-semibold tracking-tight">$42,850</span>
+<span class="text-xs font-bold text-error flex items-center"><span class="material-symbols-outlined text-xs">trending_up</span> 12%</span>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-6 rounded-xl ghost-border">
+<p class="text-[11px] font-bold uppercase tracking-wider text-outline mb-2">Collected (30d)</p>
+<div class="flex items-baseline gap-2">
+<span class="text-3xl font-semibold tracking-tight">$128,400</span>
+<span class="text-xs font-bold text-blue-600 flex items-center"><span class="material-symbols-outlined text-xs">check_circle</span> 94%</span>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-6 rounded-xl ghost-border">
+<p class="text-[11px] font-bold uppercase tracking-wider text-outline mb-2">Pending Jobs</p>
+<div class="flex items-baseline gap-2">
+<span class="text-3xl font-semibold tracking-tight">18</span>
+<span class="text-xs font-bold text-outline">Across 4 Carriers</span>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-6 rounded-xl ghost-border border-l-4 border-l-primary">
+<p class="text-[11px] font-bold uppercase tracking-wider text-primary mb-2">Overdue Alerts</p>
+<div class="flex items-baseline gap-2">
+<span class="text-3xl font-semibold tracking-tight text-error">04</span>
+<span class="text-xs font-bold text-error">Action Required</span>
+</div>
+</div>
+</div>
+<!-- Filter Bar -->
+<div class="bg-surface-container-low p-4 rounded-xl mb-6 flex flex-wrap items-center gap-4">
+<div class="flex items-center gap-2 bg-surface-container-lowest px-4 py-2 rounded-lg ghost-border">
+<span class="material-symbols-outlined text-lg text-outline">filter_list</span>
+<select class="bg-transparent border-none text-sm font-medium focus:ring-0 p-0 pr-8">
+<option>All Statuses</option>
+<option>Created</option>
+<option>Raised</option>
+<option>Received</option>
+</select>
+</div>
+<div class="flex items-center gap-2 bg-surface-container-lowest px-4 py-2 rounded-lg ghost-border">
+<span class="material-symbols-outlined text-lg text-outline">calendar_today</span>
+<span class="text-sm font-medium">Oct 1, 2023 - Oct 31, 2023</span>
+</div>
+<div class="ml-auto flex items-center gap-2">
+<p class="text-xs font-bold text-outline uppercase tracking-widest">Displaying 248 Invoices</p>
+</div>
+</div>
+<!-- Invoices Table -->
+<div class="bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden ghost-border">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-low/50">
+<th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.15em] text-outline">Invoice #</th>
+<th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.15em] text-outline">Date</th>
+<th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.15em] text-outline">Status</th>
+<th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.15em] text-outline">Billed To</th>
+<th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.15em] text-outline">Jobs</th>
+<th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.15em] text-outline">Total</th>
+<th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.15em] text-outline text-right">Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-surface-container">
+<!-- Row 1: Received -->
+<tr class="hover:bg-surface-container-low transition-colors group">
+<td class="px-6 py-5 font-extrabold text-on-surface">INV-8842-1</td>
+<td class="px-6 py-5 text-sm font-medium text-outline">Oct 24, 2023</td>
+<td class="px-6 py-5">
+<span class="px-3 py-1 bg-green-100 text-green-700 text-[10px] font-black uppercase tracking-wider rounded-full ring-1 ring-green-200">Received</span>
+</td>
+<td class="px-6 py-5">
+<div class="flex flex-col">
+<span class="text-sm font-bold text-on-surface">Pacific Logistics Corp</span>
+<span class="text-[11px] text-outline">billing@pacificlog.com</span>
+</div>
+</td>
+<td class="px-6 py-5">
+<span class="bg-surface-container-highest px-2 py-0.5 rounded text-[11px] font-bold">12</span>
+</td>
+<td class="px-6 py-5 text-sm font-bold text-on-surface">$14,240.00</td>
+<td class="px-6 py-5 text-right">
+<button class="p-1.5 hover:bg-surface-container rounded-lg transition-colors text-outline group-hover:text-primary">
+<span class="material-symbols-outlined text-xl">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 2: Raised -->
+<tr class="hover:bg-surface-container-low transition-colors group">
+<td class="px-6 py-5 font-extrabold text-on-surface">INV-8839-2</td>
+<td class="px-6 py-5 text-sm font-medium text-outline">Oct 22, 2023</td>
+<td class="px-6 py-5">
+<span class="px-3 py-1 bg-blue-100 text-blue-700 text-[10px] font-black uppercase tracking-wider rounded-full ring-1 ring-blue-200">Raised</span>
+</td>
+<td class="px-6 py-5">
+<div class="flex flex-col">
+<span class="text-sm font-bold text-on-surface">Global Freight Hub</span>
+<span class="text-[11px] text-outline">ops@globalfreight.io</span>
+</div>
+</td>
+<td class="px-6 py-5">
+<span class="bg-surface-container-highest px-2 py-0.5 rounded text-[11px] font-bold">04</span>
+</td>
+<td class="px-6 py-5 text-sm font-bold text-on-surface">$3,150.50</td>
+<td class="px-6 py-5 text-right">
+<button class="p-1.5 hover:bg-surface-container rounded-lg transition-colors text-outline group-hover:text-primary">
+<span class="material-symbols-outlined text-xl">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 3: Created -->
+<tr class="hover:bg-surface-container-low transition-colors group">
+<td class="px-6 py-5 font-extrabold text-on-surface">INV-8835-0</td>
+<td class="px-6 py-5 text-sm font-medium text-outline">Oct 21, 2023</td>
+<td class="px-6 py-5">
+<span class="px-3 py-1 bg-slate-100 text-slate-600 text-[10px] font-black uppercase tracking-wider rounded-full ring-1 ring-slate-200">Created</span>
+</td>
+<td class="px-6 py-5">
+<div class="flex flex-col">
+<span class="text-sm font-bold text-on-surface">Midwest Carrier Sol.</span>
+<span class="text-[11px] text-outline">accounts@midwest.net</span>
+</div>
+</td>
+<td class="px-6 py-5">
+<span class="bg-surface-container-highest px-2 py-0.5 rounded text-[11px] font-bold">01</span>
+</td>
+<td class="px-6 py-5 text-sm font-bold text-on-surface">$920.00</td>
+<td class="px-6 py-5 text-right">
+<button class="p-1.5 hover:bg-surface-container rounded-lg transition-colors text-outline group-hover:text-primary">
+<span class="material-symbols-outlined text-xl">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 4: Overdue/Raised -->
+<tr class="hover:bg-surface-container-low transition-colors group">
+<td class="px-6 py-5 font-extrabold text-on-surface">INV-8822-4</td>
+<td class="px-6 py-5 text-sm font-medium text-outline">Oct 18, 2023</td>
+<td class="px-6 py-5">
+<span class="px-3 py-1 bg-red-50 text-error text-[10px] font-black uppercase tracking-wider rounded-full ring-1 ring-error/20">Raised</span>
+</td>
+<td class="px-6 py-5">
+<div class="flex flex-col">
+<span class="text-sm font-bold text-on-surface">Apex Supply Chain</span>
+<span class="text-[11px] text-outline">finance@apex.com</span>
+</div>
+</td>
+<td class="px-6 py-5">
+<span class="bg-surface-container-highest px-2 py-0.5 rounded text-[11px] font-bold">28</span>
+</td>
+<td class="px-6 py-5 text-sm font-bold text-on-surface">$22,400.00</td>
+<td class="px-6 py-5 text-right">
+<button class="p-1.5 hover:bg-surface-container rounded-lg transition-colors text-outline group-hover:text-primary">
+<span class="material-symbols-outlined text-xl">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 5: Received -->
+<tr class="hover:bg-surface-container-low transition-colors group">
+<td class="px-6 py-5 font-extrabold text-on-surface">INV-8811-3</td>
+<td class="px-6 py-5 text-sm font-medium text-outline">Oct 15, 2023</td>
+<td class="px-6 py-5">
+<span class="px-3 py-1 bg-green-100 text-green-700 text-[10px] font-black uppercase tracking-wider rounded-full ring-1 ring-green-200">Received</span>
+</td>
+<td class="px-6 py-5">
+<div class="flex flex-col">
+<span class="text-sm font-bold text-on-surface">Harbor Trans Co</span>
+<span class="text-[11px] text-outline">billing@harbor.io</span>
+</div>
+</td>
+<td class="px-6 py-5">
+<span class="bg-surface-container-highest px-2 py-0.5 rounded text-[11px] font-bold">06</span>
+</td>
+<td class="px-6 py-5 text-sm font-bold text-on-surface">$5,580.00</td>
+<td class="px-6 py-5 text-right">
+<button class="p-1.5 hover:bg-surface-container rounded-lg transition-colors text-outline group-hover:text-primary">
+<span class="material-symbols-outlined text-xl">more_vert</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+<!-- Pagination -->
+<div class="px-6 py-4 bg-surface-container-low/30 border-t border-surface-container flex items-center justify-between">
+<p class="text-xs font-bold text-outline uppercase tracking-widest">Page 1 of 12</p>
+<div class="flex items-center gap-1">
+<button class="p-2 rounded-lg hover:bg-surface-container transition-colors disabled:opacity-30" disabled="">
+<span class="material-symbols-outlined">chevron_left</span>
+</button>
+<button class="w-8 h-8 rounded-lg bg-primary text-on-primary text-xs font-bold">1</button>
+<button class="w-8 h-8 rounded-lg hover:bg-surface-container text-xs font-bold">2</button>
+<button class="w-8 h-8 rounded-lg hover:bg-surface-container text-xs font-bold">3</button>
+<span class="px-2">...</span>
+<button class="p-2 rounded-lg hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Contextual Technical Sidebar/Overlay Area (Asymmetric Layout Hint) -->
+<div class="mt-12 flex flex-col md:flex-row gap-8">
+<div class="flex-1 bg-surface-container-low p-8 rounded-2xl">
+<h3 class="title-md mb-4 text-on-surface">Recent Activity</h3>
+<div class="space-y-6">
+<div class="flex gap-4">
+<div class="w-8 h-8 rounded bg-primary/10 flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-primary text-sm">mail</span>
+</div>
+<div>
+<p class="text-sm font-bold">Invoice Raised</p>
+<p class="text-xs text-outline">INV-8839-2 was sent to Global Freight Hub.</p>
+<p class="text-[10px] font-bold uppercase tracking-tighter text-outline mt-1">2 hours ago</p>
+</div>
+</div>
+<div class="flex gap-4">
+<div class="w-8 h-8 rounded bg-green-100 flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-green-700 text-sm" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+</div>
+<div>
+<p class="text-sm font-bold">Payment Received</p>
+<p class="text-xs text-outline">Pacific Logistics Corp paid INV-8842-1 in full.</p>
+<p class="text-[10px] font-bold uppercase tracking-tighter text-outline mt-1">5 hours ago</p>
+</div>
+</div>
+</div>
+</div>
+<div class="w-full md:w-80 bg-slate-900 p-8 rounded-2xl text-white flex flex-col justify-between overflow-hidden relative">
+<div class="relative z-10">
+<p class="label-sm text-blue-400 mb-2">Technical Summary</p>
+<h4 class="text-xl font-bold mb-6">Carrier Compliance</h4>
+<div class="space-y-4">
+<div class="flex justify-between items-end border-b border-white/10 pb-2">
+<span class="text-xs text-slate-400">On-Time Billing</span>
+<span class="text-sm font-bold">98.2%</span>
+</div>
+<div class="flex justify-between items-end border-b border-white/10 pb-2">
+<span class="text-xs text-slate-400">Audit Pass Rate</span>
+<span class="text-sm font-bold">100%</span>
+</div>
+</div>
+</div>
+<!-- Abstract Background Pattern -->
+<div class="absolute inset-0 opacity-10 pointer-events-none">
+<svg height="100%" width="100%">
+<defs>
+<pattern height="20" id="grid" patternunits="userSpaceOnUse" width="20">
+<path d="M 20 0 L 0 0 0 20" fill="none" stroke="white" stroke-width="0.5"></path>
+</pattern>
+</defs>
+<rect fill="url(#grid)" height="100%" width="100%"></rect>
+</svg>
+</div>
+</div>
+</div>
+</div>
+</main>
+</body></html>

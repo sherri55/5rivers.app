@@ -3,7 +3,7 @@ import { query } from '../db/connection';
 import { type Pagination, type ListResult, type SortOrder } from '../types';
 
 const SORT_COLUMNS = ['invoiceNumber', 'invoiceDate', 'status', 'billedTo', 'billedEmail', 'createdAt'] as const;
-const FILTER_COLUMNS = ['invoiceNumber', 'status', 'billedTo', 'billedEmail'] as const;
+const FILTER_COLUMNS = ['invoiceNumber', 'status', 'billedTo', 'billedEmail', 'dispatcherId'] as const;
 
 const ALL_COLUMNS = 'id, organizationId, invoiceNumber, invoiceDate, status, dispatcherId, companyId, billedTo, billedEmail, createdAt, updatedAt';
 
@@ -22,7 +22,6 @@ export interface Invoice {
 }
 
 export interface CreateInvoiceInput {
-  invoiceNumber: string;
   invoiceDate: string;
   dispatcherId?: string | null;
   companyId?: string | null;
@@ -51,16 +50,34 @@ export async function listInvoices(
   const filterClauses: string[] = [];
   const params: Record<string, unknown> = { organizationId, offset: pagination.offset, limit: pagination.limit };
   if (options?.filters) {
+    const searchTerm = options.filters['search'];
+    if (searchTerm) {
+      const escaped = String(searchTerm).replace(/[%_\\]/g, (c) => `\\${c}`);
+      params['filter_search'] = `%${escaped}%`;
+      filterClauses.push(`(
+        (invoiceNumber LIKE @filter_search ESCAPE '\\')
+        OR (status LIKE @filter_search ESCAPE '\\')
+        OR (billedTo IS NOT NULL AND billedTo LIKE @filter_search ESCAPE '\\')
+        OR (billedEmail IS NOT NULL AND billedEmail LIKE @filter_search ESCAPE '\\')
+        OR (CAST(invoiceDate AS VARCHAR(30)) LIKE @filter_search ESCAPE '\\')
+      )`);
+    }
     for (const col of FILTER_COLUMNS) {
       const v = options.filters[col];
       if (v) {
-        filterClauses.push(`(${col} IS NOT NULL AND ${col} LIKE @filter_${col} ESCAPE '\\')`);
-        params[`filter_${col}`] = `%${String(v).replace(/[%_\\]/g, (c) => `\\${c}`)}%`;
+        if (col === 'dispatcherId') {
+          filterClauses.push(`(${col} = @filter_${col})`);
+          params[`filter_${col}`] = v;
+        } else {
+          filterClauses.push(`(${col} IS NOT NULL AND ${col} LIKE @filter_${col} ESCAPE '\\')`);
+          params[`filter_${col}`] = `%${String(v).replace(/[%_\\]/g, (c) => `\\${c}`)}%`;
+        }
       }
     }
   }
   const whereExtra = filterClauses.length ? ` AND ${filterClauses.join(' AND ')}` : '';
   const countParams: Record<string, unknown> = { organizationId };
+  if (params['filter_search'] != null) countParams['filter_search'] = params['filter_search'];
   FILTER_COLUMNS.forEach((col) => { if (params[`filter_${col}`] != null) countParams[`filter_${col}`] = params[`filter_${col}`]; });
   const [rows, countRows] = await Promise.all([
     query<Invoice[]>(
@@ -96,12 +113,32 @@ export async function getInvoiceById(
   return Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
 }
 
+const INVOICE_PREFIX = '5RT';
+
+export async function generateNextInvoiceNumber(organizationId: string): Promise<string> {
+  const year = new Date().getFullYear();
+  const prefix = `${INVOICE_PREFIX}-${year}-`;
+  const rows = await query<Array<{ maxNum: string | null }>>(
+    `SELECT MAX(invoiceNumber) AS maxNum FROM Invoices
+     WHERE organizationId = @organizationId AND invoiceNumber LIKE @prefix`,
+    { params: { organizationId, prefix: `${prefix}%` } },
+  );
+  let seq = 1;
+  const maxNum = rows?.[0]?.maxNum;
+  if (maxNum) {
+    const lastSeq = parseInt(maxNum.replace(prefix, ''), 10);
+    if (!isNaN(lastSeq)) seq = lastSeq + 1;
+  }
+  return `${prefix}${String(seq).padStart(4, '0')}`;
+}
+
 export async function createInvoice(
   organizationId: string,
   input: CreateInvoiceInput
 ): Promise<Invoice> {
   const id = uuid();
   const now = new Date();
+  const invoiceNumber = await generateNextInvoiceNumber(organizationId);
   const status = input.status && ['CREATED', 'RAISED', 'RECEIVED'].includes(input.status) ? input.status : 'CREATED';
   await query(
     `INSERT INTO Invoices (id, organizationId, invoiceNumber, invoiceDate, status, dispatcherId, companyId, billedTo, billedEmail, createdAt, updatedAt)
@@ -110,7 +147,7 @@ export async function createInvoice(
       params: {
         id,
         organizationId,
-        invoiceNumber: input.invoiceNumber,
+        invoiceNumber,
         invoiceDate: input.invoiceDate,
         status,
         dispatcherId: input.dispatcherId ?? null,
@@ -151,6 +188,19 @@ export async function updateInvoice(
      WHERE id = @id AND organizationId = @organizationId`,
     { params }
   );
+
+  // Cascade: when status changes to RECEIVED, mark all linked jobs as driverPaid
+  const newStatus = params.status as string;
+  const oldStatus = existing.status;
+  if (newStatus === 'RECEIVED' && oldStatus !== 'RECEIVED') {
+    await query(
+      `UPDATE Jobs SET driverPaid = 1, updatedAt = GETUTCDATE()
+       WHERE id IN (SELECT jobId FROM JobInvoice WHERE invoiceId = @invoiceId)
+       AND organizationId = @organizationId`,
+      { params: { invoiceId: input.id, organizationId } }
+    );
+  }
+
   return getInvoiceById(input.id, organizationId);
 }
 

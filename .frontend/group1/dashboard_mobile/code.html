@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>5Rivers Trucking | Mobile Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "surface-container-high": "#e6e8ea",
+                        "error-container": "#ffdad6",
+                        "surface-container": "#eceef0",
+                        "on-error-container": "#93000a",
+                        "on-tertiary-container": "#ffede6",
+                        "inverse-surface": "#2d3133",
+                        "primary-container": "#2563eb",
+                        "inverse-on-surface": "#eff1f3",
+                        "tertiary-fixed-dim": "#ffb596",
+                        "surface": "#f7f9fb",
+                        "on-primary-container": "#eeefff",
+                        "on-tertiary-fixed-variant": "#7d2d00",
+                        "secondary": "#495c95",
+                        "on-primary-fixed": "#00174b",
+                        "primary": "#004ac6",
+                        "outline-variant": "#c3c6d7",
+                        "inverse-primary": "#b4c5ff",
+                        "surface-container-low": "#f2f4f6",
+                        "outline": "#737686",
+                        "surface-tint": "#0053db",
+                        "secondary-fixed-dim": "#b4c5ff",
+                        "on-primary-fixed-variant": "#003ea8",
+                        "surface-dim": "#d8dadc",
+                        "on-surface": "#191c1e",
+                        "primary-fixed-dim": "#b4c5ff",
+                        "on-tertiary": "#ffffff",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-bright": "#f7f9fb",
+                        "on-background": "#191c1e",
+                        "secondary-fixed": "#dbe1ff",
+                        "primary-fixed": "#dbe1ff",
+                        "tertiary-container": "#bc4800",
+                        "secondary-container": "#acbfff",
+                        "on-tertiary-fixed": "#360f00",
+                        "on-secondary-fixed-variant": "#31447b",
+                        "on-secondary-container": "#394c84",
+                        "on-primary": "#ffffff",
+                        "tertiary": "#943700",
+                        "on-surface-variant": "#434655",
+                        "on-secondary-fixed": "#00174b",
+                        "background": "#f7f9fb",
+                        "surface-variant": "#e0e3e5",
+                        "on-error": "#ffffff",
+                        "on-secondary": "#ffffff",
+                        "surface-container-highest": "#e0e3e5",
+                        "tertiary-fixed": "#ffdbcd",
+                        "error": "#ba1a1a"
+                    },
+                    fontFamily: {
+                        "headline": ["Inter"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    },
+                    borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-on-surface min-h-screen flex flex-col">
+<!-- TopAppBar -->
+<header class="sticky top-0 w-full z-50 bg-white/80 dark:bg-slate-950/80 backdrop-blur-md shadow-sm dark:shadow-none">
+<div class="flex items-center justify-between px-4 py-3 w-full">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-blue-700 dark:text-blue-500">menu</span>
+<h1 class="font-['Inter'] font-bold tracking-tighter text-blue-700 dark:text-blue-500 text-lg">5Rivers Trucking</h1>
+</div>
+<div class="w-8 h-8 rounded-full bg-surface-container-highest flex items-center justify-center overflow-hidden border border-outline-variant/30">
+<img class="w-full h-full object-cover" data-alt="User profile avatar photo" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBfrthHYOOuzbKliRZ5PdQ2_ENtNHMyw_YvasSZkq4Gxd_O_lhFBILgYwv-zs-Jfu1LVpGRTD2kke4pbgHAIMCOwpHDEVYR0T46BCFJCeMKhPhFQY_Y-XXtlQK3rtx6DYzpgsBNRRpXZ1cCXqLYJTUBofNK5HSl5R08mMXNU7MM5mVEqae6IdQunZfWCcRzlyQLnw8vUp4O43PMTmgXRJlefTbr0SFHnWlSXRmjgbD_34nWH7vZnrq82GTp7eyTrLpfzjeU1omUI00"/>
+</div>
+</div>
+<div class="bg-slate-100 dark:bg-slate-900 h-[1px] w-full"></div>
+</header>
+<main class="flex-1 pb-24 p-4 overflow-y-auto max-w-md mx-auto w-full space-y-6">
+<!-- Welcome Section -->
+<section class="space-y-1">
+<p class="text-[11px] font-medium uppercase tracking-wider text-slate-500">Operations Manager</p>
+<h2 class="text-2xl font-semibold tracking-tight">Fleet Overview</h2>
+</section>
+<!-- Bento Summary Cards -->
+<div class="grid grid-cols-2 gap-3">
+<!-- Revenue: Primary Accent -->
+<div class="col-span-2 bg-primary-container p-5 rounded-xl text-on-primary-container relative overflow-hidden shadow-sm">
+<div class="relative z-10">
+<div class="flex justify-between items-start mb-4">
+<span class="text-[11px] font-bold uppercase tracking-widest opacity-80">Total Revenue</span>
+<span class="material-symbols-outlined text-xl opacity-80">payments</span>
+</div>
+<div class="flex items-baseline gap-2">
+<span class="text-3xl font-bold tracking-tight">$142,500.00</span>
+<span class="text-xs font-medium bg-white/20 px-2 py-0.5 rounded-full">+12%</span>
+</div>
+</div>
+<!-- Abstract Texture -->
+<div class="absolute -right-4 -bottom-4 w-32 h-32 bg-white/10 rounded-full blur-3xl"></div>
+</div>
+<!-- Driver Balance -->
+<div class="bg-surface-container-lowest p-4 rounded-xl shadow-sm border border-outline-variant/10">
+<div class="flex items-center gap-2 mb-3">
+<span class="material-symbols-outlined text-blue-700 text-lg">account_balance_wallet</span>
+<span class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Driver Bal</span>
+</div>
+<div class="text-xl font-bold text-on-surface">$24,310</div>
+<div class="text-[10px] text-slate-400 mt-1">Pending Payouts</div>
+</div>
+<!-- Weekly Jobs -->
+<div class="bg-surface-container-lowest p-4 rounded-xl shadow-sm border border-outline-variant/10">
+<div class="flex items-center gap-2 mb-3">
+<span class="material-symbols-outlined text-blue-700 text-lg">fact_check</span>
+<span class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Weekly Jobs</span>
+</div>
+<div class="text-xl font-bold text-on-surface">158</div>
+<div class="text-[10px] text-slate-400 mt-1">Active Deliveries</div>
+</div>
+<!-- Units in Maintenance: Error Intent -->
+<div class="col-span-2 bg-error-container p-4 rounded-xl flex items-center justify-between border border-error/10">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-lg bg-white/50 flex items-center justify-center">
+<span class="material-symbols-outlined text-on-error-container">engineering</span>
+</div>
+<div>
+<div class="text-[10px] font-bold uppercase tracking-widest text-on-error-container/70">Units in Maintenance</div>
+<div class="text-lg font-bold text-on-error-container">4 Vehicles OOS</div>
+</div>
+</div>
+<span class="material-symbols-outlined text-on-error-container">chevron_right</span>
+</div>
+</div>
+<!-- Recent Jobs Section -->
+<section class="space-y-4">
+<div class="flex items-center justify-between">
+<h3 class="text-lg font-semibold tracking-tight text-on-surface">Recent Jobs</h3>
+<button class="text-xs font-semibold text-blue-700">View All</button>
+</div>
+<div class="bg-surface-container-lowest rounded-xl shadow-sm border border-outline-variant/10 overflow-hidden">
+<!-- Job Entry 1 -->
+<div class="p-4 flex items-center justify-between border-b border-outline-variant/10">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center">
+<span class="material-symbols-outlined text-blue-700 text-lg">local_shipping</span>
+</div>
+<div>
+<div class="text-sm font-semibold text-on-surface">Long-Haul Freight</div>
+<div class="text-[11px] text-slate-500">Oct 24 • #TRK-9901</div>
+</div>
+</div>
+<div class="text-right">
+<div class="text-sm font-bold text-on-surface">$4,250.00</div>
+<span class="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-green-100 text-green-700">Delivered</span>
+</div>
+</div>
+<!-- Job Entry 2 -->
+<div class="p-4 flex items-center justify-between border-b border-outline-variant/10">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center">
+<span class="material-symbols-outlined text-blue-700 text-lg">conveyor_belt</span>
+</div>
+<div>
+<div class="text-sm font-semibold text-on-surface">Regional Logistics</div>
+<div class="text-[11px] text-slate-500">Oct 23 • #TRK-8842</div>
+</div>
+</div>
+<div class="text-right">
+<div class="text-sm font-bold text-on-surface">$1,850.00</div>
+<span class="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">Transit</span>
+</div>
+</div>
+<!-- Job Entry 3 -->
+<div class="p-4 flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center">
+<span class="material-symbols-outlined text-blue-700 text-lg">inventory_2</span>
+</div>
+<div>
+<div class="text-sm font-semibold text-on-surface">Express Delivery</div>
+<div class="text-[11px] text-slate-500">Oct 22 • #TRK-7123</div>
+</div>
+</div>
+<div class="text-right">
+<div class="text-sm font-bold text-on-surface">$940.00</div>
+<span class="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">Pending</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Fleet Performance Map/Metric Visual -->
+<section class="bg-slate-900 h-32 rounded-xl relative overflow-hidden flex flex-col justify-end p-4">
+<img class="absolute inset-0 w-full h-full object-cover opacity-40" data-alt="Dark stylized logistics map with heat points" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBChzDAKod-tiCG01T_u3iAlfJngkX7lmYBOgT8fF2qAPhNoHGakLl9c5x9rbLwKM8klwUG-me41RLcU5DjxFO6TiHV5Q3i-a8utkyW1750c_pXdCk19PLBzXT4nqa09-esRYq87wwR3gtplF2wdzJcMq3KUvhGYL1B3G5WAtk__02uBcjYUZZQsRp8s2IMZ8KnODvK4f18KrdAWzecBiKmqvQCbYSeiOWUwXRztta0OBUx-OY-9dcUcIrVK2DVowK6kp3gT9XSdaM"/>
+<div class="relative z-10">
+<h4 class="text-white text-xs font-bold uppercase tracking-widest opacity-70">Live Fleet Status</h4>
+<div class="flex items-center gap-4 mt-1">
+<div class="flex items-center gap-1.5">
+<div class="w-2 h-2 rounded-full bg-green-500"></div>
+<span class="text-white text-sm font-medium">92 Active</span>
+</div>
+<div class="flex items-center gap-1.5">
+<div class="w-2 h-2 rounded-full bg-blue-500"></div>
+<span class="text-white text-sm font-medium">14 Loading</span>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 w-full z-50 bg-white dark:bg-slate-950 shadow-[0_-4px_12px_rgba(0,0,0,0.02)] border-t border-slate-100 dark:border-slate-800">
+<div class="flex justify-around items-center w-full px-2 py-3 pb-safe">
+<!-- Active: Dashboard -->
+<button class="flex flex-col items-center justify-center text-blue-700 dark:text-blue-400 font-bold bg-blue-50/50 dark:bg-blue-900/20 rounded-xl px-3 py-1 active:scale-95 transition-transform duration-150">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-['Inter'] text-[11px] font-medium uppercase tracking-wider mt-0.5">Dashboard</span>
+</button>
+<!-- Inactive: Jobs -->
+<button class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-3 py-1 hover:text-blue-600 dark:hover:text-blue-300 active:scale-95 transition-transform duration-150">
+<span class="material-symbols-outlined" data-icon="local_shipping">local_shipping</span>
+<span class="font-['Inter'] text-[11px] font-medium uppercase tracking-wider mt-0.5">Jobs</span>
+</button>
+<!-- Inactive: Units -->
+<button class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-3 py-1 hover:text-blue-600 dark:hover:text-blue-300 active:scale-95 transition-transform duration-150">
+<span class="material-symbols-outlined" data-icon="conveyor_belt">conveyor_belt</span>
+<span class="font-['Inter'] text-[11px] font-medium uppercase tracking-wider mt-0.5">Units</span>
+</button>
+<!-- Inactive: More -->
+<button class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-3 py-1 hover:text-blue-600 dark:hover:text-blue-300 active:scale-95 transition-transform duration-150">
+<span class="material-symbols-outlined" data-icon="more_horiz">more_horiz</span>
+<span class="font-['Inter'] text-[11px] font-medium uppercase tracking-wider mt-0.5">More</span>
+</button>
+</div>
+</nav>
+</body></html>

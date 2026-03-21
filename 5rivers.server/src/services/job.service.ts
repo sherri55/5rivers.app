@@ -3,7 +3,7 @@ import { query } from '../db/connection';
 import { type Pagination, type ListResult, type SortOrder } from '../types';
 
 const SORT_COLUMNS = ['jobDate', 'amount', 'sourceType', 'createdAt'] as const;
-const FILTER_COLUMNS = ['jobDate', 'amount', 'sourceType'] as const;
+const FILTER_COLUMNS = ['jobDate', 'amount', 'sourceType', 'driverId', 'dispatcherId', 'unitId', 'jobTypeId'] as const;
 
 export type JobSourceType = 'DISPATCHED' | 'DIRECT';
 
@@ -68,19 +68,47 @@ export async function listJobs(
   const order = options?.order === 'asc' ? 'ASC' : 'DESC';
   const filterClauses: string[] = [];
   const params: Record<string, unknown> = { organizationId, offset: pagination.offset, limit: pagination.limit };
+  let needsJoins = false;
   if (options?.filters) {
+    // Global search across multiple columns including joined tables
+    const searchTerm = options.filters['search'];
+    if (searchTerm) {
+      needsJoins = true;
+      const escaped = String(searchTerm).replace(/[%_\\]/g, (c) => `\\${c}`);
+      params['filter_search'] = `%${escaped}%`;
+      filterClauses.push(`(
+        (j.jobDate IS NOT NULL AND CAST(j.jobDate AS VARCHAR(30)) LIKE @filter_search ESCAPE '\\')
+        OR (j.ticketIds IS NOT NULL AND j.ticketIds LIKE @filter_search ESCAPE '\\')
+        OR (j.amount IS NOT NULL AND CAST(j.amount AS VARCHAR(20)) LIKE @filter_search ESCAPE '\\')
+        OR (j.sourceType LIKE @filter_search ESCAPE '\\')
+        OR (j.startTime IS NOT NULL AND j.startTime LIKE @filter_search ESCAPE '\\')
+        OR (j.endTime IS NOT NULL AND j.endTime LIKE @filter_search ESCAPE '\\')
+        OR (d.name IS NOT NULL AND d.name LIKE @filter_search ESCAPE '\\')
+        OR (dp.name IS NOT NULL AND dp.name LIKE @filter_search ESCAPE '\\')
+        OR (jt.title IS NOT NULL AND jt.title LIKE @filter_search ESCAPE '\\')
+        OR (jt.startLocation IS NOT NULL AND jt.startLocation LIKE @filter_search ESCAPE '\\')
+        OR (jt.endLocation IS NOT NULL AND jt.endLocation LIKE @filter_search ESCAPE '\\')
+        OR (c.name IS NOT NULL AND c.name LIKE @filter_search ESCAPE '\\')
+        OR (u.name IS NOT NULL AND u.name LIKE @filter_search ESCAPE '\\')
+        OR (u.plateNumber IS NOT NULL AND u.plateNumber LIKE @filter_search ESCAPE '\\')
+      )`);
+    }
+
     for (const col of FILTER_COLUMNS) {
       const v = options.filters[col];
       if (v) {
         const escaped = String(v).replace(/[%_\\]/g, (c) => `\\${c}`);
         if (col === 'jobDate') {
-          filterClauses.push("(jobDate IS NOT NULL AND jobDate LIKE @filter_jobDate ESCAPE '\\')");
+          filterClauses.push(`(j.jobDate IS NOT NULL AND CAST(j.jobDate AS VARCHAR(30)) LIKE @filter_jobDate ESCAPE '\\')`);
           params['filter_jobDate'] = `%${escaped}%`;
         } else if (col === 'sourceType') {
-          filterClauses.push("(sourceType = @filter_sourceType)");
+          filterClauses.push("(j.sourceType = @filter_sourceType)");
           params['filter_sourceType'] = v;
+        } else if (col === 'driverId' || col === 'dispatcherId' || col === 'unitId' || col === 'jobTypeId') {
+          filterClauses.push(`(j.${col} = @filter_${col})`);
+          params[`filter_${col}`] = v;
         } else {
-          filterClauses.push("(amount IS NOT NULL AND CAST(amount AS VARCHAR(20)) LIKE @filter_amount ESCAPE '\\')");
+          filterClauses.push("(j.amount IS NOT NULL AND CAST(j.amount AS VARCHAR(20)) LIKE @filter_amount ESCAPE '\\')");
           params['filter_amount'] = `%${escaped}%`;
         }
       }
@@ -88,18 +116,33 @@ export async function listJobs(
   }
   const whereExtra = filterClauses.length ? ` AND ${filterClauses.join(' AND ')}` : '';
   const countParams: Record<string, unknown> = { organizationId };
+  if (params['filter_search'] != null) countParams['filter_search'] = params['filter_search'];
   FILTER_COLUMNS.forEach((col) => {
     if (params[`filter_${col}`] != null) countParams[`filter_${col}`] = params[`filter_${col}`];
   });
+
+  const joins = `
+    LEFT JOIN Drivers d ON j.driverId = d.id
+    LEFT JOIN Dispatchers dp ON j.dispatcherId = dp.id
+    LEFT JOIN JobTypes jt ON j.jobTypeId = jt.id
+    LEFT JOIN Companies c ON jt.companyId = c.id
+    LEFT JOIN Units u ON j.unitId = u.id`;
+
+  const jobColumns = ALL_COLUMNS.split(', ').map(c => `j.${c}`).join(', ');
+
   const [rows, countRows] = await Promise.all([
     query<Job[]>(
-      `SELECT ${ALL_COLUMNS}
-       FROM Jobs WHERE organizationId = @organizationId${whereExtra}
-       ORDER BY ${sortBy} ${order}, createdAt DESC OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY`,
+      needsJoins
+        ? `SELECT ${jobColumns} FROM Jobs j${joins} WHERE j.organizationId = @organizationId${whereExtra}
+           ORDER BY j.${sortBy} ${order}, j.createdAt DESC OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY`
+        : `SELECT ${jobColumns} FROM Jobs j WHERE j.organizationId = @organizationId${whereExtra}
+           ORDER BY j.${sortBy} ${order}, j.createdAt DESC OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY`,
       { params }
     ),
     query<Array<{ total: number }>>(
-      `SELECT COUNT(*) AS total FROM Jobs WHERE organizationId = @organizationId${whereExtra}`,
+      needsJoins
+        ? `SELECT COUNT(*) AS total FROM Jobs j${joins} WHERE j.organizationId = @organizationId${whereExtra}`
+        : `SELECT COUNT(*) AS total FROM Jobs j WHERE j.organizationId = @organizationId${whereExtra}`,
       { params: countParams }
     ),
   ]);

@@ -91,6 +91,14 @@ router.delete(
 );
 
 router.get(
+  '/invoices/next-number',
+  asyncHandler(async (req: Request, res: Response) => {
+    const nextNumber = await invoiceService.generateNextInvoiceNumber(req.user!.organizationId);
+    res.json({ nextNumber });
+  })
+);
+
+router.get(
   '/invoices/:id',
   asyncHandler(async (req: Request, res: Response) => {
     const invoice = await invoiceService.getInvoiceById(
@@ -106,7 +114,7 @@ router.post(
   '/invoices',
   asyncHandler(async (req: Request, res: Response) => {
     const body = req.body ?? {};
-    if (!body.invoiceNumber || !body.invoiceDate) throw badRequest('invoiceNumber and invoiceDate are required');
+    if (!body.invoiceDate) throw badRequest('invoiceDate is required');
     if (!body.dispatcherId && !body.companyId) throw badRequest('Either dispatcherId or companyId is required');
     const invoice = await invoiceService.createInvoice(
       req.user!.organizationId,

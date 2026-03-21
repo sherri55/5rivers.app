@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "on-surface-variant": "#434655",
+              "background": "#f7f9fb",
+              "error": "#ba1a1a",
+              "secondary-container": "#acbfff",
+              "on-tertiary-fixed": "#360f00",
+              "on-secondary-fixed": "#00174b",
+              "tertiary": "#943700",
+              "on-background": "#191c1e",
+              "inverse-primary": "#b4c5ff",
+              "surface-container-high": "#e6e8ea",
+              "surface": "#f7f9fb",
+              "tertiary-fixed-dim": "#ffb596",
+              "secondary": "#495c95",
+              "on-primary": "#ffffff",
+              "error-container": "#ffdad6",
+              "on-tertiary-fixed-variant": "#7d2d00",
+              "on-error": "#ffffff",
+              "outline": "#737686",
+              "secondary-fixed-dim": "#b4c5ff",
+              "surface-dim": "#d8dadc",
+              "tertiary-container": "#bc4800",
+              "surface-variant": "#e0e3e5",
+              "on-primary-fixed-variant": "#003ea8",
+              "on-error-container": "#93000a",
+              "on-secondary-fixed-variant": "#31447b",
+              "tertiary-fixed": "#ffdbcd",
+              "surface-tint": "#0053db",
+              "surface-container-low": "#f2f4f6",
+              "on-tertiary-container": "#ffede6",
+              "on-primary-container": "#eeefff",
+              "surface-container-highest": "#e0e3e5",
+              "surface-container-lowest": "#ffffff",
+              "primary-fixed-dim": "#b4c5ff",
+              "on-secondary-container": "#394c84",
+              "primary-fixed": "#dbe1ff",
+              "on-secondary": "#ffffff",
+              "primary": "#004ac6",
+              "on-tertiary": "#ffffff",
+              "surface-container": "#eceef0",
+              "on-primary-fixed": "#00174b",
+              "inverse-surface": "#2d3133",
+              "inverse-on-surface": "#eff1f3",
+              "surface-bright": "#f7f9fb",
+              "outline-variant": "#c3c6d7",
+              "on-surface": "#191c1e",
+              "secondary-fixed": "#dbe1ff",
+              "primary-container": "#2563eb"
+            },
+            fontFamily: {
+              "headline": ["Inter"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body { font-family: 'Inter', sans-serif; }
+        .glass-header {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(12px);
+        }
+        input:focus, select:focus {
+            outline: none;
+            box-shadow: none;
+        }
+        .ghost-border {
+            border: 1px solid rgba(195, 198, 215, 0.15);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-surface min-h-screen pb-32">
+<!-- Top Navigation Anchor -->
+<header class="fixed top-0 w-full z-50 glass-header border-b border-slate-200/50 h-16 flex items-center justify-between px-4">
+<div class="flex items-center gap-3">
+<button class="w-10 h-10 flex items-center justify-center hover:bg-surface-container-low rounded-xl active:scale-95 duration-200 transition-all">
+<span class="material-symbols-outlined text-on-surface-variant">arrow_back</span>
+</button>
+<h1 class="text-lg font-bold tracking-tighter text-blue-800">Create New Unit</h1>
+</div>
+<div class="flex items-center gap-2">
+<button class="bg-primary-container text-white px-4 py-2 rounded-xl text-sm font-semibold shadow-sm active:scale-95 duration-200 transition-all">
+                Save
+            </button>
+</div>
+</header>
+<main class="pt-20 px-4 max-w-md mx-auto space-y-6">
+<!-- Header Section -->
+<section class="mt-4">
+<p class="text-[11px] font-medium uppercase tracking-wider text-primary mb-1">Fleet Management</p>
+<h2 class="text-2xl font-semibold tracking-tight text-on-surface">Unit Registration</h2>
+<p class="text-sm text-on-surface-variant mt-1">Configure technical parameters for the new asset.</p>
+</section>
+<!-- Form Section: Identification -->
+<section class="space-y-4">
+<div class="flex items-center gap-2 mb-2">
+<span class="material-symbols-outlined text-primary text-sm" style="font-variation-settings: 'FILL' 1;">fingerprint</span>
+<h3 class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant">Identification</h3>
+</div>
+<div class="bg-surface-container-lowest p-5 rounded-xl ghost-border space-y-4 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
+<div class="space-y-1.5">
+<label class="text-[11px] font-semibold uppercase tracking-wider text-outline">Unit Name / ID</label>
+<input class="w-full h-12 px-4 bg-surface-container-highest rounded-lg border-none focus:bg-white focus:ring-1 focus:ring-primary transition-all text-sm font-medium" placeholder="e.g. ALPHA-01" type="text"/>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div class="space-y-1.5">
+<label class="text-[11px] font-semibold uppercase tracking-wider text-outline">Status</label>
+<select class="w-full h-12 px-4 bg-surface-container-highest rounded-lg border-none focus:bg-white focus:ring-1 focus:ring-primary transition-all text-sm font-medium appearance-none">
+<option>Active</option>
+<option>In Maintenance</option>
+<option>Standby</option>
+</select>
+</div>
+<div class="space-y-1.5">
+<label class="text-[11px] font-semibold uppercase tracking-wider text-outline">Theme Color</label>
+<div class="flex items-center gap-2 h-12 px-3 bg-surface-container-highest rounded-lg">
+<div class="w-6 h-6 rounded-full bg-primary ring-2 ring-white"></div>
+<span class="text-xs font-medium">Precision Blue</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Form Section: Vehicle Details -->
+<section class="space-y-4">
+<div class="flex items-center gap-2 mb-2">
+<span class="material-symbols-outlined text-primary text-sm" style="font-variation-settings: 'FILL' 1;">local_shipping</span>
+<h3 class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant">Vehicle Details</h3>
+</div>
+<div class="bg-surface-container-lowest p-5 rounded-xl ghost-border space-y-4 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
+<div class="grid grid-cols-2 gap-4">
+<div class="space-y-1.5">
+<label class="text-[11px] font-semibold uppercase tracking-wider text-outline">Year</label>
+<input class="w-full h-12 px-4 bg-surface-container-highest rounded-lg border-none focus:bg-white focus:ring-1 focus:ring-primary transition-all text-sm font-medium" placeholder="2024" type="number"/>
+</div>
+<div class="space-y-1.5">
+<label class="text-[11px] font-semibold uppercase tracking-wider text-outline">Make</label>
+<input class="w-full h-12 px-4 bg-surface-container-highest rounded-lg border-none focus:bg-white focus:ring-1 focus:ring-primary transition-all text-sm font-medium" placeholder="Volvo" type="text"/>
+</div>
+</div>
+<div class="space-y-1.5">
+<label class="text-[11px] font-semibold uppercase tracking-wider text-outline">Model</label>
+<input class="w-full h-12 px-4 bg-surface-container-highest rounded-lg border-none focus:bg-white focus:ring-1 focus:ring-primary transition-all text-sm font-medium" placeholder="FH Electric" type="text"/>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div class="space-y-1.5">
+<label class="text-[11px] font-semibold uppercase tracking-wider text-outline">License Plate</label>
+<input class="w-full h-12 px-4 bg-surface-container-highest rounded-lg border-none focus:bg-white focus:ring-1 focus:ring-primary transition-all text-sm font-medium uppercase" placeholder="TX-9982" type="text"/>
+</div>
+<div class="space-y-1.5">
+<label class="text-[11px] font-semibold uppercase tracking-wider text-outline">VIN</label>
+<input class="w-full h-12 px-4 bg-surface-container-highest rounded-lg border-none focus:bg-white focus:ring-1 focus:ring-primary transition-all text-sm font-medium" placeholder="Last 6 Digits" type="text"/>
+</div>
+</div>
+<div class="space-y-1.5">
+<label class="text-[11px] font-semibold uppercase tracking-wider text-outline">Current Mileage (KM)</label>
+<div class="relative">
+<input class="w-full h-12 px-4 bg-surface-container-highest rounded-lg border-none focus:bg-white focus:ring-1 focus:ring-primary transition-all text-sm font-medium" placeholder="0.00" type="number"/>
+<span class="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-bold text-outline uppercase">KM</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Form Section: Maintenance -->
+<section class="space-y-4">
+<div class="flex items-center gap-2 mb-2">
+<span class="material-symbols-outlined text-primary text-sm" style="font-variation-settings: 'FILL' 1;">build</span>
+<h3 class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant">Maintenance &amp; Compliance</h3>
+</div>
+<div class="bg-surface-container-lowest p-5 rounded-xl ghost-border space-y-4 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
+<div class="space-y-1.5">
+<label class="text-[11px] font-semibold uppercase tracking-wider text-outline">Insurance Expiry</label>
+<div class="relative">
+<input class="w-full h-12 px-4 bg-surface-container-highest rounded-lg border-none focus:bg-white focus:ring-1 focus:ring-primary transition-all text-sm font-medium" type="date"/>
+<span class="absolute right-4 top-1/2 -translate-y-1/2 material-symbols-outlined text-outline text-sm pointer-events-none">calendar_today</span>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div class="space-y-1.5">
+<label class="text-[11px] font-semibold uppercase tracking-wider text-outline">Last Service</label>
+<input class="w-full h-12 px-4 bg-surface-container-highest rounded-lg border-none focus:bg-white focus:ring-1 focus:ring-primary transition-all text-sm font-medium" type="date"/>
+</div>
+<div class="space-y-1.5">
+<label class="text-[11px] font-semibold uppercase tracking-wider text-outline">Next Service</label>
+<input class="w-full h-12 px-4 bg-surface-container-highest rounded-lg border-none focus:bg-white focus:ring-1 focus:ring-primary transition-all text-sm font-medium" type="date"/>
+</div>
+</div>
+</div>
+</section>
+<!-- Warning Card -->
+<div class="bg-error-container/40 p-4 rounded-xl flex gap-3 items-start border border-error-container">
+<span class="material-symbols-outlined text-on-error-container text-xl">info</span>
+<div class="space-y-1">
+<p class="text-xs font-bold text-on-error-container uppercase tracking-tight">Technical Audit Notice</p>
+<p class="text-xs text-on-error-container leading-relaxed">Ensure VIN matches physical chassis plate. Data is immutable after first trip dispatch.</p>
+</div>
+</div>
+</main>
+<!-- Bottom Navigation Shell (Units Active) -->
+<nav class="fixed bottom-0 w-full z-50 bg-white border-t border-slate-100 shadow-[0_-4px_12px_rgba(0,0,0,0.03)] flex justify-around items-center h-20 pb-safe px-2">
+<a class="flex flex-col items-center justify-center text-slate-400 px-3 py-1 hover:text-blue-600 transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="text-[11px] font-medium font-['Inter'] uppercase tracking-wider mt-1">Dashboard</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 px-3 py-1 hover:text-blue-600 transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="local_shipping">local_shipping</span>
+<span class="text-[11px] font-medium font-['Inter'] uppercase tracking-wider mt-1">Jobs</span>
+</a>
+<a class="flex flex-col items-center justify-center text-blue-700 bg-blue-50 rounded-xl px-3 py-1 active:translate-y-0.5 transition-transform" href="#">
+<span class="material-symbols-outlined" data-icon="inventory_2" style="font-variation-settings: 'FILL' 1;">inventory_2</span>
+<span class="text-[11px] font-medium font-['Inter'] uppercase tracking-wider mt-1">Units</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 px-3 py-1 hover:text-blue-600 transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="more_horiz">more_horiz</span>
+<span class="text-[11px] font-medium font-['Inter'] uppercase tracking-wider mt-1">More</span>
+</a>
+</nav>
+</body></html>

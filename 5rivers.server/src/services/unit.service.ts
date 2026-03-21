@@ -65,16 +65,37 @@ export async function listUnits(
   const filterClauses: string[] = [];
   const params: Record<string, unknown> = { organizationId, offset: pagination.offset, limit: pagination.limit };
   if (options?.filters) {
+    const searchTerm = options.filters['search'];
+    if (searchTerm) {
+      const escaped = String(searchTerm).replace(/[%_\\]/g, (c) => `\\${c}`);
+      params['filter_search'] = `%${escaped}%`;
+      filterClauses.push(`(
+        (name LIKE @filter_search ESCAPE '\\')
+        OR (description IS NOT NULL AND description LIKE @filter_search ESCAPE '\\')
+        OR (plateNumber IS NOT NULL AND plateNumber LIKE @filter_search ESCAPE '\\')
+        OR (vin IS NOT NULL AND vin LIKE @filter_search ESCAPE '\\')
+        OR (make IS NOT NULL AND make LIKE @filter_search ESCAPE '\\')
+        OR (model IS NOT NULL AND model LIKE @filter_search ESCAPE '\\')
+        OR (color IS NOT NULL AND color LIKE @filter_search ESCAPE '\\')
+        OR (status LIKE @filter_search ESCAPE '\\')
+      )`);
+    }
     for (const col of FILTER_COLUMNS) {
       const v = options.filters[col];
       if (v) {
-        filterClauses.push(`(${col} IS NOT NULL AND ${col} LIKE @filter_${col} ESCAPE '\\')`);
-        params[`filter_${col}`] = `%${String(v).replace(/[%_\\]/g, (c) => `\\${c}`)}%`;
+        if (col === 'status') {
+          filterClauses.push(`(status = @filter_status)`);
+          params['filter_status'] = v;
+        } else {
+          filterClauses.push(`(${col} IS NOT NULL AND ${col} LIKE @filter_${col} ESCAPE '\\')`);
+          params[`filter_${col}`] = `%${String(v).replace(/[%_\\]/g, (c) => `\\${c}`)}%`;
+        }
       }
     }
   }
   const whereExtra = filterClauses.length ? ` AND ${filterClauses.join(' AND ')}` : '';
   const countParams: Record<string, unknown> = { organizationId };
+  if (params['filter_search'] != null) countParams['filter_search'] = params['filter_search'];
   FILTER_COLUMNS.forEach((col) => { if (params[`filter_${col}`] != null) countParams[`filter_${col}`] = params[`filter_${col}`]; });
   const [rows, countRows] = await Promise.all([
     query<Unit[]>(

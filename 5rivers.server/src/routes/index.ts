@@ -12,6 +12,7 @@ import driverPaymentsRoutes from './driverPayments.routes';
 import driverPayRoutes from './driverPay.routes';
 import membersRoutes from './members.routes';
 import organizationsRoutes from './organizations.routes';
+import pdfRoutes from './pdf.routes';
 
 const router = Router();
 
@@ -28,5 +29,6 @@ router.use('/api', jobsRoutes);
 router.use('/api', invoicesRoutes);
 router.use('/api', driverPaymentsRoutes);
 router.use('/api', driverPayRoutes);
+router.use('/api', pdfRoutes);
 
 export default router;

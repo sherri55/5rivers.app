@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "on-surface-variant": "#434655",
+              "background": "#f7f9fb",
+              "error": "#ba1a1a",
+              "secondary-container": "#acbfff",
+              "on-tertiary-fixed": "#360f00",
+              "on-secondary-fixed": "#00174b",
+              "tertiary": "#943700",
+              "on-background": "#191c1e",
+              "inverse-primary": "#b4c5ff",
+              "surface-container-high": "#e6e8ea",
+              "surface": "#f7f9fb",
+              "tertiary-fixed-dim": "#ffb596",
+              "secondary": "#495c95",
+              "on-primary": "#ffffff",
+              "error-container": "#ffdad6",
+              "on-tertiary-fixed-variant": "#7d2d00",
+              "on-error": "#ffffff",
+              "outline": "#737686",
+              "secondary-fixed-dim": "#b4c5ff",
+              "surface-dim": "#d8dadc",
+              "tertiary-container": "#bc4800",
+              "surface-variant": "#e0e3e5",
+              "on-primary-fixed-variant": "#003ea8",
+              "on-error-container": "#93000a",
+              "on-secondary-fixed-variant": "#31447b",
+              "tertiary-fixed": "#ffdbcd",
+              "surface-tint": "#0053db",
+              "surface-container-low": "#f2f4f6",
+              "on-tertiary-container": "#ffede6",
+              "on-primary-container": "#eeefff",
+              "surface-container-highest": "#e0e3e5",
+              "surface-container-lowest": "#ffffff",
+              "primary-fixed-dim": "#b4c5ff",
+              "on-secondary-container": "#394c84",
+              "primary-fixed": "#dbe1ff",
+              "on-secondary": "#ffffff",
+              "primary": "#004ac6",
+              "on-tertiary": "#ffffff",
+              "surface-container": "#eceef0",
+              "on-primary-fixed": "#00174b",
+              "inverse-surface": "#2d3133",
+              "inverse-on-surface": "#eff1f3",
+              "surface-bright": "#f7f9fb",
+              "outline-variant": "#c3c6d7",
+              "on-surface": "#191c1e",
+              "secondary-fixed": "#dbe1ff",
+              "primary-container": "#2563eb"
+            },
+            fontFamily: {
+              "headline": ["Inter"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            display: inline-block;
+            line-height: 1;
+            text-transform: none;
+            letter-spacing: normal;
+            word-wrap: normal;
+            white-space: nowrap;
+            direction: ltr;
+        }
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background min-h-screen">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200/50 dark:border-slate-800/50 shadow-sm dark:shadow-none">
+<div class="flex items-center justify-between px-4 h-16 w-full">
+<div class="flex items-center gap-3">
+<button class="text-blue-700 dark:text-blue-500 active:scale-95 duration-200 p-2 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors rounded-xl">
+<span class="material-symbols-outlined" data-icon="menu">menu</span>
+</button>
+<h1 class="text-lg font-bold tracking-tighter text-blue-800 dark:text-blue-400 font-['Inter']">Freight Architect</h1>
+</div>
+<div class="flex items-center">
+<div class="w-10 h-10 rounded-full bg-primary-fixed-dim flex items-center justify-center overflow-hidden border-2 border-white shadow-sm">
+<img alt="User Profile" class="w-full h-full object-cover" data-alt="User profile avatar illustration" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDbEht_MJyREjbfo_AUXknFnh_bjjZo_dE8l06xwBzTF4d6kV79IEUIEZLWye3wJxOf5PFMgbmIuJkzEgAveCHvFYcTrgjURZo5OVpMlK9ncvpZ9tzyla4p8lhNhoebERzJcP7DWG8NTK_-xIIuWl1OqHJo0TVn1quB5RfAsDefvzkl8NcMjin_qXf-FsVZ5R8U98dlcU853Z2c2LyF686-9o1CE3U4vq2L-8q02wnq16UJkUmuQeSWb7y21KQzCNyBPSDFBFQBKmg"/>
+</div>
+</div>
+</div>
+</header>
+<main class="pt-20 pb-24 px-4 max-w-5xl mx-auto">
+<!-- Header Section -->
+<section class="mb-8">
+<div class="flex flex-col gap-2">
+<span class="text-[0.6875rem] font-medium uppercase tracking-wider text-primary">Carrier Management</span>
+<h2 class="text-2xl font-semibold tracking-tight text-on-surface">Registered Units</h2>
+</div>
+</section>
+<!-- Search & Filter Controls -->
+<section class="mb-6 grid grid-cols-1 md:grid-cols-4 gap-3">
+<div class="md:col-span-3 relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-sm" data-icon="search">search</span>
+<input class="w-full pl-10 pr-4 py-3 bg-surface-container-highest border-none rounded-xl focus:ring-2 focus:ring-primary focus:bg-surface-container-lowest transition-all text-sm" placeholder="Search carrier name, contact or email..." type="text"/>
+</div>
+<div class="relative">
+<select class="w-full px-4 py-3 bg-surface-container-highest border-none rounded-xl appearance-none text-sm focus:ring-2 focus:ring-primary cursor-pointer">
+<option>All Statuses</option>
+<option>Active</option>
+<option>Pending</option>
+<option>On Hold</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-outline pointer-events-none" data-icon="expand_more">expand_more</span>
+</div>
+</section>
+<!-- Carriers List - Asymmetric/Bento-inspired Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-4">
+<!-- Carrier Card 1 -->
+<div class="bg-surface-container-lowest rounded-xl p-5 border border-outline-variant/15 hover:shadow-md transition-shadow flex flex-col md:flex-row gap-6 items-start md:items-center">
+<div class="flex-1 space-y-3 w-full">
+<div class="flex justify-between items-start">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+<h3 class="text-lg font-semibold text-on-surface">Blue Wave Logistics</h3>
+</div>
+<span class="px-2 py-1 bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-widest rounded">Contracted</span>
+</div>
+<div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+<div>
+<p class="text-[11px] font-medium text-outline uppercase tracking-wider">Contact</p>
+<p class="text-sm font-medium text-on-surface-variant">Marcus Thorne</p>
+</div>
+<div>
+<p class="text-[11px] font-medium text-outline uppercase tracking-wider">Email</p>
+<p class="text-sm font-medium text-on-surface-variant">m.thorne@bluewave.com</p>
+</div>
+<div class="hidden md:block">
+<p class="text-[11px] font-medium text-outline uppercase tracking-wider">Base Rate</p>
+<p class="text-sm font-bold text-primary">$2.45 / mi</p>
+</div>
+</div>
+</div>
+<div class="flex md:flex-col gap-2 w-full md:w-auto">
+<button class="flex-1 md:w-full px-4 py-2 bg-primary-container text-white rounded-lg text-sm font-medium hover:bg-primary transition-colors">Details</button>
+<button class="flex-1 md:w-full px-4 py-2 border border-outline-variant/30 text-on-surface-variant rounded-lg text-sm font-medium hover:bg-surface-container-low transition-colors">Edit</button>
+</div>
+</div>
+<!-- Carrier Card 2 -->
+<div class="bg-surface-container-lowest rounded-xl p-5 border border-outline-variant/15 hover:shadow-md transition-shadow flex flex-col md:flex-row gap-6 items-start md:items-center">
+<div class="flex-1 space-y-3 w-full">
+<div class="flex justify-between items-start">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-amber-500"></span>
+<h3 class="text-lg font-semibold text-on-surface">Swift Roadways Int.</h3>
+</div>
+<span class="px-2 py-1 bg-secondary-container/20 text-secondary text-[10px] font-bold uppercase tracking-widest rounded">Spot Market</span>
+</div>
+<div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+<div>
+<p class="text-[11px] font-medium text-outline uppercase tracking-wider">Contact</p>
+<p class="text-sm font-medium text-on-surface-variant">Elena Rodriguez</p>
+</div>
+<div>
+<p class="text-[11px] font-medium text-outline uppercase tracking-wider">Email</p>
+<p class="text-sm font-medium text-on-surface-variant">dispatch@swiftroad.io</p>
+</div>
+<div class="hidden md:block">
+<p class="text-[11px] font-medium text-outline uppercase tracking-wider">Base Rate</p>
+<p class="text-sm font-bold text-primary">$3.10 / mi</p>
+</div>
+</div>
+</div>
+<div class="flex md:flex-col gap-2 w-full md:w-auto">
+<button class="flex-1 md:w-full px-4 py-2 bg-primary-container text-white rounded-lg text-sm font-medium hover:bg-primary transition-colors">Details</button>
+<button class="flex-1 md:w-full px-4 py-2 border border-outline-variant/30 text-on-surface-variant rounded-lg text-sm font-medium hover:bg-surface-container-low transition-colors">Edit</button>
+</div>
+</div>
+<!-- Carrier Card 3 -->
+<div class="bg-surface-container-lowest rounded-xl p-5 border border-outline-variant/15 hover:shadow-md transition-shadow flex flex-col md:flex-row gap-6 items-start md:items-center">
+<div class="flex-1 space-y-3 w-full">
+<div class="flex justify-between items-start">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+<h3 class="text-lg font-semibold text-on-surface">Precision Haulers</h3>
+</div>
+<span class="px-2 py-1 bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-widest rounded">Contracted</span>
+</div>
+<div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+<div>
+<p class="text-[11px] font-medium text-outline uppercase tracking-wider">Contact</p>
+<p class="text-sm font-medium text-on-surface-variant">Sam Chen</p>
+</div>
+<div>
+<p class="text-[11px] font-medium text-outline uppercase tracking-wider">Email</p>
+<p class="text-sm font-medium text-on-surface-variant">s.chen@p-haulers.com</p>
+</div>
+<div class="hidden md:block">
+<p class="text-[11px] font-medium text-outline uppercase tracking-wider">Base Rate</p>
+<p class="text-sm font-bold text-primary">$2.85 / mi</p>
+</div>
+</div>
+</div>
+<div class="flex md:flex-col gap-2 w-full md:w-auto">
+<button class="flex-1 md:w-full px-4 py-2 bg-primary-container text-white rounded-lg text-sm font-medium hover:bg-primary transition-colors">Details</button>
+<button class="flex-1 md:w-full px-4 py-2 border border-outline-variant/30 text-on-surface-variant rounded-lg text-sm font-medium hover:bg-surface-container-low transition-colors">Edit</button>
+</div>
+</div>
+<!-- Carrier Card 4 (Inactive/Off-state demo) -->
+<div class="bg-surface-container-low opacity-80 rounded-xl p-5 border border-outline-variant/15 flex flex-col md:flex-row gap-6 items-start md:items-center">
+<div class="flex-1 space-y-3 w-full">
+<div class="flex justify-between items-start">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-slate-400"></span>
+<h3 class="text-lg font-semibold text-on-surface">Atlas Global Freight</h3>
+</div>
+<span class="px-2 py-1 bg-slate-200 text-slate-500 text-[10px] font-bold uppercase tracking-widest rounded">On Hold</span>
+</div>
+<div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+<div>
+<p class="text-[11px] font-medium text-outline uppercase tracking-wider">Contact</p>
+<p class="text-sm font-medium text-on-surface-variant">Janice Mueller</p>
+</div>
+<div>
+<p class="text-[11px] font-medium text-outline uppercase tracking-wider">Email</p>
+<p class="text-sm font-medium text-on-surface-variant">j.mueller@atlas.net</p>
+</div>
+<div class="hidden md:block">
+<p class="text-[11px] font-medium text-outline uppercase tracking-wider">Base Rate</p>
+<p class="text-sm font-bold text-outline">N/A</p>
+</div>
+</div>
+</div>
+<div class="flex md:flex-col gap-2 w-full md:w-auto">
+<button class="flex-1 md:w-full px-4 py-2 bg-slate-300 text-slate-600 rounded-lg text-sm font-medium cursor-not-allowed">Details</button>
+<button class="flex-1 md:w-full px-4 py-2 border border-outline-variant/30 text-on-surface-variant rounded-lg text-sm font-medium hover:bg-surface-container-low transition-colors">Edit</button>
+</div>
+</div>
+</div>
+<!-- Add New Carrier FAB (Mobile only for focus) -->
+<button class="md:hidden fixed bottom-24 right-6 w-14 h-14 bg-primary text-white rounded-2xl shadow-xl flex items-center justify-center active:scale-95 transition-transform z-40">
+<span class="material-symbols-outlined" data-icon="add">add</span>
+</button>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 w-full z-50 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 shadow-[0_-4px_12px_rgba(0,0,0,0.03)] h-20 pb-safe px-2 flex justify-around items-center">
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-3 py-1 hover:text-blue-600 dark:hover:text-blue-300 active:translate-y-0.5 transition-transform" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="text-[11px] font-medium font-['Inter'] uppercase tracking-wider mt-1">Dashboard</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-3 py-1 hover:text-blue-600 dark:hover:text-blue-300 active:translate-y-0.5 transition-transform" href="#">
+<span class="material-symbols-outlined" data-icon="local_shipping">local_shipping</span>
+<span class="text-[11px] font-medium font-['Inter'] uppercase tracking-wider mt-1">Jobs</span>
+</a>
+<a class="flex flex-col items-center justify-center text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 rounded-xl px-3 py-1 active:translate-y-0.5 transition-transform" href="#">
+<span class="material-symbols-outlined" data-icon="inventory_2" style="font-variation-settings: 'FILL' 1;">inventory_2</span>
+<span class="text-[11px] font-medium font-['Inter'] uppercase tracking-wider mt-1">Units</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-3 py-1 hover:text-blue-600 dark:hover:text-blue-300 active:translate-y-0.5 transition-transform" href="#">
+<span class="material-symbols-outlined" data-icon="more_horiz">more_horiz</span>
+<span class="text-[11px] font-medium font-['Inter'] uppercase tracking-wider mt-1">More</span>
+</a>
+</nav>
+</body></html>
