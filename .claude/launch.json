@@ -3,17 +3,19 @@
   "configurations": [
     {
       "name": "server",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["ts-node-dev", "--respawn", "src/index.ts"],
       "port": 4000,
+      "autoPort": false,
       "cwd": "5rivers.server"
     },
     {
       "name": "ui",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
-      "port": 3000,
-      "cwd": "5rivers.app.ui"
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["vite", "--port", "5174"],
+      "port": 5174,
+      "autoPort": false,
+      "cwd": "."
     }
   ]
 }
