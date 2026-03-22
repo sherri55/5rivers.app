@@ -3,6 +3,7 @@ import { Outlet } from 'react-router-dom';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
 import { MobileNav } from './MobileNav';
+import { ChatWidget } from '../agent/ChatWidget';
 
 // ============================================
 // AppLayout — the authenticated app shell.
@@ -24,6 +25,9 @@ export function AppLayout() {
 
       {/* Mobile bottom nav */}
       <MobileNav />
+
+      {/* AI Assistant chat widget */}
+      <ChatWidget />
     </div>
   );
 }

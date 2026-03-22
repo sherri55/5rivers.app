@@ -1,7 +1,7 @@
 {
   "name": "5rivers.app.mcp",
-  "version": "1.0.0",
-  "description": "MCP server for 5rivers.app - query jobs, invoices, dashboard via natural language",
+  "version": "2.0.0",
+  "description": "MCP server for 5rivers.app - query and manage jobs, invoices, expenses via natural language",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
@@ -12,11 +12,9 @@
     "start": "node dist/index.js",
     "dev": "tsc --watch"
   },
-  "keywords": ["mcp", "5rivers", "graphql"],
+  "keywords": ["mcp", "5rivers", "rest"],
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.4",
-    "graphql-request": "^7.0.0",
-    "graphql": "^16.9.0"
+    "@modelcontextprotocol/sdk": "^1.0.4"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

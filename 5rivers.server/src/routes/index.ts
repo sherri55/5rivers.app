@@ -17,6 +17,7 @@ import pdfRoutes from './pdf.routes';
 import analyticsRoutes from './analytics.routes';
 import expenseCategoriesRoutes from './expenseCategories.routes';
 import expensesRoutes from './expenses.routes';
+import agentRoutes from './agent.routes';
 
 const router = Router();
 
@@ -38,5 +39,6 @@ router.use('/api', pdfRoutes);
 router.use('/api', analyticsRoutes);
 router.use('/api', expenseCategoriesRoutes);
 router.use('/api', expensesRoutes);
+router.use('/api', agentRoutes);
 
 export default router;
