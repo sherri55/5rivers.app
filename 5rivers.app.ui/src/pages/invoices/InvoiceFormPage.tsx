@@ -18,6 +18,7 @@ import { invoicesApi, pdfApi } from '@/api/endpoints';
 import { SourceTypeBadge } from '@/components/ui/Badge';
 import { PageSpinner, ButtonSpinner } from '@/components/ui/Spinner';
 import { ExportPdfButton } from '@/components/ui/ExportPdfButton';
+import { Select } from '@/components/ui/Select';
 import { ConfirmModal, Modal } from '@/components/ui/Modal';
 import type { InvoiceStatus, Job, JobInvoiceLine } from '@/types';
 
@@ -92,7 +93,7 @@ export function InvoiceFormPage() {
   useEffect(() => {
     if (!existingInvoice) return;
     setInvoiceNumber(existingInvoice.invoiceNumber);
-    setInvoiceDate(existingInvoice.invoiceDate ?? '');
+    setInvoiceDate(String(existingInvoice.invoiceDate ?? '').slice(0, 10));
     setStatus(existingInvoice.status);
     setBilledTo(existingInvoice.billedTo ?? '');
     setBilledEmail(existingInvoice.billedEmail ?? '');
@@ -404,15 +405,15 @@ export function InvoiceFormPage() {
             </FormField>
 
             <FormField label="Status">
-              <select
+              <Select
                 value={status}
                 onChange={(e) => handleStatusChange(e.target.value as InvoiceStatus)}
-                className="w-full bg-surface-container-low border-none rounded-lg p-3 text-sm focus:bg-white focus:ring-1 focus:ring-primary transition-all appearance-none"
+                icon="flag"
               >
                 <option value="CREATED">Created</option>
                 <option value="RAISED">Raised</option>
                 <option value="RECEIVED">Received</option>
-              </select>
+              </Select>
             </FormField>
           </div>
         </div>
@@ -466,7 +467,7 @@ export function InvoiceFormPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
               {billingType === 'dispatcher' ? (
                 <FormField label="Dispatcher">
-                  <select
+                  <Select
                     value={dispatcherId}
                     onChange={(e) => {
                       const id = e.target.value;
@@ -478,7 +479,7 @@ export function InvoiceFormPage() {
                         if (dispatcher.email) setBilledEmail(dispatcher.email);
                       }
                     }}
-                    className="w-full bg-surface-container-low border-none rounded-lg p-3 text-sm focus:bg-white focus:ring-1 focus:ring-primary transition-all appearance-none"
+                    icon="support_agent"
                   >
                     <option value="">Select dispatcher</option>
                     {dispatchers.map((d) => (
@@ -487,11 +488,11 @@ export function InvoiceFormPage() {
                         {d.commissionPercent ? ` (${d.commissionPercent}%)` : ''}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </FormField>
               ) : (
                 <FormField label="Company">
-                  <select
+                  <Select
                     value={companyId}
                     onChange={(e) => {
                       const id = e.target.value;
@@ -503,7 +504,7 @@ export function InvoiceFormPage() {
                         if (company.email) setBilledEmail(company.email);
                       }
                     }}
-                    className="w-full bg-surface-container-low border-none rounded-lg p-3 text-sm focus:bg-white focus:ring-1 focus:ring-primary transition-all appearance-none"
+                    icon="business"
                   >
                     <option value="">Select company</option>
                     {companies.map((c) => (
@@ -511,7 +512,7 @@ export function InvoiceFormPage() {
                         {c.name}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </FormField>
               )}
 
@@ -580,11 +581,10 @@ export function InvoiceFormPage() {
                   </thead>
                   <tbody>
                     {jobLines.map((line) => {
-                      const job = allJobsMap.get(line.jobId);
-                      const jt = job ? jobTypeDetailMap.get(job.jobTypeId) : undefined;
+                      const jt = line.jobTypeId ? jobTypeDetailMap.get(line.jobTypeId) : undefined;
                       return (
                         <tr key={line.jobId} className="border-b border-outline-variant/10 hover:bg-surface-container-low/50 transition-colors">
-                          <td className="py-3 px-4 text-sm text-on-surface">{formatDate(job?.jobDate)}</td>
+                          <td className="py-3 px-4 text-sm text-on-surface">{formatDate(line.jobDate)}</td>
                           <td className="py-3 px-4">
                             <div className="flex flex-col">
                               <span className="text-sm font-medium text-blue-700">{jt?.title ?? '—'}</span>
@@ -593,8 +593,8 @@ export function InvoiceFormPage() {
                               )}
                             </div>
                           </td>
-                          <td className="py-3 px-4 text-sm text-on-surface">{job?.driverId ? driverMap.get(job.driverId) ?? '—' : '—'}</td>
-                          <td className="py-3 px-4">{job ? <SourceTypeBadge sourceType={job.sourceType} /> : '—'}</td>
+                          <td className="py-3 px-4 text-sm text-on-surface">{line.driverId ? driverMap.get(line.driverId) ?? '—' : '—'}</td>
+                          <td className="py-3 px-4">{line.sourceType ? <SourceTypeBadge sourceType={line.sourceType} /> : '—'}</td>
                           <td className="py-3 px-4 text-right text-sm font-semibold text-on-surface">{formatCurrency(line.amount)}</td>
                           <td className="py-3 px-2">
                             <button

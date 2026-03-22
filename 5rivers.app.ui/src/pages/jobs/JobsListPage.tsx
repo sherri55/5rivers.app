@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useJobs, useDeleteJob } from '@/hooks/useJobs';
+import { useJobs, useDeleteJob, useUpdateJob } from '@/hooks/useJobs';
 import { useLookupMaps, useJobTypes, useDrivers, useDispatchers } from '@/hooks/useLookups';
 import { useColumnVisibility, type ColumnDef } from '@/hooks/useColumnVisibility';
 import { useToast } from '@/context/toast';
@@ -10,6 +10,7 @@ import { ConfirmModal } from '@/components/ui/Modal';
 import { DataTable, type Column } from '@/components/ui/DataTable';
 import { ColumnToggle } from '@/components/ui/ColumnToggle';
 import { ExportPdfButton } from '@/components/ui/ExportPdfButton';
+import { Select } from '@/components/ui/Select';
 import { pdfApi } from '@/api/endpoints';
 import type { Job, PaginationParams } from '@/types';
 
@@ -25,7 +26,8 @@ const COLUMN_DEFS: ColumnDef[] = [
   { key: 'unit', label: 'Unit', defaultVisible: false },
   { key: 'sourceType', label: 'Source' },
   { key: 'amount', label: 'Amount' },
-  { key: 'driverPaid', label: 'Paid' },
+  { key: 'jobPaid', label: 'Received' },
+  { key: 'driverPaid', label: 'Driver Paid' },
   { key: 'actions', label: '', alwaysVisible: true },
 ];
 
@@ -76,6 +78,33 @@ export function JobsListPage() {
         ]) ?? [],
       ),
     [jobTypesData],
+  );
+
+  // Toggle paid statuses
+  const updateJob = useUpdateJob();
+  const toggleJobPaid = useCallback(
+    (job: Job) => {
+      updateJob.mutate(
+        { id: job.id, data: { jobPaid: !job.jobPaid } },
+        {
+          onSuccess: () => addToast(job.jobPaid ? 'Payment marked as not received' : 'Payment marked as received', 'success'),
+          onError: (err) => addToast(err.message, 'error'),
+        },
+      );
+    },
+    [updateJob, addToast],
+  );
+  const toggleDriverPaid = useCallback(
+    (job: Job) => {
+      updateJob.mutate(
+        { id: job.id, data: { driverPaid: !job.driverPaid } },
+        {
+          onSuccess: () => addToast(job.driverPaid ? 'Driver marked as unpaid' : 'Driver marked as paid', 'success'),
+          onError: (err) => addToast(err.message, 'error'),
+        },
+      );
+    },
+    [updateJob, addToast],
   );
 
   // Delete
@@ -219,19 +248,52 @@ export function JobsListPage() {
         ),
       },
       {
-        key: 'driverPaid',
-        label: 'Paid',
+        key: 'jobPaid',
+        label: 'Received',
         align: 'center' as const,
-        render: (job) =>
-          job.driverPaid ? (
-            <span className="material-symbols-outlined filled text-emerald-500">
-              check_circle
+        render: (job) => (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleJobPaid(job);
+            }}
+            disabled={updateJob.isPending}
+            className={`p-1 rounded-lg transition-all ${
+              job.jobPaid
+                ? 'text-emerald-500 hover:bg-emerald-50 hover:text-emerald-700'
+                : 'text-slate-300 hover:bg-slate-50 hover:text-slate-500'
+            }`}
+            title={job.jobPaid ? 'Mark payment as not received' : 'Mark payment as received'}
+          >
+            <span className={`material-symbols-outlined ${job.jobPaid ? 'filled' : ''}`}>
+              {job.jobPaid ? 'check_circle' : 'radio_button_unchecked'}
             </span>
-          ) : (
-            <span className="material-symbols-outlined text-slate-300">
-              radio_button_unchecked
+          </button>
+        ),
+      },
+      {
+        key: 'driverPaid',
+        label: 'Driver Paid',
+        align: 'center' as const,
+        render: (job) => (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleDriverPaid(job);
+            }}
+            disabled={updateJob.isPending}
+            className={`p-1 rounded-lg transition-all ${
+              job.driverPaid
+                ? 'text-blue-500 hover:bg-blue-50 hover:text-blue-700'
+                : 'text-slate-300 hover:bg-slate-50 hover:text-slate-500'
+            }`}
+            title={job.driverPaid ? 'Mark driver as unpaid' : 'Mark driver as paid'}
+          >
+            <span className={`material-symbols-outlined ${job.driverPaid ? 'filled' : ''}`}>
+              {job.driverPaid ? 'check_circle' : 'radio_button_unchecked'}
             </span>
-          ),
+          </button>
+        ),
       },
       {
         key: 'actions',
@@ -255,7 +317,7 @@ export function JobsListPage() {
         ),
       },
     ],
-    [jobTypeMap, companyMap, driverMap, dispatcherMap, unitMap],
+    [jobTypeMap, companyMap, driverMap, dispatcherMap, unitMap, toggleJobPaid, toggleDriverPaid, updateJob.isPending],
   );
 
   return (
@@ -309,46 +371,46 @@ export function JobsListPage() {
           className="bg-surface-container-low border-none rounded-lg text-xs font-medium text-slate-600 px-3 py-2 focus:ring-1 focus:ring-primary ghost-border"
         />
 
-        <select
+        <Select
+          variant="filter"
           value={sourceFilter}
           onChange={(e) => {
             setSourceFilter(e.target.value);
             setPage(1);
           }}
-          className="appearance-none bg-surface-container-low border-none rounded-lg text-xs font-medium text-slate-600 pl-3 pr-10 py-2 focus:ring-1 focus:ring-primary cursor-pointer ghost-border"
         >
           <option value="">All Sources</option>
           <option value="DISPATCHED">Dispatched</option>
           <option value="DIRECT">Direct</option>
-        </select>
+        </Select>
 
-        <select
+        <Select
+          variant="filter"
           value={driverFilter}
           onChange={(e) => {
             setDriverFilter(e.target.value);
             setPage(1);
           }}
-          className="appearance-none bg-surface-container-low border-none rounded-lg text-xs font-medium text-slate-600 pl-3 pr-10 py-2 focus:ring-1 focus:ring-primary cursor-pointer ghost-border"
         >
           <option value="">All Drivers</option>
           {(driversData?.data ?? []).map((d) => (
             <option key={d.id} value={d.id}>{d.name}</option>
           ))}
-        </select>
+        </Select>
 
-        <select
+        <Select
+          variant="filter"
           value={dispatcherFilter}
           onChange={(e) => {
             setDispatcherFilter(e.target.value);
             setPage(1);
           }}
-          className="appearance-none bg-surface-container-low border-none rounded-lg text-xs font-medium text-slate-600 pl-3 pr-10 py-2 focus:ring-1 focus:ring-primary cursor-pointer ghost-border"
         >
           <option value="">All Dispatchers</option>
           {(dispatchersData?.data ?? []).map((d) => (
             <option key={d.id} value={d.id}>{d.name}</option>
           ))}
-        </select>
+        </Select>
 
         <ColumnToggle
           columns={toggleableColumns}

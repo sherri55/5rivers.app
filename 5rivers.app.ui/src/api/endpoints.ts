@@ -58,11 +58,8 @@ export const companiesApi = {
 // --- Job Types ---
 
 export const jobTypesApi = {
-  list: (params?: PaginationParams & { companyId?: string }) => {
-    const query = buildQuery(params);
-    const companyParam = params?.companyId ? `${query ? '&' : '?'}companyId=${params.companyId}` : '';
-    return api.get<ListResult<JobType>>(`/job-types${query}${companyParam}`);
-  },
+  list: (params?: PaginationParams & { companyId?: string }) =>
+    api.get<ListResult<JobType>>(`/job-types${buildQuery(params)}`),
   get: (id: string) => api.get<JobType>(`/job-types/${id}`),
   create: (data: Partial<JobType>) => api.post<JobType>('/job-types', data),
   update: (id: string, data: Partial<JobType>) => api.patch<JobType>(`/job-types/${id}`, data),

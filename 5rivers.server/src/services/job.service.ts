@@ -7,7 +7,7 @@ const FILTER_COLUMNS = ['jobDate', 'amount', 'sourceType', 'driverId', 'dispatch
 
 export type JobSourceType = 'DISPATCHED' | 'DIRECT';
 
-const ALL_COLUMNS = 'id, organizationId, jobDate, jobTypeId, driverId, dispatcherId, unitId, carrierId, sourceType, weight, loads, startTime, endTime, amount, carrierAmount, ticketIds, driverPaid, createdAt, updatedAt';
+const ALL_COLUMNS = 'id, organizationId, jobDate, jobTypeId, driverId, dispatcherId, unitId, carrierId, sourceType, weight, loads, startTime, endTime, amount, carrierAmount, ticketIds, jobPaid, driverPaid, createdAt, updatedAt';
 
 export interface Job {
   id: string;
@@ -26,6 +26,7 @@ export interface Job {
   amount: number | null;
   carrierAmount: number | null;
   ticketIds: string | null;
+  jobPaid: boolean;
   driverPaid: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -46,6 +47,7 @@ export interface CreateJobInput {
   amount?: number | null;
   carrierAmount?: number | null;
   ticketIds?: string | null;
+  jobPaid?: boolean;
   driverPaid?: boolean;
 }
 
@@ -168,10 +170,11 @@ export async function getJobById(id: string, organizationId: string): Promise<Jo
 export async function createJob(organizationId: string, input: CreateJobInput): Promise<Job> {
   const id = uuid();
   const now = new Date();
+  const jobPaid = input.jobPaid ?? false;
   const driverPaid = input.driverPaid ?? false;
   await query(
-    `INSERT INTO Jobs (id, organizationId, jobDate, jobTypeId, driverId, dispatcherId, unitId, carrierId, sourceType, weight, loads, startTime, endTime, amount, carrierAmount, ticketIds, driverPaid, createdAt, updatedAt)
-     VALUES (@id, @organizationId, @jobDate, @jobTypeId, @driverId, @dispatcherId, @unitId, @carrierId, @sourceType, @weight, @loads, @startTime, @endTime, @amount, @carrierAmount, @ticketIds, @driverPaid, @createdAt, @updatedAt)`,
+    `INSERT INTO Jobs (id, organizationId, jobDate, jobTypeId, driverId, dispatcherId, unitId, carrierId, sourceType, weight, loads, startTime, endTime, amount, carrierAmount, ticketIds, jobPaid, driverPaid, createdAt, updatedAt)
+     VALUES (@id, @organizationId, @jobDate, @jobTypeId, @driverId, @dispatcherId, @unitId, @carrierId, @sourceType, @weight, @loads, @startTime, @endTime, @amount, @carrierAmount, @ticketIds, @jobPaid, @driverPaid, @createdAt, @updatedAt)`,
     {
       params: {
         id, organizationId, jobDate: input.jobDate, jobTypeId: input.jobTypeId,
@@ -179,7 +182,7 @@ export async function createJob(organizationId: string, input: CreateJobInput): 
         carrierId: input.carrierId ?? null, sourceType: input.sourceType ?? 'DISPATCHED',
         weight: input.weight ?? null, loads: input.loads ?? null, startTime: input.startTime ?? null, endTime: input.endTime ?? null,
         amount: input.amount ?? null, carrierAmount: input.carrierAmount ?? null,
-        ticketIds: input.ticketIds ?? null, driverPaid, createdAt: now, updatedAt: now,
+        ticketIds: input.ticketIds ?? null, jobPaid, driverPaid, createdAt: now, updatedAt: now,
       },
     }
   );
@@ -206,13 +209,14 @@ export async function updateJob(organizationId: string, input: UpdateJobInput): 
     amount: input.amount !== undefined ? input.amount : existing.amount,
     carrierAmount: input.carrierAmount !== undefined ? input.carrierAmount : existing.carrierAmount,
     ticketIds: input.ticketIds !== undefined ? input.ticketIds : existing.ticketIds,
+    jobPaid: input.jobPaid !== undefined ? input.jobPaid : existing.jobPaid,
     driverPaid: input.driverPaid !== undefined ? input.driverPaid : existing.driverPaid,
     updatedAt: new Date(),
   };
   await query(
     `UPDATE Jobs SET jobDate = @jobDate, jobTypeId = @jobTypeId, driverId = @driverId, dispatcherId = @dispatcherId, unitId = @unitId,
        carrierId = @carrierId, sourceType = @sourceType, weight = @weight, loads = @loads, startTime = @startTime, endTime = @endTime,
-       amount = @amount, carrierAmount = @carrierAmount, ticketIds = @ticketIds, driverPaid = @driverPaid, updatedAt = @updatedAt
+       amount = @amount, carrierAmount = @carrierAmount, ticketIds = @ticketIds, jobPaid = @jobPaid, driverPaid = @driverPaid, updatedAt = @updatedAt
      WHERE id = @id AND organizationId = @organizationId`,
     { params }
   );

@@ -4,6 +4,7 @@ import { useUnit, useCreateUnit, useUpdateUnit, useDeleteUnit } from '@/hooks/us
 import { useToast } from '@/context/toast';
 import { PageSpinner, ButtonSpinner } from '@/components/ui/Spinner';
 import { ConfirmModal } from '@/components/ui/Modal';
+import { Select } from '@/components/ui/Select';
 import type { UnitStatus } from '@/types';
 
 // ============================================
@@ -153,16 +154,16 @@ export function UnitFormPage() {
             </FormField>
 
             <FormField label="Status">
-              <select
+              <Select
                 value={status}
                 onChange={(e) => setStatus(e.target.value as UnitStatus)}
-                className="w-full bg-surface-container-low border-none rounded-lg p-3 text-sm focus:bg-white focus:ring-1 focus:ring-primary transition-all appearance-none"
+                icon="toggle_on"
               >
                 <option value="ACTIVE">Active</option>
                 <option value="INACTIVE">Inactive</option>
                 <option value="MAINTENANCE">Maintenance</option>
                 <option value="RETIRED">Retired</option>
-              </select>
+              </Select>
             </FormField>
 
             <FormField label="Color">

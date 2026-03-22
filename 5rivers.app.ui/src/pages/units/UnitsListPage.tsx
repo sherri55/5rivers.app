@@ -8,6 +8,7 @@ import { ConfirmModal } from '@/components/ui/Modal';
 import { PageSpinner } from '@/components/ui/Spinner';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ColumnToggle } from '@/components/ui/ColumnToggle';
+import { Select } from '@/components/ui/Select';
 import { useColumnVisibility, type ColumnDef } from '@/hooks/useColumnVisibility';
 import { ExportPdfButton } from '@/components/ui/ExportPdfButton';
 import { pdfApi } from '@/api/endpoints';
@@ -121,20 +122,20 @@ export function UnitsListPage() {
           />
         </div>
 
-        <select
+        <Select
+          variant="filter"
           value={statusFilter}
           onChange={(e) => {
             setStatusFilter(e.target.value);
             setPage(1);
           }}
-          className="appearance-none bg-surface-container-low border-none rounded-lg text-xs font-medium text-slate-600 pl-3 pr-10 py-2 focus:ring-1 focus:ring-primary cursor-pointer ghost-border"
         >
           <option value="">Status: All</option>
           <option value="ACTIVE">Active</option>
           <option value="INACTIVE">Inactive</option>
           <option value="MAINTENANCE">Maintenance</option>
           <option value="RETIRED">Retired</option>
-        </select>
+        </Select>
 
         <ColumnToggle
           columns={toggleableColumns}

@@ -8,6 +8,7 @@ import { DataTable, type Column } from '@/components/ui/DataTable';
 import { ColumnToggle } from '@/components/ui/ColumnToggle';
 import { useColumnVisibility, type ColumnDef } from '@/hooks/useColumnVisibility';
 import { ExportPdfButton } from '@/components/ui/ExportPdfButton';
+import { Select } from '@/components/ui/Select';
 import { pdfApi } from '@/api/endpoints';
 import type { Carrier, PaginationParams } from '@/types';
 
@@ -228,26 +229,26 @@ export function CarriersListPage() {
           />
         </div>
 
-        <select
+        <Select
+          variant="filter"
           value={statusFilter}
           onChange={(e) => {
             setStatusFilter(e.target.value);
             setPage(1);
           }}
-          className="appearance-none bg-surface-container-low border-none rounded-lg text-xs font-medium text-slate-600 pl-3 pr-10 py-2 focus:ring-1 focus:ring-primary cursor-pointer ghost-border"
         >
           <option value="">Status: All</option>
           <option value="ACTIVE">Active</option>
           <option value="INACTIVE">Inactive</option>
-        </select>
+        </Select>
 
-        <select
+        <Select
+          variant="filter"
           value={rateTypeFilter}
           onChange={(e) => {
             setRateTypeFilter(e.target.value);
             setPage(1);
           }}
-          className="appearance-none bg-surface-container-low border-none rounded-lg text-xs font-medium text-slate-600 pl-3 pr-10 py-2 focus:ring-1 focus:ring-primary cursor-pointer ghost-border"
         >
           <option value="">Rate Type: All</option>
           <option value="PERCENTAGE">Percentage</option>
@@ -255,7 +256,7 @@ export function CarriersListPage() {
           <option value="FLAT_PER_LOAD">Flat / Load</option>
           <option value="FLAT_PER_TON">Flat / Ton</option>
           <option value="HOURLY">Hourly</option>
-        </select>
+        </Select>
 
         <ColumnToggle
           columns={toggleableColumns}

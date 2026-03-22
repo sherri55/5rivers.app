@@ -14,6 +14,9 @@ import { useToast } from '@/context/toast';
 import { formatCurrency } from '@/lib/format';
 import { PageSpinner, ButtonSpinner } from '@/components/ui/Spinner';
 import { ConfirmModal } from '@/components/ui/Modal';
+import { Select } from '@/components/ui/Select';
+import { WeightTagsInput } from '@/components/ui/WeightTagsInput';
+import { TagsInput } from '@/components/ui/TagsInput';
 import type { CreateJobInput, JobSourceType } from '@/types';
 
 // ============================================
@@ -58,6 +61,7 @@ export function JobFormPage() {
   const [loads, setLoads] = useState('');
   const [amount, setAmount] = useState('');
   const [ticketIds, setTicketIds] = useState('');
+  const [jobPaid, setJobPaid] = useState(false);
   const [driverPaid, setDriverPaid] = useState(false);
 
   // Lookup data
@@ -113,11 +117,14 @@ export function JobFormPage() {
         return l * rate;
       }
       case 'tonnage': {
-        // weight can be space-separated values
-        const weights = weight
-          .split(/[\s,]+/)
-          .map((w) => parseFloat(w))
-          .filter((w) => !isNaN(w) && w > 0);
+        // weight is stored as JSON array string "[22.5,22.5]" or space-separated
+        let weights: number[] = [];
+        if (weight.startsWith('[')) {
+          try { weights = JSON.parse(weight).filter((n: number) => !isNaN(n) && n > 0); } catch { /* ignore */ }
+        }
+        if (weights.length === 0) {
+          weights = weight.split(/[\s,]+/).map((w) => parseFloat(w)).filter((w) => !isNaN(w) && w > 0);
+        }
         if (weights.length === 0) return null;
         const totalWeight = weights.reduce((s, w) => s + w, 0);
         return totalWeight * rate;
@@ -133,7 +140,7 @@ export function JobFormPage() {
   useEffect(() => {
     if (!existingJob) return;
     setSourceType(existingJob.sourceType);
-    setJobDate(existingJob.jobDate);
+    setJobDate(String(existingJob.jobDate).slice(0, 10));
     setJobTypeId(existingJob.jobTypeId);
     setDriverId(existingJob.driverId ?? '');
     setUnitId(existingJob.unitId ?? '');
@@ -146,6 +153,7 @@ export function JobFormPage() {
     setLoads(existingJob.loads?.toString() ?? '');
     setAmount(existingJob.amount?.toString() ?? '');
     setTicketIds(existingJob.ticketIds ?? '');
+    setJobPaid(existingJob.jobPaid);
     setDriverPaid(existingJob.driverPaid);
 
     // We need to figure out which company this job type belongs to
@@ -182,6 +190,7 @@ export function JobFormPage() {
           ? parseFloat(carrierAmount)
           : null,
       ticketIds: ticketIds || null,
+      jobPaid,
       driverPaid,
     };
 
@@ -371,14 +380,14 @@ export function JobFormPage() {
 
             {/* Company */}
             <FormField label="Company" required>
-              <select
+              <Select
                 value={selectedCompanyId}
                 onChange={(e) => {
                   setSelectedCompanyId(e.target.value);
                   setJobTypeId(''); // Reset job type when company changes
                 }}
                 required
-                className="w-full px-4 py-3 bg-surface-container rounded-lg border-none text-sm font-medium focus:bg-white focus:ring-1 focus:ring-primary transition-all appearance-none"
+                icon="business"
               >
                 <option value="">Select Company</option>
                 {companiesData?.data.map((c) => (
@@ -386,17 +395,17 @@ export function JobFormPage() {
                     {c.name}
                   </option>
                 ))}
-              </select>
+              </Select>
             </FormField>
 
             {/* Job Type */}
             <FormField label="Job Type" required>
-              <select
+              <Select
                 value={jobTypeId}
                 onChange={(e) => setJobTypeId(e.target.value)}
                 required
                 disabled={!selectedCompanyId}
-                className="w-full px-4 py-3 bg-surface-container rounded-lg border-none text-sm font-medium focus:bg-white focus:ring-1 focus:ring-primary transition-all appearance-none disabled:opacity-50"
+                icon="work"
               >
                 <option value="">
                   {selectedCompanyId ? 'Select Job Type' : 'Select company first'}
@@ -409,7 +418,7 @@ export function JobFormPage() {
                     {jt.dispatchType}
                   </option>
                 ))}
-              </select>
+              </Select>
               {selectedJobType && (
                 <p className="text-[11px] text-slate-400 mt-1 ml-1">
                   Base rate: {formatCurrency(selectedJobType.rateOfJob)}
@@ -419,10 +428,10 @@ export function JobFormPage() {
 
             {/* Driver */}
             <FormField label="Driver">
-              <select
+              <Select
                 value={driverId}
                 onChange={(e) => setDriverId(e.target.value)}
-                className="w-full px-4 py-3 bg-surface-container rounded-lg border-none text-sm font-medium focus:bg-white focus:ring-1 focus:ring-primary transition-all appearance-none"
+                icon="person"
               >
                 <option value="">Select Driver</option>
                 {driversData?.data.map((d) => (
@@ -430,15 +439,15 @@ export function JobFormPage() {
                     {d.name}
                   </option>
                 ))}
-              </select>
+              </Select>
             </FormField>
 
             {/* Unit */}
             <FormField label="Unit / Truck">
-              <select
+              <Select
                 value={unitId}
                 onChange={(e) => setUnitId(e.target.value)}
-                className="w-full px-4 py-3 bg-surface-container rounded-lg border-none text-sm font-medium focus:bg-white focus:ring-1 focus:ring-primary transition-all appearance-none"
+                icon="local_shipping"
               >
                 <option value="">Select Unit</option>
                 {activeUnits.map((u) => (
@@ -447,7 +456,7 @@ export function JobFormPage() {
                     {u.plateNumber ? ` (${u.plateNumber})` : ''}
                   </option>
                 ))}
-              </select>
+              </Select>
             </FormField>
           </div>
         </div>
@@ -462,11 +471,11 @@ export function JobFormPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {sourceType === 'DISPATCHED' ? (
               <FormField label="Dispatcher" required>
-                <select
+                <Select
                   value={dispatcherId}
                   onChange={(e) => setDispatcherId(e.target.value)}
                   required
-                  className="w-full px-4 py-3 bg-white border border-outline-variant/30 rounded-lg text-sm font-medium focus:ring-1 focus:ring-primary transition-all appearance-none"
+                  icon="support_agent"
                 >
                   <option value="">Select Dispatcher</option>
                   {dispatchersData?.data.map((d) => (
@@ -474,15 +483,15 @@ export function JobFormPage() {
                       {d.name}
                     </option>
                   ))}
-                </select>
+                </Select>
               </FormField>
             ) : (
               <>
                 <FormField label="Carrier (optional)">
-                  <select
+                  <Select
                     value={carrierId}
                     onChange={(e) => setCarrierId(e.target.value)}
-                    className="w-full px-4 py-3 bg-white border border-outline-variant/30 rounded-lg text-sm font-medium focus:ring-1 focus:ring-primary transition-all appearance-none"
+                    icon="local_shipping"
                   >
                     <option value="">No Carrier (own driver)</option>
                     {activeCarriers.map((c) => (
@@ -490,7 +499,7 @@ export function JobFormPage() {
                         {c.name}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </FormField>
 
                 {carrierId && (
@@ -582,21 +591,15 @@ export function JobFormPage() {
                 </>
               )}
 
-              {/* Tonnage: Weight */}
+              {/* Tonnage: Weight Tags */}
               {showWeightField && (
                 <div className="col-span-2">
                   <FormField label="Weight (tons)" required>
-                    <input
-                      type="text"
+                    <WeightTagsInput
                       value={weight}
-                      onChange={(e) => setWeight(e.target.value)}
+                      onChange={setWeight}
                       required
-                      placeholder="e.g. 42.5 or multiple: 22.5 20.0"
-                      className="w-full px-4 py-3 bg-surface-container rounded-lg border-none text-sm font-medium focus:bg-white focus:ring-1 focus:ring-primary transition-all"
                     />
-                    <p className="text-[10px] text-slate-400 mt-1 ml-1">
-                      Enter a single weight or multiple weights separated by spaces.
-                    </p>
                   </FormField>
                 </div>
               )}
@@ -679,31 +682,56 @@ export function JobFormPage() {
             </FormField>
 
             <FormField label="Ticket IDs">
-              <textarea
+              <TagsInput
                 value={ticketIds}
-                onChange={(e) => setTicketIds(e.target.value)}
-                placeholder="Enter comma separated IDs..."
-                rows={3}
-                className="w-full px-4 py-3 bg-white rounded-lg border-none text-sm font-medium focus:ring-2 focus:ring-primary/20 transition-all resize-none"
+                onChange={setTicketIds}
+                placeholder="Type ticket # and press Enter..."
+                color="emerald"
               />
-              <p className="text-[10px] text-slate-400 mt-1">
-                Separate multiple ticket references with commas.
-              </p>
             </FormField>
 
-            <div className="flex items-center gap-3 pt-2">
-              <input
-                type="checkbox"
-                id="driverPaid"
-                checked={driverPaid}
-                onChange={(e) => setDriverPaid(e.target.checked)}
-                className="rounded border-slate-300 text-primary focus:ring-primary"
-              />
-              <label
-                htmlFor="driverPaid"
-                className="text-sm font-medium text-on-surface-variant"
-              >
-                Driver Paid
+            {/* Payment status checkboxes */}
+            <div className="flex flex-col gap-3 pt-2">
+              <label className="flex items-center gap-3 cursor-pointer group">
+                <input
+                  type="checkbox"
+                  checked={jobPaid}
+                  onChange={() => setJobPaid(!jobPaid)}
+                  className="sr-only peer"
+                />
+                <span className={`material-symbols-outlined text-[22px] transition-colors ${
+                  jobPaid
+                    ? 'filled text-emerald-500'
+                    : 'text-slate-300 group-hover:text-slate-400'
+                }`}>
+                  {jobPaid ? 'check_circle' : 'radio_button_unchecked'}
+                </span>
+                <span className={`text-sm font-medium transition-colors ${
+                  jobPaid ? 'text-emerald-700' : 'text-slate-500 group-hover:text-slate-700'
+                }`}>
+                  Payment Received
+                </span>
+              </label>
+
+              <label className="flex items-center gap-3 cursor-pointer group">
+                <input
+                  type="checkbox"
+                  checked={driverPaid}
+                  onChange={() => setDriverPaid(!driverPaid)}
+                  className="sr-only peer"
+                />
+                <span className={`material-symbols-outlined text-[22px] transition-colors ${
+                  driverPaid
+                    ? 'filled text-blue-500'
+                    : 'text-slate-300 group-hover:text-slate-400'
+                }`}>
+                  {driverPaid ? 'check_circle' : 'radio_button_unchecked'}
+                </span>
+                <span className={`text-sm font-medium transition-colors ${
+                  driverPaid ? 'text-blue-700' : 'text-slate-500 group-hover:text-slate-700'
+                }`}>
+                  Driver Paid
+                </span>
               </label>
             </div>
           </div>

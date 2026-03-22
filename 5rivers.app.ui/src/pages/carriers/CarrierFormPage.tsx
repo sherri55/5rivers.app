@@ -9,6 +9,7 @@ import {
 import { useToast } from '@/context/toast';
 import { PageSpinner, ButtonSpinner } from '@/components/ui/Spinner';
 import { ConfirmModal } from '@/components/ui/Modal';
+import { Select } from '@/components/ui/Select';
 import type { CarrierRateType, CarrierStatus } from '@/types';
 
 // ============================================
@@ -212,14 +213,14 @@ export function CarrierFormPage() {
             </FormField>
 
             <FormField label="Status">
-              <select
+              <Select
                 value={status}
                 onChange={(e) => setStatus(e.target.value as CarrierStatus)}
-                className="w-full bg-surface-container-low border-none rounded-lg p-3 text-sm focus:bg-white focus:ring-1 focus:ring-primary transition-all appearance-none"
+                icon="toggle_on"
               >
                 <option value="ACTIVE">Active</option>
                 <option value="INACTIVE">Inactive</option>
-              </select>
+              </Select>
             </FormField>
 
             <div className="md:col-span-2">
@@ -246,17 +247,17 @@ export function CarrierFormPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
             <FormField label="Rate Type" required>
-              <select
+              <Select
                 value={rateType}
                 onChange={(e) => setRateType(e.target.value as CarrierRateType)}
-                className="w-full bg-surface-container-low border-none rounded-lg p-3 text-sm focus:bg-white focus:ring-1 focus:ring-primary transition-all appearance-none"
+                icon="percent"
               >
                 <option value="PERCENTAGE">Percentage</option>
                 <option value="FLAT_PER_JOB">Flat per Job</option>
                 <option value="FLAT_PER_LOAD">Flat per Load</option>
                 <option value="FLAT_PER_TON">Flat per Ton</option>
                 <option value="HOURLY">Hourly</option>
-              </select>
+              </Select>
             </FormField>
 
             <FormField label={getRateLabel(rateType)}>

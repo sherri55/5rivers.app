@@ -7,6 +7,18 @@ export interface JobInvoiceLine {
   invoiceId: string;
   amount: number;
   addedAt: Date;
+  // Full job details (populated via JOIN)
+  jobDate?: string;
+  jobTypeId?: string;
+  driverId?: string | null;
+  dispatcherId?: string | null;
+  unitId?: string | null;
+  sourceType?: string;
+  weight?: string | null;
+  loads?: number | null;
+  startTime?: string | null;
+  endTime?: string | null;
+  ticketIds?: string | null;
 }
 
 export async function listJobsOnInvoice(
@@ -17,10 +29,13 @@ export async function listJobsOnInvoice(
   if (!invoice) return [];
 
   const rows = await query<JobInvoiceLine[]>(
-    `SELECT jobId, invoiceId, amount, addedAt
-     FROM JobInvoice
-     WHERE invoiceId = @invoiceId
-     ORDER BY addedAt`,
+    `SELECT ji.jobId, ji.invoiceId, ji.amount, ji.addedAt,
+            j.jobDate, j.jobTypeId, j.driverId, j.dispatcherId, j.unitId,
+            j.sourceType, j.weight, j.loads, j.startTime, j.endTime, j.ticketIds
+     FROM JobInvoice ji
+     LEFT JOIN Jobs j ON j.id = ji.jobId
+     WHERE ji.invoiceId = @invoiceId
+     ORDER BY j.jobDate, ji.addedAt`,
     { params: { invoiceId } }
   );
   return Array.isArray(rows) ? rows : [];

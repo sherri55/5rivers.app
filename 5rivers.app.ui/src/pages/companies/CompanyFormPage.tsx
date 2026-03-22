@@ -15,6 +15,7 @@ import { formatCurrency } from '@/lib/format';
 import { PageSpinner, ButtonSpinner } from '@/components/ui/Spinner';
 import { ConfirmModal } from '@/components/ui/Modal';
 import { Modal } from '@/components/ui/Modal';
+import { Select } from '@/components/ui/Select';
 import type { JobType } from '@/types';
 
 // ============================================
@@ -205,10 +206,10 @@ export function CompanyFormPage() {
             </FormField>
 
             <FormField label="Company Size">
-              <select
+              <Select
                 value={size}
                 onChange={(e) => setSize(e.target.value)}
-                className="w-full bg-surface-container-low border-none rounded-lg p-3 text-sm focus:bg-white focus:ring-1 focus:ring-primary transition-all appearance-none"
+                icon="groups"
               >
                 <option value="">Select size</option>
                 <option value="1-10">1-10 employees</option>
@@ -216,7 +217,7 @@ export function CompanyFormPage() {
                 <option value="51-200">51-200 employees</option>
                 <option value="201-500">201-500 employees</option>
                 <option value="500+">500+ employees</option>
-              </select>
+              </Select>
             </FormField>
 
             <FormField label="Founded Year">
@@ -542,16 +543,15 @@ function JobTypeModal({
 
         <div className="grid grid-cols-2 gap-4">
           <FormField label="Dispatch Type" required>
-            <select
+            <Select
               value={dispatchType}
               onChange={(e) => setDispatchType(e.target.value)}
-              className="w-full bg-surface-container-low border-none rounded-lg p-3 text-sm focus:bg-white focus:ring-1 focus:ring-primary transition-all appearance-none"
             >
               <option value="hourly">Hourly</option>
               <option value="load">Per Load</option>
               <option value="tonnage">Per Ton (Tonnage)</option>
               <option value="fixed">Fixed Amount</option>
-            </select>
+            </Select>
           </FormField>
 
           <FormField label={

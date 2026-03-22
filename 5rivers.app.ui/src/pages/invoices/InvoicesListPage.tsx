@@ -10,6 +10,7 @@ import { ConfirmModal } from '@/components/ui/Modal';
 import { DataTable, type Column } from '@/components/ui/DataTable';
 import { ColumnToggle } from '@/components/ui/ColumnToggle';
 import { ExportPdfButton } from '@/components/ui/ExportPdfButton';
+import { Select } from '@/components/ui/Select';
 import { pdfApi } from '@/api/endpoints';
 import { cn } from '@/lib/cn';
 import type { Invoice, PaginationParams } from '@/types';
@@ -278,33 +279,33 @@ export function InvoicesListPage() {
           />
         </div>
 
-        <select
+        <Select
+          variant="filter"
           value={statusFilter}
           onChange={(e) => {
             setStatusFilter(e.target.value);
             setPage(1);
           }}
-          className="appearance-none bg-surface-container-low border-none rounded-lg text-xs font-medium text-slate-600 pl-3 pr-10 py-2 focus:ring-1 focus:ring-primary cursor-pointer ghost-border"
         >
           <option value="">Status: All</option>
           <option value="CREATED">Created</option>
           <option value="RAISED">Raised</option>
           <option value="RECEIVED">Received</option>
-        </select>
+        </Select>
 
-        <select
+        <Select
+          variant="filter"
           value={dispatcherFilter}
           onChange={(e) => {
             setDispatcherFilter(e.target.value);
             setPage(1);
           }}
-          className="appearance-none bg-surface-container-low border-none rounded-lg text-xs font-medium text-slate-600 pl-3 pr-10 py-2 focus:ring-1 focus:ring-primary cursor-pointer ghost-border"
         >
           <option value="">All Dispatchers</option>
           {(dispatchersData?.data ?? []).map((d) => (
             <option key={d.id} value={d.id}>{d.name}</option>
           ))}
-        </select>
+        </Select>
 
         <ColumnToggle
           columns={toggleableColumns}

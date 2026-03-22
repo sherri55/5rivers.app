@@ -10,6 +10,7 @@ import { DataTable, type Column } from '@/components/ui/DataTable';
 import { ColumnToggle } from '@/components/ui/ColumnToggle';
 import { useColumnVisibility, type ColumnDef } from '@/hooks/useColumnVisibility';
 import { ExportPdfButton } from '@/components/ui/ExportPdfButton';
+import { Select } from '@/components/ui/Select';
 import { pdfApi } from '@/api/endpoints';
 import { cn } from '@/lib/cn';
 import type { Driver, PaginationParams, DriverPaySummary } from '@/types';
@@ -309,19 +310,19 @@ export function DriversListPage() {
               />
             </div>
 
-            <select
+            <Select
+              variant="filter"
               value={payTypeFilter}
               onChange={(e) => {
                 setPayTypeFilter(e.target.value);
                 setPage(1);
               }}
-              className="appearance-none bg-surface-container-low border-none rounded-lg text-xs font-medium text-slate-600 pl-3 pr-10 py-2 focus:ring-1 focus:ring-primary cursor-pointer ghost-border"
             >
               <option value="">Pay Type: All</option>
               <option value="HOURLY">Hourly</option>
               <option value="PERCENTAGE">Percentage</option>
               <option value="CUSTOM">Custom</option>
-            </select>
+            </Select>
 
             <ColumnToggle
               columns={toggleableColumns}
@@ -812,17 +813,16 @@ function RecordPaymentModal({
           <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-1.5">
             Payment Method
           </label>
-          <select
+          <Select
             value={paymentMethod}
             onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
-            className="w-full appearance-none px-4 py-2.5 bg-surface-container-low border-none rounded-lg text-sm focus:ring-1 focus:ring-primary cursor-pointer"
           >
             {PAYMENT_METHODS.map((m) => (
               <option key={m.value} value={m.value}>
                 {m.label}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
 
         <div>

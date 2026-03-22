@@ -189,12 +189,21 @@ export async function updateInvoice(
     { params }
   );
 
-  // Cascade: when status changes to RECEIVED, mark all linked jobs as driverPaid
+  // Cascade: when status changes to RECEIVED, mark all linked jobs as jobPaid (payment received from client)
   const newStatus = params.status as string;
   const oldStatus = existing.status;
   if (newStatus === 'RECEIVED' && oldStatus !== 'RECEIVED') {
     await query(
-      `UPDATE Jobs SET driverPaid = 1, updatedAt = GETUTCDATE()
+      `UPDATE Jobs SET jobPaid = 1, updatedAt = GETUTCDATE()
+       WHERE id IN (SELECT jobId FROM JobInvoice WHERE invoiceId = @invoiceId)
+       AND organizationId = @organizationId`,
+      { params: { invoiceId: input.id, organizationId } }
+    );
+  }
+  // If status reverts from RECEIVED, unmark jobPaid
+  if (oldStatus === 'RECEIVED' && newStatus !== 'RECEIVED') {
+    await query(
+      `UPDATE Jobs SET jobPaid = 0, updatedAt = GETUTCDATE()
        WHERE id IN (SELECT jobId FROM JobInvoice WHERE invoiceId = @invoiceId)
        AND organizationId = @organizationId`,
       { params: { invoiceId: input.id, organizationId } }

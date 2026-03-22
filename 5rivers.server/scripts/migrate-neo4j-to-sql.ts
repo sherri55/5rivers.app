@@ -31,8 +31,12 @@ const NEO4J_USER = process.env.NEO4J_USERNAME ?? process.env.NEO4J_USER ?? 'neo4
 const NEO4J_PASSWORD = process.env.NEO4J_PASSWORD ?? 'password';
 const NEO4J_DATABASE = process.env.NEO4J_DATABASE ?? 'neo4j';
 
-const DEFAULT_ORG_NAME = process.env.MIGRATION_ORG_NAME ?? '5rivers';
-const DEFAULT_ORG_SLUG = process.env.MIGRATION_ORG_SLUG ?? '5rivers';
+const DEFAULT_ORG_NAME = process.env.MIGRATION_ORG_NAME ?? '5 Rivers Trucking Inc';
+const DEFAULT_ORG_SLUG = process.env.MIGRATION_ORG_SLUG ?? 'demo';
+
+const DEMO_EMAIL = process.env.SUPER_ADMIN_EMAIL ?? 'demo@5rivers.app';
+const DEMO_PASSWORD = 'Demo123!';
+const DEMO_USER_NAME = '5 Rivers Admin';
 
 // ----- Helpers -----
 function toDateOrNull(v: unknown): string | null {
@@ -435,8 +439,8 @@ async function migrateJobs(orgId: string): Promise<void> {
       continue;
     }
     await sqlRun(
-      `INSERT INTO Jobs (id, organizationId, jobDate, jobTypeId, driverId, dispatcherId, unitId, weight, loads, startTime, endTime, amount, ticketIds, driverPaid, createdAt, updatedAt)
-       VALUES (@id, @organizationId, @jobDate, @jobTypeId, @driverId, @dispatcherId, @unitId, @weight, @loads, @startTime, @endTime, @amount, @ticketIds, @driverPaid, @createdAt, @updatedAt)`,
+      `INSERT INTO Jobs (id, organizationId, jobDate, jobTypeId, driverId, dispatcherId, unitId, sourceType, weight, loads, startTime, endTime, amount, ticketIds, jobPaid, driverPaid, createdAt, updatedAt)
+       VALUES (@id, @organizationId, @jobDate, @jobTypeId, @driverId, @dispatcherId, @unitId, @sourceType, @weight, @loads, @startTime, @endTime, @amount, @ticketIds, @jobPaid, @driverPaid, @createdAt, @updatedAt)`,
       {
         id,
         organizationId: orgId,
@@ -445,12 +449,14 @@ async function migrateJobs(orgId: string): Promise<void> {
         driverId: toStr(record.driverId) || null,
         dispatcherId: toStr(record.dispatcherId) || null,
         unitId: toStr(record.unitId) || null,
+        sourceType: toStr(record.dispatcherId) ? 'DISPATCHED' : 'DIRECT',
         weight: serializeArray(j.weight),
         loads: toNum(j.loads),
         startTime: toStr(j.startTime, 20),
         endTime: toStr(j.endTime, 20),
         amount: toNum(j.amount),
         ticketIds: serializeArray(j.ticketIds),
+        jobPaid: toBool(j.driverPaid),
         driverPaid: toBool(j.driverPaid),
         createdAt: toDateOrNull(j.createdAt),
         updatedAt: toDateOrNull(j.updatedAt),
@@ -521,19 +527,78 @@ async function migrateImages(): Promise<void> {
   console.log('  Images:', records.length);
 }
 
+async function createUserForOrg(orgId: string): Promise<void> {
+  const bcrypt = require('bcrypt');
+  const { v4: uuid } = await import('uuid');
+  const userId = uuid();
+  const passwordHash = await bcrypt.hash(DEMO_PASSWORD, 12);
+
+  // Clear existing users table (since we wiped everything)
+  const pool = await getSqlPool();
+  await pool.request().query('DELETE FROM Users');
+
+  await sqlRun(
+    `INSERT INTO Users (id, email, passwordHash, name, createdAt, updatedAt)
+     VALUES (@id, @email, @passwordHash, @name, GETUTCDATE(), GETUTCDATE())`,
+    { id: userId, email: DEMO_EMAIL, passwordHash, name: DEMO_USER_NAME }
+  );
+  await sqlRun(
+    `INSERT INTO OrganizationMember (userId, organizationId, role, createdAt)
+     VALUES (@userId, @organizationId, @role, GETUTCDATE())`,
+    { userId, organizationId: orgId, role: 'OWNER' }
+  );
+  console.log('  User created:', DEMO_EMAIL, '/ password:', DEMO_PASSWORD);
+}
+
+async function migrateDriverJobTypeRates(): Promise<void> {
+  const records = await neo4jRun(
+    `MATCH (d:Driver)-[:HAS_RATE]->(r:DriverRate)<-[:RATE_FOR]-(jt:JobType)
+     RETURN d.id as driverId, jt.id as jobTypeId, r`
+  );
+  const { v4: uuid } = await import('uuid');
+  for (const record of records) {
+    const driverId = toStr(record.driverId);
+    const jobTypeId = toStr(record.jobTypeId);
+    if (!driverId || !jobTypeId) continue;
+    const r = nodeProps(record, 'r');
+    const hourlyRate = toNum(r.hourlyRate);
+    const percentageRate = toNum(r.percentageRate);
+    const payType = percentageRate && percentageRate > 0 ? 'PERCENTAGE' : 'HOURLY';
+    await sqlRun(
+      `INSERT INTO DriverJobTypeRate (id, driverId, jobTypeId, payType, hourlyRate, percentageRate, createdAt, updatedAt)
+       VALUES (@id, @driverId, @jobTypeId, @payType, @hourlyRate, @percentageRate, @createdAt, @updatedAt)`,
+      {
+        id: uuid(),
+        driverId,
+        jobTypeId,
+        payType,
+        hourlyRate: hourlyRate ?? 0,
+        percentageRate: percentageRate ?? 0,
+        createdAt: toDateOrNull(r.createdAt),
+        updatedAt: toDateOrNull(r.updatedAt),
+      }
+    );
+  }
+  console.log('  DriverJobTypeRates:', records.length);
+}
+
 // ----- Clear SQL data (FK-safe order) -----
 async function clearAllMigrationData(): Promise<void> {
   const pool = await getSqlPool();
   const tables = [
     'JobDriverPay',
     'DriverPayment',
+    'CarrierPayments',
     'Images',
     'JobInvoice',
     'Jobs',
     'Invoices',
+    'DriverJobTypeRate',
     'JobTypes',
     'Companies',
+    'UnitEvents',
     'Units',
+    'Carriers',
     'Drivers',
     'Dispatchers',
     'OrganizationMember',
@@ -585,8 +650,9 @@ async function main(): Promise<void> {
   await clearAllMigrationData();
 
   try {
-    console.log('\n1. Organization');
+    console.log('\n1. Organization + User');
     const orgId = await getOrCreateDefaultOrg();
+    await createUserForOrg(orgId);
 
     console.log('\n2. Companies');
     await migrateCompanies(orgId);
@@ -614,10 +680,14 @@ async function main(): Promise<void> {
     console.log('\n9. JobInvoice');
     await migrateJobInvoice();
 
-    console.log('\n10. Images');
+    console.log('\n10. DriverJobTypeRates');
+    await migrateDriverJobTypeRates();
+
+    console.log('\n11. Images');
     await migrateImages();
 
     console.log('\nMigration completed.');
+    console.log('\n⚠️  Run "npm run db:seed" to re-create the demo user, then log in.');
   } catch (err) {
     console.error('Migration failed:', err);
     process.exit(1);

@@ -169,6 +169,7 @@ export interface Job {
   amount: number | null;
   carrierAmount: number | null;
   ticketIds: string | null;
+  jobPaid: boolean;
   driverPaid: boolean;
   createdAt: string;
   updatedAt: string;
@@ -189,6 +190,7 @@ export interface CreateJobInput {
   amount?: number | null;
   carrierAmount?: number | null;
   ticketIds?: string | null;
+  jobPaid?: boolean;
   driverPaid?: boolean;
 }
 
@@ -217,6 +219,18 @@ export interface JobInvoiceLine {
   invoiceId: string;
   amount: number;
   addedAt: string;
+  // Enriched fields from JOIN (returned by GET /invoices/:id/jobs)
+  jobDate?: string;
+  jobTypeId?: string;
+  driverId?: string | null;
+  dispatcherId?: string | null;
+  unitId?: string | null;
+  sourceType?: string;
+  weight?: string | null;
+  loads?: number | null;
+  startTime?: string | null;
+  endTime?: string | null;
+  ticketIds?: string | null;
 }
 
 // --- Driver Pay Summary ---
@@ -261,10 +275,4 @@ export interface DriverPayment {
   updatedAt: string;
 }
 
-// --- Invoice Job Lines ---
-export interface JobInvoiceLine {
-  jobId: string;
-  invoiceId: string;
-  amount: number;
-  addedAt: string;
-}
+// (JobInvoiceLine defined above)

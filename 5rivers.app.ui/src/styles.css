@@ -100,6 +100,17 @@ body {
   border: 1px solid rgba(195, 198, 215, 0.15);
 }
 
+/* Force-hide native select arrow across all browsers */
+.select-hide-arrow::-ms-expand {
+  display: none;
+}
+.select-hide-arrow {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-image: none !important;
+}
+
 /* Gradient button */
 .gradient-primary {
   background: linear-gradient(to bottom, var(--color-primary-container), var(--color-primary));
