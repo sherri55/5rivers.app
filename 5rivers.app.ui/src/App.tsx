@@ -23,6 +23,7 @@ import { CarrierFormPage } from '@/pages/carriers/CarrierFormPage';
 import { InvoicesListPage } from '@/pages/invoices/InvoicesListPage';
 import { InvoiceFormPage } from '@/pages/invoices/InvoiceFormPage';
 import { SettingsPage } from '@/pages/settings/SettingsPage';
+import { ReportsPage } from '@/pages/reports/ReportsPage';
 
 // ============================================
 // App Root — routing, providers, query client
@@ -118,6 +119,9 @@ export default function App() {
                 <Route path="/invoices" element={<InvoicesListPage />} />
                 <Route path="/invoices/new" element={<InvoiceFormPage />} />
                 <Route path="/invoices/:id/edit" element={<InvoiceFormPage />} />
+
+                {/* Reports */}
+                <Route path="/reports" element={<ReportsPage />} />
 
                 {/* Settings */}
                 <Route path="/settings" element={<SettingsPage />} />

@@ -72,6 +72,7 @@ export function useCarriers() {
  */
 export function useLookupMaps() {
   const companies = useCompanies();
+  const jobTypes = useJobTypes();
   const drivers = useDrivers();
   const dispatchers = useDispatchers();
   const units = useUnits();
@@ -79,6 +80,11 @@ export function useLookupMaps() {
   const companyMap = useMemo(
     () => new Map(companies.data?.data.map((c) => [c.id, c.name]) ?? []),
     [companies.data],
+  );
+
+  const jobTypeMap = useMemo(
+    () => new Map(jobTypes.data?.data.map((jt) => [jt.id, jt.title]) ?? []),
+    [jobTypes.data],
   );
 
   const driverMap = useMemo(
@@ -100,7 +106,7 @@ export function useLookupMaps() {
   );
 
   const isLoading =
-    companies.isLoading || drivers.isLoading || dispatchers.isLoading || units.isLoading;
+    companies.isLoading || jobTypes.isLoading || drivers.isLoading || dispatchers.isLoading || units.isLoading;
 
-  return { companyMap, driverMap, dispatcherMap, unitMap, isLoading };
+  return { companyMap, jobTypeMap, driverMap, dispatcherMap, unitMap, isLoading };
 }

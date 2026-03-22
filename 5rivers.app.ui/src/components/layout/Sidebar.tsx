@@ -21,6 +21,7 @@ const navItems: NavItem[] = [
   { label: 'Dispatchers', icon: 'support_agent', path: '/dispatchers' },
   { label: 'Carriers', icon: 'conveyor_belt', path: '/carriers' },
   { label: 'Invoices', icon: 'receipt_long', path: '/invoices' },
+  { label: 'Reports', icon: 'analytics', path: '/reports' },
 ];
 
 const bottomItems: NavItem[] = [

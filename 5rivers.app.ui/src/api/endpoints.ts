@@ -226,6 +226,75 @@ export const pdfApi = {
     downloadFile(`/export/carriers${buildQuery(params)}`, 'carriers-report.pdf'),
 };
 
+// --- Analytics ---
+
+export interface DashboardStats {
+  revenue: { total: number; thisMonth: number; lastMonth: number; thisWeek: number; today: number };
+  jobs: { total: number; thisMonth: number; lastMonth: number; thisWeek: number; today: number; unpaidCount: number; paidCount: number };
+  invoices: { total: number; totalOutstanding: number; createdCount: number; raisedCount: number; receivedCount: number };
+  drivers: { totalBalance: number; activeCount: number };
+  units: { total: number; activeCount: number; maintenanceCount: number; inactiveCount: number };
+  dateRange: { minDate: string | null; maxDate: string | null };
+}
+
+export interface DailyRevenue { date: string; revenue: number; jobs: number }
+export interface MonthlyRevenue { month: string; revenue: number; jobs: number }
+export interface CompanyRevenue { companyId: string; companyName: string; revenue: number; jobs: number }
+export interface DriverRevenue { driverId: string; driverName: string; revenue: number; jobs: number; paid: number; unpaid: number }
+export interface DispatcherRevenue { dispatcherId: string; dispatcherName: string; revenue: number; jobs: number; commission: number }
+export interface SourceTypeBreakdown { sourceType: string; count: number; revenue: number }
+export interface PaymentStatus { status: string; count: number; amount: number }
+export interface JobTypeRevenue { jobTypeId: string; jobTypeTitle: string; companyName: string; dispatchType: string; revenue: number; jobs: number }
+
+export const analyticsApi = {
+  dashboard: () => api.get<DashboardStats>('/analytics/dashboard'),
+  revenueDaily: (days?: number) => api.get<DailyRevenue[]>(`/analytics/revenue/daily${days ? `?days=${days}` : ''}`),
+  revenueMonthly: (months?: number) => api.get<MonthlyRevenue[]>(`/analytics/revenue/monthly${months ? `?months=${months}` : ''}`),
+  revenueByCompany: (startDate?: string, endDate?: string) => {
+    const p = new URLSearchParams();
+    if (startDate) p.set('startDate', startDate);
+    if (endDate) p.set('endDate', endDate);
+    const q = p.toString();
+    return api.get<CompanyRevenue[]>(`/analytics/revenue/by-company${q ? `?${q}` : ''}`);
+  },
+  revenueByDriver: (startDate?: string, endDate?: string) => {
+    const p = new URLSearchParams();
+    if (startDate) p.set('startDate', startDate);
+    if (endDate) p.set('endDate', endDate);
+    const q = p.toString();
+    return api.get<DriverRevenue[]>(`/analytics/revenue/by-driver${q ? `?${q}` : ''}`);
+  },
+  revenueByDispatcher: (startDate?: string, endDate?: string) => {
+    const p = new URLSearchParams();
+    if (startDate) p.set('startDate', startDate);
+    if (endDate) p.set('endDate', endDate);
+    const q = p.toString();
+    return api.get<DispatcherRevenue[]>(`/analytics/revenue/by-dispatcher${q ? `?${q}` : ''}`);
+  },
+  sourceBreakdown: (startDate?: string, endDate?: string) => {
+    const p = new URLSearchParams();
+    if (startDate) p.set('startDate', startDate);
+    if (endDate) p.set('endDate', endDate);
+    const q = p.toString();
+    return api.get<SourceTypeBreakdown[]>(`/analytics/source-breakdown${q ? `?${q}` : ''}`);
+  },
+  paymentStatus: (startDate?: string, endDate?: string) => {
+    const p = new URLSearchParams();
+    if (startDate) p.set('startDate', startDate);
+    if (endDate) p.set('endDate', endDate);
+    const q = p.toString();
+    return api.get<PaymentStatus[]>(`/analytics/payment-status${q ? `?${q}` : ''}`);
+  },
+  topJobTypes: (startDate?: string, endDate?: string, limit?: number) => {
+    const p = new URLSearchParams();
+    if (startDate) p.set('startDate', startDate);
+    if (endDate) p.set('endDate', endDate);
+    if (limit) p.set('limit', String(limit));
+    const q = p.toString();
+    return api.get<JobTypeRevenue[]>(`/analytics/top-job-types${q ? `?${q}` : ''}`);
+  },
+};
+
 // --- Invoice Jobs ---
 
 export const invoiceJobsApi = {

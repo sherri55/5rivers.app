@@ -14,6 +14,7 @@ import membersRoutes from './members.routes';
 import organizationsRoutes from './organizations.routes';
 import carriersRoutes from './carriers.routes';
 import pdfRoutes from './pdf.routes';
+import analyticsRoutes from './analytics.routes';
 
 const router = Router();
 
@@ -32,5 +33,6 @@ router.use('/api', driverPaymentsRoutes);
 router.use('/api', driverPayRoutes);
 router.use('/api', carriersRoutes);
 router.use('/api', pdfRoutes);
+router.use('/api', analyticsRoutes);
 
 export default router;
