@@ -26,6 +26,7 @@ export function DashboardPage() {
   const driverRevenue = useQuery({ queryKey: ['dashboard', 'drivers'], queryFn: () => analyticsApi.revenueByDriver() });
   const paymentStatus = useQuery({ queryKey: ['dashboard', 'payments'], queryFn: () => analyticsApi.paymentStatus() });
   const topJobTypes = useQuery({ queryKey: ['dashboard', 'jobTypes'], queryFn: () => analyticsApi.topJobTypes(undefined, undefined, 5) });
+  const monthlyProfit = useQuery({ queryKey: ['dashboard', 'monthlyProfit'], queryFn: () => analyticsApi.monthlyProfit(12) });
   const recentJobs = useQuery({
     queryKey: ['dashboard', 'recentJobs'],
     queryFn: () => jobsApi.list({ sortBy: 'jobDate', order: 'desc', limit: 10 }),
@@ -41,6 +42,8 @@ export function DashboardPage() {
     drivers: { totalBalance: 0, activeCount: 0 },
     units: { total: 0, activeCount: 0, maintenanceCount: 0, inactiveCount: 0 },
     dateRange: { minDate: null, maxDate: null },
+    expenses: { total: 0, thisMonth: 0, lastMonth: 0, thisWeek: 0, today: 0, count: 0 },
+    profit: { total: 0, thisMonth: 0, lastMonth: 0 },
   };
 
   const revenueChange = s.revenue.lastMonth > 0
@@ -48,6 +51,9 @@ export function DashboardPage() {
     : undefined;
   const jobsChange = s.jobs.lastMonth > 0
     ? ((s.jobs.thisMonth - s.jobs.lastMonth) / s.jobs.lastMonth * 100)
+    : undefined;
+  const profitChange = s.profit.lastMonth !== 0
+    ? ((s.profit.thisMonth - s.profit.lastMonth) / Math.abs(s.profit.lastMonth) * 100)
     : undefined;
 
   // Payment collection rate
@@ -87,7 +93,7 @@ export function DashboardPage() {
       </div>
 
       {/* Metric Cards Row 1 — Primary KPIs */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 md:gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4 md:gap-6">
         <MetricCard
           label="Total Revenue"
           value={formatCurrency(s.revenue.total)}
@@ -97,12 +103,29 @@ export function DashboardPage() {
           iconBg="bg-blue-100 text-blue-600"
         />
         <MetricCard
+          label="Total Expenses"
+          value={formatCurrency(s.expenses.total)}
+          subtext={`${formatCurrency(s.expenses.thisMonth)} this month`}
+          badge={`${s.expenses.count} entries`}
+          badgeColor="warning"
+          icon="account_balance"
+          iconBg="bg-red-100 text-red-600"
+        />
+        <MetricCard
+          label="Net Profit"
+          value={formatCurrency(s.profit.total)}
+          change={profitChange}
+          subtext={`${formatCurrency(s.profit.thisMonth)} this month`}
+          icon="trending_up"
+          iconBg={s.profit.total >= 0 ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}
+        />
+        <MetricCard
           label="Total Jobs"
           value={String(s.jobs.total)}
           change={jobsChange}
           subtext={`${s.jobs.thisMonth} this month`}
           icon="local_shipping"
-          iconBg="bg-emerald-100 text-emerald-600"
+          iconBg="bg-cyan-100 text-cyan-600"
         />
         <MetricCard
           label="Outstanding"
@@ -112,21 +135,14 @@ export function DashboardPage() {
           icon="receipt_long"
           iconBg="bg-amber-100 text-amber-600"
         />
-        <MetricCard
-          label="Driver Balance"
-          value={formatCurrency(s.drivers.totalBalance)}
-          badge={`${s.drivers.activeCount} drivers`}
-          badgeColor="info"
-          icon="account_balance_wallet"
-          iconBg="bg-purple-100 text-purple-600"
-        />
       </div>
 
       {/* Quick Stats Row — Period metrics */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <QuickStat label="Today" value={formatCurrency(s.revenue.today)} sub={`${s.jobs.today} jobs`} color="blue" />
-        <QuickStat label="This Week" value={formatCurrency(s.revenue.thisWeek)} sub={`${s.jobs.thisWeek} jobs`} color="emerald" />
-        <QuickStat label="Last Month" value={formatCurrency(s.revenue.lastMonth)} sub={`${s.jobs.lastMonth} jobs`} color="gray" />
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+        <QuickStat label="Revenue Today" value={formatCurrency(s.revenue.today)} sub={`${s.jobs.today} jobs`} color="blue" />
+        <QuickStat label="Revenue This Week" value={formatCurrency(s.revenue.thisWeek)} sub={`${s.jobs.thisWeek} jobs`} color="emerald" />
+        <QuickStat label="Expenses This Month" value={formatCurrency(s.expenses.thisMonth)} sub={`vs ${formatCurrency(s.expenses.lastMonth)} last month`} color="red" />
+        <QuickStat label="Profit This Month" value={formatCurrency(s.profit.thisMonth)} sub={`${s.profit.thisMonth >= 0 ? 'Positive' : 'Negative'}`} color={s.profit.thisMonth >= 0 ? 'emerald' : 'red'} />
         <QuickStat label="Collection Rate" value={`${collectionRate.toFixed(0)}%`} sub={`${received?.count ?? 0} of ${(received?.count ?? 0) + (outstanding?.count ?? 0)} jobs`} color="purple" />
       </div>
 
@@ -221,18 +237,32 @@ export function DashboardPage() {
 
       {/* Charts Row 2 — Monthly Bar + Sidebar (Companies / Invoice / Fleet) */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 md:gap-6">
-        {/* Monthly Revenue */}
+        {/* Monthly Profit — Revenue vs Expenses */}
         <div className="xl:col-span-7 rounded-2xl border border-gray-200 bg-white p-5 sm:p-6">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h3 className="text-lg font-semibold text-gray-800">Monthly Revenue</h3>
-              <p className="text-xs text-gray-500 mt-0.5">Revenue trend by month</p>
+              <h3 className="text-lg font-semibold text-gray-800">Monthly Profit</h3>
+              <p className="text-xs text-gray-500 mt-0.5">Revenue vs Expenses by month</p>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-full bg-[#465fff]" />
+                <span className="text-xs text-gray-500 font-medium">Revenue</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-full bg-[#ef4444]" />
+                <span className="text-xs text-gray-500 font-medium">Expenses</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-full bg-[#10b981]" />
+                <span className="text-xs text-gray-500 font-medium">Profit</span>
+              </div>
             </div>
           </div>
           <div className="h-[280px]">
-            {monthlyRevenue.isLoading ? <ChartSkeleton height={280} /> : (
+            {monthlyProfit.isLoading ? <ChartSkeleton height={280} /> : (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={monthlyRevenue.data ?? []} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+                <BarChart data={monthlyProfit.data ?? []} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
                   <XAxis
                     dataKey="month"
@@ -244,12 +274,14 @@ export function DashboardPage() {
                     axisLine={false} tickLine={false}
                   />
                   <YAxis
-                    tickFormatter={(v) => v >= 1000 ? `$${(v/1000).toFixed(0)}k` : `$${v}`}
+                    tickFormatter={(v) => v >= 1000 ? `$${(v/1000).toFixed(0)}k` : v <= -1000 ? `-$${(Math.abs(v)/1000).toFixed(0)}k` : `$${v}`}
                     tick={{ fontSize: 11, fill: '#6b7280' }}
                     axisLine={false} tickLine={false} width={55}
                   />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Bar dataKey="revenue" fill="#465fff" radius={[6, 6, 0, 0]} maxBarSize={36} />
+                  <Tooltip content={<ProfitTooltip />} />
+                  <Bar dataKey="revenue" fill="#465fff" radius={[4, 4, 0, 0]} maxBarSize={20} />
+                  <Bar dataKey="expenses" fill="#ef4444" radius={[4, 4, 0, 0]} maxBarSize={20} />
+                  <Bar dataKey="profit" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={20} />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -538,8 +570,8 @@ function MetricCard({ label, value, change, subtext, badge, badgeColor, icon, ic
   );
 }
 
-function QuickStat({ label, value, sub, color }: { label: string; value: string; sub: string; color: 'blue' | 'emerald' | 'gray' | 'purple' }) {
-  const borderColors = { blue: 'border-l-blue-500', emerald: 'border-l-emerald-500', gray: 'border-l-gray-400', purple: 'border-l-purple-500' };
+function QuickStat({ label, value, sub, color }: { label: string; value: string; sub: string; color: 'blue' | 'emerald' | 'gray' | 'purple' | 'red' }) {
+  const borderColors = { blue: 'border-l-blue-500', emerald: 'border-l-emerald-500', gray: 'border-l-gray-400', purple: 'border-l-purple-500', red: 'border-l-red-500' };
   return (
     <div className={`rounded-2xl border border-gray-200 bg-white p-4 border-l-4 ${borderColors[color]}`}>
       <p className="text-xs font-medium text-gray-500 mb-1">{label}</p>
@@ -607,6 +639,31 @@ function CustomTooltip({ active, payload, label }: any) {
       {payload[0]?.payload?.jobs !== undefined && (
         <p className="text-gray-400 mt-0.5">{payload[0].payload.jobs} jobs</p>
       )}
+    </div>
+  );
+}
+
+function ProfitTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null;
+  const d = payload[0]?.payload;
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white p-3 shadow-lg text-xs min-w-[160px]">
+      {label && <p className="font-semibold text-gray-700 mb-2">{label}</p>}
+      <div className="space-y-1">
+        <div className="flex justify-between gap-4">
+          <span className="text-[#465fff] font-medium">Revenue</span>
+          <span className="font-semibold text-gray-800">{formatCurrency(d?.revenue ?? 0)}</span>
+        </div>
+        <div className="flex justify-between gap-4">
+          <span className="text-[#ef4444] font-medium">Expenses</span>
+          <span className="font-semibold text-gray-800">{formatCurrency(d?.expenses ?? 0)}</span>
+        </div>
+        <div className="border-t border-gray-100 pt-1 flex justify-between gap-4">
+          <span className={`font-medium ${(d?.profit ?? 0) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>Profit</span>
+          <span className={`font-bold ${(d?.profit ?? 0) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{formatCurrency(d?.profit ?? 0)}</span>
+        </div>
+      </div>
+      {d?.jobs > 0 && <p className="text-gray-400 mt-1.5">{d.jobs} jobs</p>}
     </div>
   );
 }

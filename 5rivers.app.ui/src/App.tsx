@@ -24,6 +24,9 @@ import { InvoicesListPage } from '@/pages/invoices/InvoicesListPage';
 import { InvoiceFormPage } from '@/pages/invoices/InvoiceFormPage';
 import { SettingsPage } from '@/pages/settings/SettingsPage';
 import { ReportsPage } from '@/pages/reports/ReportsPage';
+import { ExpensesListPage } from '@/pages/expenses/ExpensesListPage';
+import { ExpenseFormPage } from '@/pages/expenses/ExpenseFormPage';
+import { ExpenseCategoriesPage } from '@/pages/expenses/ExpenseCategoriesPage';
 
 // ============================================
 // App Root — routing, providers, query client
@@ -119,6 +122,12 @@ export default function App() {
                 <Route path="/invoices" element={<InvoicesListPage />} />
                 <Route path="/invoices/new" element={<InvoiceFormPage />} />
                 <Route path="/invoices/:id/edit" element={<InvoiceFormPage />} />
+
+                {/* Expenses */}
+                <Route path="/expenses" element={<ExpensesListPage />} />
+                <Route path="/expenses/new" element={<ExpenseFormPage />} />
+                <Route path="/expenses/:id/edit" element={<ExpenseFormPage />} />
+                <Route path="/expenses/categories" element={<ExpenseCategoriesPage />} />
 
                 {/* Reports */}
                 <Route path="/reports" element={<ReportsPage />} />

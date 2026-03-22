@@ -4,6 +4,7 @@ import { analyticsApi, pdfApi } from '@/api/endpoints';
 import type {
   CompanyRevenue, DriverRevenue, DispatcherRevenue,
   SourceTypeBreakdown, PaymentStatus, JobTypeRevenue,
+  ExpenseByCategoryItem,
 } from '@/api/endpoints';
 import { formatCurrency } from '@/lib/format';
 import { Select } from '@/components/ui/Select';
@@ -18,7 +19,7 @@ import {
 // Reports Page — TailAdmin-inspired analytics
 // ============================================
 
-type ReportTab = 'overview' | 'companies' | 'drivers' | 'dispatchers' | 'job-types';
+type ReportTab = 'overview' | 'companies' | 'drivers' | 'dispatchers' | 'job-types' | 'expenses';
 
 const TABS: { key: ReportTab; label: string; icon: string }[] = [
   { key: 'overview', label: 'Overview', icon: 'dashboard' },
@@ -26,6 +27,7 @@ const TABS: { key: ReportTab; label: string; icon: string }[] = [
   { key: 'drivers', label: 'Drivers', icon: 'person' },
   { key: 'dispatchers', label: 'Dispatchers', icon: 'support_agent' },
   { key: 'job-types', label: 'Job Types', icon: 'work' },
+  { key: 'expenses', label: 'Expenses', icon: 'account_balance' },
 ];
 
 const PRESETS = [
@@ -76,11 +78,14 @@ export function ReportsPage() {
   const sourceData = useQuery({ queryKey: ['reports', 'source', startDate, endDate], queryFn: () => analyticsApi.sourceBreakdown(startDate, endDate) });
   const paymentData = useQuery({ queryKey: ['reports', 'payment', startDate, endDate], queryFn: () => analyticsApi.paymentStatus(startDate, endDate) });
   const jobTypeData = useQuery({ queryKey: ['reports', 'jobTypes', startDate, endDate], queryFn: () => analyticsApi.topJobTypes(startDate, endDate, 50) });
+  const expenseByCat = useQuery({ queryKey: ['reports', 'expensesByCat', startDate, endDate], queryFn: () => analyticsApi.expensesByCategory(startDate, endDate) });
 
   const isLoading = companyData.isLoading && driverData.isLoading;
   const totalRevenue = useMemo(() => (companyData.data ?? []).reduce((s, c) => s + c.revenue, 0), [companyData.data]);
   const totalJobs = useMemo(() => (companyData.data ?? []).reduce((s, c) => s + c.jobs, 0), [companyData.data]);
   const totalCommission = useMemo(() => (dispatcherData.data ?? []).reduce((s, d) => s + d.commission, 0), [dispatcherData.data]);
+  const totalExpenses = useMemo(() => (expenseByCat.data ?? []).reduce((s, e) => s + e.total, 0), [expenseByCat.data]);
+  const netProfit = totalRevenue - totalExpenses;
   const avgPerJob = totalJobs > 0 ? totalRevenue / totalJobs : 0;
 
   async function handleExport(type: string) {
@@ -162,10 +167,11 @@ export function ReportsPage() {
       </div>
 
       {/* Stat Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
         <MiniMetric label="Total Revenue" value={formatCurrency(totalRevenue)} icon="payments" color="blue" />
+        <MiniMetric label="Total Expenses" value={formatCurrency(totalExpenses)} icon="account_balance" color="red" />
+        <MiniMetric label="Net Profit" value={formatCurrency(netProfit)} icon="trending_up" color={netProfit >= 0 ? 'emerald' : 'red'} />
         <MiniMetric label="Total Jobs" value={String(totalJobs)} icon="local_shipping" color="emerald" />
-        <MiniMetric label="Companies" value={String((companyData.data ?? []).length)} icon="business" color="purple" />
         <MiniMetric label="Commission" value={formatCurrency(totalCommission)} icon="percent" color="amber" />
         <MiniMetric label="Avg / Job" value={formatCurrency(avgPerJob)} icon="analytics" color="cyan" />
       </div>
@@ -193,6 +199,7 @@ export function ReportsPage() {
           {activeTab === 'drivers' && <DriversTab data={driverData.data ?? []} />}
           {activeTab === 'dispatchers' && <DispatchersTab data={dispatcherData.data ?? []} />}
           {activeTab === 'job-types' && <JobTypesTab data={jobTypeData.data ?? []} />}
+          {activeTab === 'expenses' && <ExpensesTab data={expenseByCat.data ?? []} totalRevenue={totalRevenue} />}
         </>
       )}
     </div>
@@ -414,13 +421,14 @@ function JobTypesTab({ data }: { data: JobTypeRevenue[] }) {
 // Shared Components
 // ============================================
 
-function MiniMetric({ label, value, icon, color }: { label: string; value: string; icon: string; color: 'blue' | 'emerald' | 'purple' | 'amber' | 'cyan' }) {
+function MiniMetric({ label, value, icon, color }: { label: string; value: string; icon: string; color: 'blue' | 'emerald' | 'purple' | 'amber' | 'cyan' | 'red' }) {
   const styles: Record<string, string> = {
     blue: 'bg-blue-50 text-blue-600',
     emerald: 'bg-emerald-50 text-emerald-600',
     purple: 'bg-purple-50 text-purple-600',
     amber: 'bg-amber-50 text-amber-600',
     cyan: 'bg-cyan-50 text-cyan-600',
+    red: 'bg-red-50 text-red-600',
   };
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-4 sm:p-5 flex items-center gap-3">
@@ -530,6 +538,103 @@ function ProgressCell({ value, color }: { value: number; color: string }) {
 function Badge({ value, color }: { value: number | string; color: 'emerald' | 'amber' | 'gray' }) {
   const s = { emerald: 'bg-emerald-50 text-emerald-700', amber: 'bg-amber-50 text-amber-700', gray: 'bg-gray-100 text-gray-500' };
   return <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-bold ${s[color]}`}>{value}</span>;
+}
+
+function ExpensesTab({ data, totalRevenue }: { data: ExpenseByCategoryItem[]; totalRevenue: number }) {
+  const totalExp = data.reduce((s, e) => s + e.total, 0);
+  const maxExp = Math.max(...data.map(e => e.total), 1);
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        {/* Donut */}
+        <ChartCard title="Expenses by Category" subtitle="Distribution across categories">
+          {data.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-8">No expense data for this period</p>
+          ) : (
+            <div className="h-[280px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={data} cx="50%" cy="50%" innerRadius={60} outerRadius={100} dataKey="total" nameKey="categoryName" strokeWidth={3} stroke="#fff">
+                    {data.map((e, i) => (
+                      <Cell key={i} fill={e.categoryColor || COLORS[i % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip content={<TT />} />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </ChartCard>
+
+        {/* Category breakdown */}
+        <ChartCard title="Category Breakdown" subtitle={`Total: ${formatCurrency(totalExp)} across ${data.length} categories`}>
+          <div className="space-y-3">
+            {data.map((e, i) => (
+              <div key={e.categoryId ?? 'none'}>
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-2">
+                    <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: e.categoryColor || COLORS[i % COLORS.length] }} />
+                    <span className="text-sm font-medium text-gray-700">{e.categoryName}</span>
+                    <span className="text-[10px] text-gray-400">{e.count} entries</span>
+                  </div>
+                  <span className="text-sm font-semibold text-gray-800">{formatCurrency(e.total)}</span>
+                </div>
+                <div className="h-1.5 w-full rounded-full bg-gray-100">
+                  <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{ width: `${(e.total / maxExp) * 100}%`, backgroundColor: e.categoryColor || COLORS[i % COLORS.length] }}
+                  />
+                </div>
+              </div>
+            ))}
+            {data.length === 0 && (
+              <p className="text-sm text-gray-400 text-center py-8">No expense data</p>
+            )}
+          </div>
+        </ChartCard>
+      </div>
+
+      {/* Expense vs Revenue summary */}
+      {totalRevenue > 0 && totalExp > 0 && (
+        <div className="rounded-2xl border border-gray-200 bg-white p-5 sm:p-6">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">Expense Ratio</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="rounded-xl bg-blue-50 p-4 text-center">
+              <p className="text-xs font-bold uppercase tracking-wider text-blue-500 mb-1">Revenue</p>
+              <p className="text-xl font-bold text-blue-700">{formatCurrency(totalRevenue)}</p>
+            </div>
+            <div className="rounded-xl bg-red-50 p-4 text-center">
+              <p className="text-xs font-bold uppercase tracking-wider text-red-500 mb-1">Expenses</p>
+              <p className="text-xl font-bold text-red-700">{formatCurrency(totalExp)}</p>
+              <p className="text-[10px] text-red-400 mt-1">{totalRevenue > 0 ? `${(totalExp / totalRevenue * 100).toFixed(1)}% of revenue` : ''}</p>
+            </div>
+            <div className={`rounded-xl p-4 text-center ${totalRevenue - totalExp >= 0 ? 'bg-emerald-50' : 'bg-red-50'}`}>
+              <p className={`text-xs font-bold uppercase tracking-wider mb-1 ${totalRevenue - totalExp >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>Net Profit</p>
+              <p className={`text-xl font-bold ${totalRevenue - totalExp >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{formatCurrency(totalRevenue - totalExp)}</p>
+              <p className={`text-[10px] mt-1 ${totalRevenue - totalExp >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                {totalRevenue > 0 ? `${((totalRevenue - totalExp) / totalRevenue * 100).toFixed(1)}% margin` : ''}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Table */}
+      <ReportTable
+        headers={['Category', 'Count', 'Total', '% of Total']}
+        rows={data.map((e, i) => ({
+          cells: [
+            <CellWithDot key="name" color={e.categoryColor || COLORS[i % COLORS.length]} text={e.categoryName} />,
+            <span key="count" className="font-semibold">{e.count}</span>,
+            <span key="total" className="font-bold text-red-600">{formatCurrency(e.total)}</span>,
+            <ProgressCell key="pct" value={totalExp > 0 ? e.total / totalExp : 0} color={e.categoryColor || COLORS[i % COLORS.length]} />,
+          ],
+        }))}
+        footerCells={['Total', String(data.reduce((s, e) => s + e.count, 0)), formatCurrency(totalExp), '100%']}
+      />
+    </div>
+  );
 }
 
 function TT({ active, payload, label }: any) {

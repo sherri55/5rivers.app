@@ -45,6 +45,19 @@ export interface DashboardStats {
     minDate: string | null;
     maxDate: string | null;
   };
+  expenses: {
+    total: number;
+    thisMonth: number;
+    lastMonth: number;
+    thisWeek: number;
+    today: number;
+    count: number;
+  };
+  profit: {
+    total: number;
+    thisMonth: number;
+    lastMonth: number;
+  };
 }
 
 export async function getDashboardStats(organizationId: string): Promise<DashboardStats> {
@@ -119,18 +132,40 @@ export async function getDashboardStats(organizationId: string): Promise<Dashboa
     { params: { organizationId } }
   );
 
+  const expenseRows = await query<any[]>(
+    `SELECT
+      COUNT(*) AS expenseCount,
+      COALESCE(SUM(amount), 0) AS expenseTotal,
+      COALESCE(SUM(CASE WHEN expenseDate >= DATEFROMPARTS(YEAR(GETUTCDATE()), MONTH(GETUTCDATE()), 1) THEN amount END), 0) AS expenseThisMonth,
+      COALESCE(SUM(CASE WHEN expenseDate >= DATEADD(MONTH, -1, DATEFROMPARTS(YEAR(GETUTCDATE()), MONTH(GETUTCDATE()), 1))
+                         AND expenseDate <  DATEFROMPARTS(YEAR(GETUTCDATE()), MONTH(GETUTCDATE()), 1)
+                    THEN amount END), 0) AS expenseLastMonth,
+      COALESCE(SUM(CASE WHEN expenseDate >= DATEADD(DAY, 1-DATEPART(WEEKDAY, GETUTCDATE()), CAST(GETUTCDATE() AS DATE)) THEN amount END), 0) AS expenseThisWeek,
+      COALESCE(SUM(CASE WHEN expenseDate = CAST(GETUTCDATE() AS DATE) THEN amount END), 0) AS expenseToday
+    FROM Expenses WHERE organizationId = @organizationId`,
+    { params: { organizationId } }
+  );
+
   const r = rows[0] || {};
   const inv = invoiceRows[0] || {};
   const outstanding = outstandingRows[0] || {};
   const drv = driverRows[0] || {};
   const bal = balanceRows[0] || {};
   const u = unitRows[0] || {};
+  const exp = expenseRows[0] || {};
+
+  const revenueTotal = r.revenueTotal ?? 0;
+  const revenueThisMonth = r.revenueThisMonth ?? 0;
+  const revenueLastMonth = r.revenueLastMonth ?? 0;
+  const expTotal = exp.expenseTotal ?? 0;
+  const expThisMonth = exp.expenseThisMonth ?? 0;
+  const expLastMonth = exp.expenseLastMonth ?? 0;
 
   return {
     revenue: {
-      total: r.revenueTotal ?? 0,
-      thisMonth: r.revenueThisMonth ?? 0,
-      lastMonth: r.revenueLastMonth ?? 0,
+      total: revenueTotal,
+      thisMonth: revenueThisMonth,
+      lastMonth: revenueLastMonth,
       thisWeek: r.revenueThisWeek ?? 0,
       today: r.revenueToday ?? 0,
     },
@@ -163,6 +198,19 @@ export async function getDashboardStats(organizationId: string): Promise<Dashboa
     dateRange: {
       minDate: r.minDate ?? null,
       maxDate: r.maxDate ?? null,
+    },
+    expenses: {
+      total: expTotal,
+      thisMonth: expThisMonth,
+      lastMonth: expLastMonth,
+      thisWeek: exp.expenseThisWeek ?? 0,
+      today: exp.expenseToday ?? 0,
+      count: exp.expenseCount ?? 0,
+    },
+    profit: {
+      total: revenueTotal - expTotal,
+      thisMonth: revenueThisMonth - expThisMonth,
+      lastMonth: revenueLastMonth - expLastMonth,
     },
   };
 }
@@ -391,6 +439,110 @@ export interface JobTypeRevenue {
   dispatchType: string;
   revenue: number;
   jobs: number;
+}
+
+// --- Expense breakdown by category ---
+
+export interface ExpenseByCategoryItem {
+  categoryId: string | null;
+  categoryName: string;
+  categoryColor: string | null;
+  total: number;
+  count: number;
+}
+
+export async function getExpensesByCategory(
+  organizationId: string,
+  startDate?: string,
+  endDate?: string
+): Promise<ExpenseByCategoryItem[]> {
+  let dateFilter = '';
+  const params: Record<string, unknown> = { organizationId };
+  if (startDate) { dateFilter += ' AND e.expenseDate >= @startDate'; params.startDate = startDate; }
+  if (endDate) { dateFilter += ' AND e.expenseDate <= @endDate'; params.endDate = endDate; }
+
+  return query<ExpenseByCategoryItem[]>(
+    `SELECT
+      e.categoryId,
+      COALESCE(ec.name, 'Uncategorized') AS categoryName,
+      ec.color AS categoryColor,
+      COALESCE(SUM(e.amount), 0) AS total,
+      COUNT(*) AS count
+    FROM Expenses e
+    LEFT JOIN ExpenseCategories ec ON ec.id = e.categoryId
+    WHERE e.organizationId = @organizationId ${dateFilter}
+    GROUP BY e.categoryId, ec.name, ec.color
+    ORDER BY total DESC`,
+    { params }
+  );
+}
+
+// --- Monthly expenses trend ---
+
+export interface MonthlyExpense {
+  month: string;
+  expenses: number;
+  count: number;
+}
+
+export async function getMonthlyExpenses(
+  organizationId: string,
+  months: number = 24
+): Promise<MonthlyExpense[]> {
+  return query<MonthlyExpense[]>(
+    `SELECT
+      FORMAT(e.expenseDate, 'yyyy-MM') AS month,
+      COALESCE(SUM(e.amount), 0) AS expenses,
+      COUNT(*) AS count
+    FROM Expenses e
+    WHERE e.organizationId = @organizationId
+      AND e.expenseDate >= DATEADD(MONTH, -@months, GETUTCDATE())
+    GROUP BY FORMAT(e.expenseDate, 'yyyy-MM')
+    ORDER BY month`,
+    { params: { organizationId, months } }
+  );
+}
+
+// --- Monthly profit (revenue - expenses) ---
+
+export interface MonthlyProfit {
+  month: string;
+  revenue: number;
+  expenses: number;
+  profit: number;
+  jobs: number;
+}
+
+export async function getMonthlyProfit(
+  organizationId: string,
+  months: number = 12
+): Promise<MonthlyProfit[]> {
+  return query<MonthlyProfit[]>(
+    `SELECT
+      m.month,
+      COALESCE(r.revenue, 0) AS revenue,
+      COALESCE(x.expenses, 0) AS expenses,
+      COALESCE(r.revenue, 0) - COALESCE(x.expenses, 0) AS profit,
+      COALESCE(r.jobs, 0) AS jobs
+    FROM (
+      SELECT FORMAT(j.jobDate, 'yyyy-MM') AS month FROM Jobs j WHERE j.organizationId = @organizationId
+      UNION
+      SELECT FORMAT(e.expenseDate, 'yyyy-MM') AS month FROM Expenses e WHERE e.organizationId = @organizationId
+    ) m
+    LEFT JOIN (
+      SELECT FORMAT(j.jobDate, 'yyyy-MM') AS month, SUM(j.amount) AS revenue, COUNT(*) AS jobs
+      FROM Jobs j WHERE j.organizationId = @organizationId
+      GROUP BY FORMAT(j.jobDate, 'yyyy-MM')
+    ) r ON r.month = m.month
+    LEFT JOIN (
+      SELECT FORMAT(e.expenseDate, 'yyyy-MM') AS month, SUM(e.amount) AS expenses
+      FROM Expenses e WHERE e.organizationId = @organizationId
+      GROUP BY FORMAT(e.expenseDate, 'yyyy-MM')
+    ) x ON x.month = m.month
+    WHERE m.month >= FORMAT(DATEADD(MONTH, -@months, GETUTCDATE()), 'yyyy-MM')
+    ORDER BY m.month`,
+    { params: { organizationId, months } }
+  );
 }
 
 export async function getTopJobTypes(

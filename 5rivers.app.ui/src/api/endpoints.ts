@@ -21,6 +21,10 @@ import type {
   DriverPaySummary,
   DriverPayment,
   JobInvoiceLine,
+  ExpenseCategory,
+  Expense,
+  CreateExpenseInput,
+  UpdateExpenseInput,
 } from '@/types';
 
 // --- Helpers ---
@@ -226,6 +230,28 @@ export const pdfApi = {
     downloadFile(`/export/carriers${buildQuery(params)}`, 'carriers-report.pdf'),
 };
 
+// --- Expense Categories ---
+
+export const expenseCategoriesApi = {
+  list: (params?: PaginationParams) =>
+    api.get<ListResult<ExpenseCategory>>(`/expense-categories${buildQuery(params)}`),
+  get: (id: string) => api.get<ExpenseCategory>(`/expense-categories/${id}`),
+  create: (data: Partial<ExpenseCategory>) => api.post<ExpenseCategory>('/expense-categories', data),
+  update: (id: string, data: Partial<ExpenseCategory>) => api.patch<ExpenseCategory>(`/expense-categories/${id}`, data),
+  delete: (id: string) => api.delete(`/expense-categories/${id}`),
+};
+
+// --- Expenses ---
+
+export const expensesApi = {
+  list: (params?: PaginationParams) =>
+    api.get<ListResult<Expense>>(`/expenses${buildQuery(params)}`),
+  get: (id: string) => api.get<Expense>(`/expenses/${id}`),
+  create: (data: CreateExpenseInput) => api.post<Expense>('/expenses', data),
+  update: (id: string, data: UpdateExpenseInput) => api.patch<Expense>(`/expenses/${id}`, data),
+  delete: (id: string) => api.delete(`/expenses/${id}`),
+};
+
 // --- Analytics ---
 
 export interface DashboardStats {
@@ -235,6 +261,8 @@ export interface DashboardStats {
   drivers: { totalBalance: number; activeCount: number };
   units: { total: number; activeCount: number; maintenanceCount: number; inactiveCount: number };
   dateRange: { minDate: string | null; maxDate: string | null };
+  expenses: { total: number; thisMonth: number; lastMonth: number; thisWeek: number; today: number; count: number };
+  profit: { total: number; thisMonth: number; lastMonth: number };
 }
 
 export interface DailyRevenue { date: string; revenue: number; jobs: number }
@@ -245,6 +273,9 @@ export interface DispatcherRevenue { dispatcherId: string; dispatcherName: strin
 export interface SourceTypeBreakdown { sourceType: string; count: number; revenue: number }
 export interface PaymentStatus { status: string; count: number; amount: number }
 export interface JobTypeRevenue { jobTypeId: string; jobTypeTitle: string; companyName: string; dispatchType: string; revenue: number; jobs: number }
+export interface ExpenseByCategoryItem { categoryId: string | null; categoryName: string; categoryColor: string | null; total: number; count: number }
+export interface MonthlyExpense { month: string; expenses: number; count: number }
+export interface MonthlyProfit { month: string; revenue: number; expenses: number; profit: number; jobs: number }
 
 export const analyticsApi = {
   dashboard: () => api.get<DashboardStats>('/analytics/dashboard'),
@@ -293,6 +324,15 @@ export const analyticsApi = {
     const q = p.toString();
     return api.get<JobTypeRevenue[]>(`/analytics/top-job-types${q ? `?${q}` : ''}`);
   },
+  expensesByCategory: (startDate?: string, endDate?: string) => {
+    const p = new URLSearchParams();
+    if (startDate) p.set('startDate', startDate);
+    if (endDate) p.set('endDate', endDate);
+    const q = p.toString();
+    return api.get<ExpenseByCategoryItem[]>(`/analytics/expenses/by-category${q ? `?${q}` : ''}`);
+  },
+  monthlyExpenses: (months?: number) => api.get<MonthlyExpense[]>(`/analytics/expenses/monthly${months ? `?months=${months}` : ''}`),
+  monthlyProfit: (months?: number) => api.get<MonthlyProfit[]>(`/analytics/profit/monthly${months ? `?months=${months}` : ''}`),
 };
 
 // --- Invoice Jobs ---

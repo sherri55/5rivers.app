@@ -15,6 +15,8 @@ import organizationsRoutes from './organizations.routes';
 import carriersRoutes from './carriers.routes';
 import pdfRoutes from './pdf.routes';
 import analyticsRoutes from './analytics.routes';
+import expenseCategoriesRoutes from './expenseCategories.routes';
+import expensesRoutes from './expenses.routes';
 
 const router = Router();
 
@@ -34,5 +36,7 @@ router.use('/api', driverPayRoutes);
 router.use('/api', carriersRoutes);
 router.use('/api', pdfRoutes);
 router.use('/api', analyticsRoutes);
+router.use('/api', expenseCategoriesRoutes);
+router.use('/api', expensesRoutes);
 
 export default router;

@@ -275,4 +275,54 @@ export interface DriverPayment {
   updatedAt: string;
 }
 
+// --- Expense Categories ---
+export interface ExpenseCategory {
+  id: string;
+  organizationId: string;
+  name: string;
+  description: string | null;
+  color: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// --- Expenses ---
+export type ExpensePaymentMethod = 'CASH' | 'CHECK' | 'BANK_TRANSFER' | 'E_TRANSFER' | 'CREDIT_CARD' | 'OTHER';
+export type RecurringFrequency = 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'YEARLY';
+
+export interface Expense {
+  id: string;
+  organizationId: string;
+  categoryId: string | null;
+  description: string;
+  amount: number;
+  expenseDate: string;
+  vendor: string | null;
+  paymentMethod: ExpensePaymentMethod;
+  reference: string | null;
+  notes: string | null;
+  recurring: boolean;
+  recurringFrequency: RecurringFrequency | null;
+  createdAt: string;
+  updatedAt: string;
+  categoryName?: string | null;
+  categoryColor?: string | null;
+}
+
+export interface CreateExpenseInput {
+  categoryId?: string | null;
+  description: string;
+  amount: number;
+  expenseDate: string;
+  vendor?: string | null;
+  paymentMethod?: ExpensePaymentMethod;
+  reference?: string | null;
+  notes?: string | null;
+  recurring?: boolean;
+  recurringFrequency?: RecurringFrequency | null;
+}
+
+export type UpdateExpenseInput = Partial<CreateExpenseInput>;
+
 // (JobInvoiceLine defined above)

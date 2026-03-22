@@ -112,4 +112,40 @@ router.get('/analytics/top-job-types', requireAuth, async (req: Request, res: Re
   }
 });
 
+// GET /analytics/expenses/by-category?startDate=&endDate= — expense breakdown by category
+router.get('/analytics/expenses/by-category', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const orgId = req.user!.organizationId;
+    const { startDate, endDate } = req.query;
+    const data = await analytics.getExpensesByCategory(orgId, startDate as string, endDate as string);
+    res.json(data);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /analytics/expenses/monthly?months=24 — monthly expense trend
+router.get('/analytics/expenses/monthly', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const orgId = req.user!.organizationId;
+    const months = parseInt(req.query.months as string) || 24;
+    const data = await analytics.getMonthlyExpenses(orgId, months);
+    res.json(data);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /analytics/profit/monthly?months=12 — monthly profit (revenue - expenses)
+router.get('/analytics/profit/monthly', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const orgId = req.user!.organizationId;
+    const months = parseInt(req.query.months as string) || 12;
+    const data = await analytics.getMonthlyProfit(orgId, months);
+    res.json(data);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;

@@ -2,6 +2,8 @@
 -- Run with: npm run db:schema
 -- Requires SQL Server 2016+ (DROP TABLE IF EXISTS). Ids are VARCHAR(36) (UUIDs).
 
+DROP TABLE IF EXISTS Expenses;
+DROP TABLE IF EXISTS ExpenseCategories;
 DROP TABLE IF EXISTS JobInvoice;
 DROP TABLE IF EXISTS Images;
 DROP TABLE IF EXISTS JobDriverPay;
@@ -302,6 +304,41 @@ CREATE TABLE CarrierPayments (
   CONSTRAINT CK_CarrierPayments_method CHECK (paymentMethod IN ('CASH','CHECK','BANK_TRANSFER','E_TRANSFER','OTHER'))
 );
 
+-- Expense Categories
+CREATE TABLE ExpenseCategories (
+  id VARCHAR(36) NOT NULL PRIMARY KEY,
+  organizationId VARCHAR(36) NOT NULL,
+  name NVARCHAR(255) NOT NULL,
+  description NVARCHAR(500) NULL,
+  color NVARCHAR(20) NULL,
+  isActive BIT NOT NULL DEFAULT 1,
+  createdAt DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+  updatedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+  CONSTRAINT FK_ExpenseCategories_Organization FOREIGN KEY (organizationId) REFERENCES Organizations(id) ON DELETE CASCADE
+);
+
+-- Expenses
+CREATE TABLE Expenses (
+  id VARCHAR(36) NOT NULL PRIMARY KEY,
+  organizationId VARCHAR(36) NOT NULL,
+  categoryId VARCHAR(36) NULL,
+  description NVARCHAR(500) NOT NULL,
+  amount DECIMAL(18,2) NOT NULL,
+  expenseDate DATE NOT NULL,
+  vendor NVARCHAR(255) NULL,
+  paymentMethod NVARCHAR(50) NOT NULL DEFAULT 'OTHER',
+  reference NVARCHAR(500) NULL,
+  notes NVARCHAR(MAX) NULL,
+  recurring BIT NOT NULL DEFAULT 0,
+  recurringFrequency NVARCHAR(20) NULL,
+  createdAt DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+  updatedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+  CONSTRAINT FK_Expenses_Organization FOREIGN KEY (organizationId) REFERENCES Organizations(id) ON DELETE CASCADE,
+  CONSTRAINT FK_Expenses_Category FOREIGN KEY (categoryId) REFERENCES ExpenseCategories(id),
+  CONSTRAINT CK_Expenses_paymentMethod CHECK (paymentMethod IN ('CASH','CHECK','BANK_TRANSFER','E_TRANSFER','CREDIT_CARD','OTHER')),
+  CONSTRAINT CK_Expenses_recurringFrequency CHECK (recurringFrequency IS NULL OR recurringFrequency IN ('WEEKLY','BIWEEKLY','MONTHLY','QUARTERLY','YEARLY'))
+);
+
 -- Indexes
 CREATE INDEX IX_Companies_organizationId ON Companies(organizationId);
 CREATE INDEX IX_JobTypes_companyId ON JobTypes(companyId);
@@ -331,3 +368,7 @@ CREATE INDEX IX_JobDriverPay_driverId ON JobDriverPay(driverId);
 CREATE INDEX IX_JobDriverPay_paidAt ON JobDriverPay(paidAt);
 CREATE INDEX IX_CarrierPayments_carrierId ON CarrierPayments(carrierId);
 CREATE INDEX IX_CarrierPayments_organizationId ON CarrierPayments(organizationId);
+CREATE INDEX IX_ExpenseCategories_organizationId ON ExpenseCategories(organizationId);
+CREATE INDEX IX_Expenses_organizationId ON Expenses(organizationId);
+CREATE INDEX IX_Expenses_categoryId ON Expenses(categoryId);
+CREATE INDEX IX_Expenses_expenseDate ON Expenses(expenseDate);
