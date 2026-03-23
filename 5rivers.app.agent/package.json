@@ -12,10 +12,11 @@
     "whatsapp": "node dist/transports/whatsapp-main.js"
   },
   "dependencies": {
+    "dotenv": "^16.4.0",
+    "groq-sdk": "^1.1.1",
     "ollama": "^0.5.0",
     "telegraf": "^4.16.0",
-    "whatsapp-web.js": "^1.26.0",
-    "dotenv": "^16.4.0"
+    "whatsapp-web.js": "^1.26.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

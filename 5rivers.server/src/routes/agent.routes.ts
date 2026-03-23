@@ -23,13 +23,13 @@ router.post(
 
     // Dynamic import to avoid hard dependency on the agent package
     const { processMessage, invalidateEntityCache } = await import(
-      '../../../../5rivers.app.agent/dist/index.js'
+      '../../../5rivers.app.agent/dist/index.js'
     );
 
     const token = req.headers.authorization?.slice(7)?.trim();
     if (!token) throw badRequest('Missing auth token');
 
-    const userId = req.user!.id;
+    const userId = req.user!.userId;
     const response = await processMessage('web', userId, message.trim(), token);
 
     // Invalidate entity cache on writes

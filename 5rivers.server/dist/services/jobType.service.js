@@ -24,6 +24,18 @@ async function listJobTypes(organizationId, pagination, companyId, options) {
     const companyClause = companyId ? ' AND jt.companyId = @companyId' : '';
     const filterClauses = [];
     if (options?.filters) {
+        const searchTerm = options.filters['search'];
+        if (searchTerm) {
+            const escaped = String(searchTerm).replace(/[%_\\]/g, (c) => `\\${c}`);
+            params['filter_search'] = `%${escaped}%`;
+            filterClauses.push(`(
+        (jt.title LIKE @filter_search ESCAPE '\\')
+        OR (jt.startLocation IS NOT NULL AND jt.startLocation LIKE @filter_search ESCAPE '\\')
+        OR (jt.endLocation IS NOT NULL AND jt.endLocation LIKE @filter_search ESCAPE '\\')
+        OR (jt.dispatchType LIKE @filter_search ESCAPE '\\')
+        OR (c.name LIKE @filter_search ESCAPE '\\')
+      )`);
+        }
         for (const col of FILTER_COLUMNS) {
             const v = options.filters[col];
             if (v) {
@@ -36,6 +48,8 @@ async function listJobTypes(organizationId, pagination, companyId, options) {
     const countParams = { organizationId };
     if (companyId)
         countParams.companyId = companyId;
+    if (params['filter_search'] != null)
+        countParams['filter_search'] = params['filter_search'];
     FILTER_COLUMNS.forEach((col) => { if (params[`filter_${col}`] != null)
         countParams[`filter_${col}`] = params[`filter_${col}`]; });
     const [rows, countRows] = await Promise.all([

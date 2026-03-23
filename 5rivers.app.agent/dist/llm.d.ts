@@ -10,7 +10,7 @@ export interface AgentResponse {
  * Process a user message through the agent loop.
  * Returns the final text response.
  */
-export declare function processMessage(platform: string, userId: string, userMessage: string, authToken: string): Promise<AgentResponse>;
+export declare function processMessage(platform: string, userId: string, userMessage: string, authToken?: string): Promise<AgentResponse>;
 /**
  * Force-refresh the entity context cache (e.g. after creating a new entity).
  */

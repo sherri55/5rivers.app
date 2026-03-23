@@ -115,10 +115,23 @@ export async function listJobs(
         }
       }
     }
+    // Date range filtering
+    const dateFrom = options.filters['dateFrom'];
+    const dateTo   = options.filters['dateTo'];
+    if (dateFrom) {
+      filterClauses.push(`(j.jobDate >= @filter_dateFrom)`);
+      params['filter_dateFrom'] = dateFrom;
+    }
+    if (dateTo) {
+      filterClauses.push(`(j.jobDate <= @filter_dateTo)`);
+      params['filter_dateTo'] = dateTo;
+    }
   }
   const whereExtra = filterClauses.length ? ` AND ${filterClauses.join(' AND ')}` : '';
   const countParams: Record<string, unknown> = { organizationId };
-  if (params['filter_search'] != null) countParams['filter_search'] = params['filter_search'];
+  if (params['filter_search']    != null) countParams['filter_search']    = params['filter_search'];
+  if (params['filter_dateFrom']  != null) countParams['filter_dateFrom']  = params['filter_dateFrom'];
+  if (params['filter_dateTo']    != null) countParams['filter_dateTo']    = params['filter_dateTo'];
   FILTER_COLUMNS.forEach((col) => {
     if (params[`filter_${col}`] != null) countParams[`filter_${col}`] = params[`filter_${col}`];
   });

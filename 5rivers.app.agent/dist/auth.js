@@ -3,8 +3,64 @@
  *
  * Tokens are stored in a JSON file at AUTH_MAP_PATH (default: ./auth-map.json).
  * Users register via /register <token> command in chat.
+ *
+ * Auto-login: if FIVE_RIVERS_EMAIL, FIVE_RIVERS_PASSWORD, FIVE_RIVERS_ORG_SLUG
+ * are set, the agent logs in automatically and caches the token in memory.
  */
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+// ── Auto-login token cache ─────────────────────────────────
+// Read lazily so dotenv has time to load before these are used
+const getEmail = () => process.env.FIVE_RIVERS_EMAIL;
+const getPassword = () => process.env.FIVE_RIVERS_PASSWORD;
+const getOrgSlug = () => process.env.FIVE_RIVERS_ORG_SLUG;
+const getApiUrl = () => process.env.FIVE_RIVERS_API_URL ?? 'http://localhost:4000/api';
+let cachedToken = null;
+let loginInProgress = null;
+async function fetchNewToken() {
+    const res = await fetch(`${getApiUrl()}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            email: getEmail(),
+            password: getPassword(),
+            organizationSlug: getOrgSlug(),
+        }),
+    });
+    const json = await res.json();
+    if (!res.ok) {
+        const msg = json?.error?.message
+            || json?.message
+            || `Login failed: HTTP ${res.status}`;
+        throw new Error(msg);
+    }
+    return json.token;
+}
+/** Returns a valid token, logging in automatically if credentials are configured. */
+export async function getAutoToken() {
+    // Fall back to env-provided static token
+    if (!getEmail() || !getPassword() || !getOrgSlug()) {
+        return process.env.FIVE_RIVERS_TOKEN ?? null;
+    }
+    if (cachedToken)
+        return cachedToken;
+    // Deduplicate concurrent login calls
+    if (!loginInProgress) {
+        loginInProgress = fetchNewToken().then((token) => {
+            cachedToken = token;
+            loginInProgress = null;
+            console.log('[auth] Auto-login successful, token cached in memory.');
+            return token;
+        }).catch((err) => {
+            loginInProgress = null;
+            throw err;
+        });
+    }
+    return loginInProgress;
+}
+/** Clears the cached token so the next call to getAutoToken() re-authenticates. */
+export function clearAutoToken() {
+    cachedToken = null;
+}
 const AUTH_MAP_PATH = process.env.AUTH_MAP_PATH ?? './auth-map.json';
 let authMap = {};
 export function loadAuthMap() {

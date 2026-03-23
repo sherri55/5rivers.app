@@ -4,6 +4,10 @@
  */
 export function createRestClient(config) {
     const { baseUrl, authToken } = config;
+    /** Returns a new client instance using a different token — for per-request auth. */
+    function withToken(token) {
+        return createRestClient({ baseUrl, authToken: token });
+    }
     async function request(method, path, body, queryParams) {
         const url = new URL(`${baseUrl}${path}`);
         if (queryParams) {
@@ -28,7 +32,11 @@ export function createRestClient(config) {
             return undefined;
         const json = await res.json();
         if (!res.ok) {
-            const msg = json?.error || json?.message || `HTTP ${res.status}`;
+            const msg = json?.error?.message ||
+                json?.error?.code ||
+                json?.message ||
+                (typeof json?.error === 'string' ? json.error : null) ||
+                `HTTP ${res.status}`;
             throw new Error(msg);
         }
         return json;
@@ -104,5 +112,7 @@ export function createRestClient(config) {
         expenses,
         expenseCategories,
         analytics,
+        withToken,
+        login: (email, password, organizationSlug) => request('POST', '/auth/login', { email, password, organizationSlug }),
     };
 }

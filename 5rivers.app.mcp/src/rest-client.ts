@@ -28,6 +28,11 @@ export interface ListResult<T> {
 export function createRestClient(config: RestClientConfig) {
   const { baseUrl, authToken } = config;
 
+  /** Returns a new client instance using a different token — for per-request auth. */
+  function withToken(token: string) {
+    return createRestClient({ baseUrl, authToken: token });
+  }
+
   async function request<T>(
     method: string,
     path: string,
@@ -60,7 +65,12 @@ export function createRestClient(config: RestClientConfig) {
 
     const json = await res.json();
     if (!res.ok) {
-      const msg = json?.error || json?.message || `HTTP ${res.status}`;
+      const msg =
+        json?.error?.message ||
+        json?.error?.code ||
+        json?.message ||
+        (typeof json?.error === 'string' ? json.error : null) ||
+        `HTTP ${res.status}`;
       throw new Error(msg);
     }
     return json as T;
@@ -152,6 +162,9 @@ export function createRestClient(config: RestClientConfig) {
     expenses,
     expenseCategories,
     analytics,
+    withToken,
+    login: (email: string, password: string, organizationSlug: string) =>
+      request<{ token: string; user: Record<string, unknown> }>('POST', '/auth/login', { email, password, organizationSlug }),
   };
 }
 

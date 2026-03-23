@@ -635,6 +635,28 @@ const create_invoice: ToolDefinition = {
   },
 };
 
+const login: ToolDefinition = {
+  name: 'login',
+  description: 'Authenticate with the 5Rivers API. Returns a token that must be passed to all other tools as the "token" parameter.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      email:            { type: 'string', description: 'Your 5Rivers account email.' },
+      password:         { type: 'string', description: 'Your password.' },
+      organizationSlug: { type: 'string', description: 'Your organization slug (e.g. "5rivers").' },
+    },
+    required: ['email', 'password', 'organizationSlug'],
+  },
+  handler: async (client, args) => {
+    const result = await client.login(
+      String(args.email),
+      String(args.password),
+      String(args.organizationSlug),
+    );
+    return `Login successful. Use this token for all subsequent tool calls:\n\ntoken: ${result.token}\n\nUser: ${json(result.user)}`;
+  },
+};
+
 // ── Export all tools ────────────────────────────────────────
 
 export const ALL_TOOLS: ToolDefinition[] = [
@@ -666,4 +688,6 @@ export const ALL_TOOLS: ToolDefinition[] = [
   create_expense,
   create_expense_category,
   create_invoice,
+  // Auth
+  login,
 ];

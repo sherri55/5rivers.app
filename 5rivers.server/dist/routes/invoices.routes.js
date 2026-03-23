@@ -100,6 +100,10 @@ router.delete('/invoices/:id/jobs/:jobId', (0, asyncHandler_1.asyncHandler)(asyn
         throw (0, errorHandler_1.notFound)('Job not found on this invoice');
     res.status(204).send();
 }));
+router.get('/invoices/next-number', (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+    const nextNumber = await invoiceService.generateNextInvoiceNumber(req.user.organizationId);
+    res.json({ nextNumber });
+}));
 router.get('/invoices/:id', (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     const invoice = await invoiceService.getInvoiceById(req.params.id, req.user.organizationId);
     if (!invoice)
@@ -108,8 +112,8 @@ router.get('/invoices/:id', (0, asyncHandler_1.asyncHandler)(async (req, res) =>
 }));
 router.post('/invoices', (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     const body = req.body ?? {};
-    if (!body.invoiceNumber || !body.invoiceDate)
-        throw (0, errorHandler_1.badRequest)('invoiceNumber and invoiceDate are required');
+    if (!body.invoiceDate)
+        throw (0, errorHandler_1.badRequest)('invoiceDate is required');
     if (!body.dispatcherId && !body.companyId)
         throw (0, errorHandler_1.badRequest)('Either dispatcherId or companyId is required');
     const invoice = await invoiceService.createInvoice(req.user.organizationId, body);

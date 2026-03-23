@@ -6,8 +6,10 @@ export interface Message {
     role: 'system' | 'user' | 'assistant' | 'tool';
     content: string;
     tool_calls?: ToolCall[];
+    tool_call_id?: string;
 }
 export interface ToolCall {
+    id?: string;
     function: {
         name: string;
         arguments: Record<string, unknown>;

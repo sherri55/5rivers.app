@@ -102,6 +102,11 @@ async function deleteTestData(orgId, userId) {
     const { getPool } = await Promise.resolve().then(() => __importStar(require('../db/connection')));
     const pool = await getPool();
     const steps = [
+        // New join/child tables
+        { sql: 'DELETE FROM DriverJobTypeRate WHERE driverId IN (SELECT id FROM Drivers WHERE organizationId = @orgId)', params: { orgId } },
+        { sql: 'DELETE FROM UnitEvents WHERE organizationId = @orgId', params: { orgId } },
+        { sql: 'DELETE FROM CarrierPayments WHERE organizationId = @orgId', params: { orgId } },
+        // Existing child tables
         { sql: 'DELETE FROM JobDriverPay WHERE jobId IN (SELECT id FROM Jobs WHERE organizationId = @orgId)', params: { orgId } },
         { sql: 'DELETE FROM DriverPayment WHERE organizationId = @orgId', params: { orgId } },
         { sql: 'DELETE FROM JobInvoice WHERE jobId IN (SELECT id FROM Jobs WHERE organizationId = @orgId)', params: { orgId } },
@@ -110,6 +115,7 @@ async function deleteTestData(orgId, userId) {
         { sql: 'DELETE FROM Invoices WHERE organizationId = @orgId', params: { orgId } },
         { sql: 'DELETE FROM JobTypes WHERE companyId IN (SELECT id FROM Companies WHERE organizationId = @orgId)', params: { orgId } },
         { sql: 'DELETE FROM Companies WHERE organizationId = @orgId', params: { orgId } },
+        { sql: 'DELETE FROM Carriers WHERE organizationId = @orgId', params: { orgId } },
         { sql: 'DELETE FROM Drivers WHERE organizationId = @orgId', params: { orgId } },
         { sql: 'DELETE FROM Dispatchers WHERE organizationId = @orgId', params: { orgId } },
         { sql: 'DELETE FROM Units WHERE organizationId = @orgId', params: { orgId } },

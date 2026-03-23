@@ -7,9 +7,11 @@ export interface Message {
   role: 'system' | 'user' | 'assistant' | 'tool';
   content: string;
   tool_calls?: ToolCall[];
+  tool_call_id?: string; // required by OpenAI/Groq for tool result messages
 }
 
 export interface ToolCall {
+  id?: string; // required by OpenAI/Groq
   function: {
     name: string;
     arguments: Record<string, unknown>;

@@ -12,10 +12,13 @@ async function listJobsOnInvoice(invoiceId, organizationId) {
     const invoice = await (0, invoice_service_1.getInvoiceById)(invoiceId, organizationId);
     if (!invoice)
         return [];
-    const rows = await (0, connection_1.query)(`SELECT jobId, invoiceId, amount, addedAt
-     FROM JobInvoice
-     WHERE invoiceId = @invoiceId
-     ORDER BY addedAt`, { params: { invoiceId } });
+    const rows = await (0, connection_1.query)(`SELECT ji.jobId, ji.invoiceId, ji.amount, ji.addedAt,
+            j.jobDate, j.jobTypeId, j.driverId, j.dispatcherId, j.unitId,
+            j.sourceType, j.weight, j.loads, j.startTime, j.endTime, j.ticketIds
+     FROM JobInvoice ji
+     LEFT JOIN Jobs j ON j.id = ji.jobId
+     WHERE ji.invoiceId = @invoiceId
+     ORDER BY j.jobDate, ji.addedAt`, { params: { invoiceId } });
     return Array.isArray(rows) ? rows : [];
 }
 async function getJobInvoice(invoiceId, jobId, organizationId) {

@@ -89,7 +89,18 @@
       "Bash(find D:Personal5rivers.app5rivers.serversrcservices -maxdepth 1 -name *.service.ts -type f)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(find /d/Personal/5rivers.app/5rivers.app.agent/src -type f -name *.ts)"
+      "Bash(find /d/Personal/5rivers.app/5rivers.app.agent/src -type f -name *.ts)",
+      "Bash(curl -s http://localhost:4000/api/jobs)",
+      "Bash(curl -s -X POST http://localhost:4000/api/auth/login -H \"Content-Type: application/json\" -d \"{\"\"email\"\":\"\"test@test.com\"\",\"\"password\"\":\"\"test\"\",\"\"organizationSlug\"\":\"\"test\"\"}\")",
+      "Bash(curl -s http://localhost:4000/api/auth/login -X POST -H \"Content-Type: application/json\" -d \"{\"\"email\"\":\"\"test@test.com\"\",\"\"password\"\":\"\"test\"\",\"\"organizationSlug\"\":\"\"test\"\"}\")",
+      "Bash(ls D:/Personal/5rivers.app/5rivers.app.agent/.env*)",
+      "Bash(curl -s --connect-timeout 5 http://192.168.68.63:11434/api/tags)",
+      "Bash(curl -s --connect-timeout 10 -X POST http://192.168.68.63:11434/api/chat -H \"Content-Type: application/json\" -d \"{\"\"model\"\":\"\"llama3.1\"\",\"\"messages\"\":[{\"\"role\"\":\"\"user\"\",\"\"content\"\":\"\"hi\"\"}],\"\"stream\"\":false}\")",
+      "Bash(curl -s http://localhost:4000/api/jobs -H \"Authorization: Bearer test\")",
+      "Bash(curl -s http://192.168.68.63:11434/api/tags)",
+      "Bash(grep -rn .date D:/Personal/5rivers.app/5rivers.server/src/services/ --include=*.ts)",
+      "Bash(grep -rn parseListOptions D:/Personal/5rivers.app/5rivers.server/src/ --include=*.ts)",
+      "Bash(grep -rn .dateb D:/Personal/5rivers.app/5rivers.server/src/db/ --include=*.ts)"
     ],
     "deny": [],
     "ask": []

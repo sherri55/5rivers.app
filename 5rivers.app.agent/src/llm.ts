@@ -1,5 +1,9 @@
 /**
- * LLM service — connects to Ollama, runs the agent loop with tool calling.
+ * LLM service — provider-agnostic agent loop with tool calling.
+ *
+ * Supported providers (set LLM_PROVIDER in .env):
+ *   ollama  — local Ollama instance (default)
+ *   groq    — Groq cloud API (fast, free tier)
  *
  * Flow:
  * 1. Pre-load entity context (companies, drivers, etc.) on first message
@@ -9,22 +13,183 @@
  * 5. Return final text response
  */
 import { Ollama } from 'ollama';
+import Groq from 'groq-sdk';
 import { createRestClient, type RestClient } from '../../5rivers.app.mcp/dist/rest-client.js';
-import { ALL_TOOLS, type ToolDefinition } from '../../5rivers.app.mcp/dist/tools.js';
+import { ALL_TOOLS } from '../../5rivers.app.mcp/dist/tools.js';
 import {
   getHistory,
   addMessage,
   setSystemPrompt,
   type Message,
 } from './conversation.js';
+import { getAutoToken, clearAutoToken } from './auth.js';
 
-const OLLAMA_HOST = process.env.OLLAMA_HOST ?? 'http://localhost:11434';
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL ?? 'llama3.1';
 const API_URL = process.env.FIVE_RIVERS_API_URL ?? 'http://localhost:4000/api';
 
-const ollama = new Ollama({ host: OLLAMA_HOST });
+// ─── Normalized types ────────────────────────────────────────────────────────
 
-// Entity context cache (refreshed periodically)
+interface NormalizedToolCall {
+  id: string;
+  name: string;
+  arguments: Record<string, unknown>;
+}
+
+interface NormalizedResponse {
+  content: string;
+  toolCalls?: NormalizedToolCall[];
+}
+
+// ─── Provider interface ───────────────────────────────────────────────────────
+
+interface LLMProvider {
+  chat(messages: Message[]): Promise<NormalizedResponse>;
+}
+
+// ─── Tool definitions (same format for both providers) ───────────────────────
+
+// Tools the agent should never call — auth is handled internally
+const AGENT_EXCLUDED_TOOLS = new Set(['login']);
+
+function getToolDefs() {
+  return ALL_TOOLS
+    .filter((t) => !AGENT_EXCLUDED_TOOLS.has(t.name))
+    .map((t) => ({
+      type: 'function' as const,
+      function: {
+        name: t.name,
+        description: t.description,
+        parameters: t.inputSchema,
+      },
+    }));
+}
+
+// ─── Ollama provider ──────────────────────────────────────────────────────────
+
+let _ollama: Ollama | null = null;
+
+class OllamaProvider implements LLMProvider {
+  private getClient(): Ollama {
+    if (!_ollama) {
+      const host = process.env.OLLAMA_HOST ?? 'http://localhost:11434';
+      const timeoutMs = parseInt(process.env.OLLAMA_TIMEOUT_MS ?? '300000');
+      _ollama = new Ollama({
+        host,
+        fetch: (input: RequestInfo | URL, init?: RequestInit) =>
+          fetch(input, { ...init, signal: AbortSignal.timeout(timeoutMs) }),
+      });
+    }
+    return _ollama;
+  }
+
+  async chat(messages: Message[]): Promise<NormalizedResponse> {
+    const model = process.env.OLLAMA_MODEL ?? 'llama3.1';
+    const response = await this.getClient().chat({
+      model,
+      messages: messages.map((m) => ({
+        role: m.role as 'system' | 'user' | 'assistant' | 'tool',
+        content: m.content,
+        tool_calls: m.tool_calls?.map((tc) => ({
+          function: { name: tc.function.name, arguments: tc.function.arguments },
+        })),
+      })),
+      tools: getToolDefs(),
+    });
+
+    const msg = response.message;
+    const toolCalls = msg.tool_calls?.map((tc, i) => ({
+      id: `ollama-${Date.now()}-${i}`,
+      name: tc.function.name,
+      arguments: tc.function.arguments as Record<string, unknown>,
+    }));
+
+    return { content: msg.content || '', toolCalls };
+  }
+}
+
+// ─── Groq provider ────────────────────────────────────────────────────────────
+
+let _groq: Groq | null = null;
+
+class GroqProvider implements LLMProvider {
+  private getClient(): Groq {
+    if (!_groq) {
+      _groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+    }
+    return _groq;
+  }
+
+  async chat(messages: Message[]): Promise<NormalizedResponse> {
+    const model = process.env.GROQ_MODEL ?? 'llama-3.3-70b-versatile';
+
+    // Convert to Groq message format (OpenAI-compatible)
+    const groqMessages = messages.map((m): Groq.Chat.ChatCompletionMessageParam => {
+      if (m.role === 'tool') {
+        return {
+          role: 'tool',
+          tool_call_id: m.tool_call_id ?? 'unknown',
+          content: m.content,
+        };
+      }
+      if (m.role === 'assistant' && m.tool_calls?.length) {
+        return {
+          role: 'assistant',
+          content: m.content || null,
+          tool_calls: m.tool_calls.map((tc) => ({
+            id: tc.id ?? 'unknown',
+            type: 'function' as const,
+            function: {
+              name: tc.function.name,
+              arguments: JSON.stringify(tc.function.arguments),
+            },
+          })),
+        };
+      }
+      return { role: m.role as 'system' | 'user' | 'assistant', content: m.content };
+    });
+
+    const response = await this.getClient().chat.completions.create({
+      model,
+      messages: groqMessages,
+      tools: getToolDefs(),
+      tool_choice: 'auto',
+    });
+
+    const msg = response.choices[0].message;
+    const toolCalls = msg.tool_calls?.map((tc) => ({
+      id: tc.id,
+      name: tc.function.name,
+      arguments: ((): Record<string, unknown> => {
+        try {
+          const parsed = tc.function.arguments ? JSON.parse(tc.function.arguments) : {};
+          return (parsed !== null && typeof parsed === 'object') ? parsed as Record<string, unknown> : {};
+        } catch { return {}; }
+      })(),
+    }));
+
+    return { content: msg.content || '', toolCalls };
+  }
+}
+
+// ─── Provider factory ─────────────────────────────────────────────────────────
+
+let _provider: LLMProvider | null = null;
+
+function getProvider(): LLMProvider {
+  if (!_provider) {
+    const name = (process.env.LLM_PROVIDER ?? 'ollama').toLowerCase();
+    if (name === 'groq') {
+      console.log(`[llm] Provider: Groq (${process.env.GROQ_MODEL ?? 'llama-3.1-70b-versatile'})`);
+      _provider = new GroqProvider();
+    } else {
+      console.log(`[llm] Provider: Ollama (${process.env.OLLAMA_MODEL ?? 'llama3.1'} @ ${process.env.OLLAMA_HOST ?? 'http://localhost:11434'})`);
+      _provider = new OllamaProvider();
+    }
+  }
+  return _provider;
+}
+
+// ─── Entity context ───────────────────────────────────────────────────────────
+
 let entityContextCache: string | null = null;
 let entityContextTimestamp = 0;
 const ENTITY_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
@@ -35,7 +200,6 @@ async function loadEntityContext(client: RestClient): Promise<string> {
     return entityContextCache;
   }
 
-  // Fetch all entities in parallel for context
   const [companies, drivers, dispatchers, jobTypes, units, carriers, categories] = await Promise.all([
     client.companies.list({ limit: 100 }).catch(() => ({ data: [] })),
     client.drivers.list({ limit: 100 }).catch(() => ({ data: [] })),
@@ -77,6 +241,8 @@ async function loadEntityContext(client: RestClient): Promise<string> {
   entityContextTimestamp = now;
   return entityContextCache;
 }
+
+// ─── System prompt ────────────────────────────────────────────────────────────
 
 function buildSystemPrompt(entityContext: string): string {
   return `You are a fleet operations assistant for 5Rivers. You help manage jobs, drivers, companies, dispatchers, units, carriers, invoices, and expenses.
@@ -127,20 +293,7 @@ Parse these messages by extracting:
 ${entityContext}`;
 }
 
-// Convert our tool definitions to Ollama's tool format
-function toolsForOllama(): Array<{
-  type: 'function';
-  function: { name: string; description: string; parameters: Record<string, unknown> };
-}> {
-  return ALL_TOOLS.map((t) => ({
-    type: 'function' as const,
-    function: {
-      name: t.name,
-      description: t.description,
-      parameters: t.inputSchema,
-    },
-  }));
-}
+// ─── Public API ───────────────────────────────────────────────────────────────
 
 export interface AgentResponse {
   text: string;
@@ -155,17 +308,24 @@ export async function processMessage(
   platform: string,
   userId: string,
   userMessage: string,
-  authToken: string,
+  authToken?: string,
 ): Promise<AgentResponse> {
-  const client = createRestClient({ baseUrl: API_URL, authToken });
-  const toolCalls: AgentResponse['toolCalls'] = [];
+  const resolvedToken = authToken?.trim() || (await getAutoToken());
+  if (!resolvedToken) {
+    return {
+      text: 'No authentication token found. Set FIVE_RIVERS_EMAIL, FIVE_RIVERS_PASSWORD, and FIVE_RIVERS_ORG_SLUG in .env, or register your token with /register <token>.',
+    };
+  }
 
-  // Load entity context and set system prompt
+  const client = createRestClient({ baseUrl: API_URL, authToken: resolvedToken });
+  const toolCalls: AgentResponse['toolCalls'] = [];
+  const provider = getProvider();
+
+  console.log('[llm] Loading entity context...');
   const entityContext = await loadEntityContext(client);
   const systemPrompt = buildSystemPrompt(entityContext);
   setSystemPrompt(platform, userId, systemPrompt);
 
-  // Add user message
   addMessage(platform, userId, { role: 'user', content: userMessage });
 
   const MAX_ITERATIONS = 10;
@@ -174,71 +334,100 @@ export async function processMessage(
   while (iterations < MAX_ITERATIONS) {
     iterations++;
 
-    const history = getHistory(platform, userId);
+    console.log(`[llm] Sending to ${process.env.LLM_PROVIDER ?? 'ollama'} (iteration ${iterations})...`);
+    // Strip excluded tool calls (e.g. login) from history before sending to LLM
+    const rawHistory = getHistory(platform, userId);
+    const excludedIds = new Set(
+      rawHistory
+        .flatMap((m) => m.tool_calls ?? [])
+        .filter((tc) => AGENT_EXCLUDED_TOOLS.has(tc.function.name))
+        .map((tc) => tc.id)
+        .filter(Boolean) as string[],
+    );
+    const history = rawHistory
+      .map((m) => {
+        if (m.role === 'tool' && m.tool_call_id && excludedIds.has(m.tool_call_id)) return null;
+        if (m.role === 'assistant' && m.tool_calls?.length) {
+          const filtered = m.tool_calls.filter((tc) => !AGENT_EXCLUDED_TOOLS.has(tc.function.name));
+          if (filtered.length === 0 && !m.content) return null;
+          return { ...m, tool_calls: filtered.length > 0 ? filtered : undefined };
+        }
+        return m;
+      })
+      .filter(Boolean) as typeof rawHistory;
+    let response: NormalizedResponse;
+    try {
+      response = await provider.chat(history);
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      // Rate limit
+      const rateLimitMatch = errMsg.match(/try again in (\d+m[\d.]+s)/i);
+      if (errMsg.includes('429') || errMsg.toLowerCase().includes('rate_limit')) {
+        const wait = rateLimitMatch ? ` Please try again in ${rateLimitMatch[1]}.` : '';
+        return { text: `Rate limit reached for the AI provider.${wait}` };
+      }
+      throw err;
+    }
 
-    // Convert to Ollama message format
-    const messages = history.map((m) => ({
-      role: m.role as 'system' | 'user' | 'assistant' | 'tool',
-      content: m.content,
-    }));
-
-    const response = await ollama.chat({
-      model: OLLAMA_MODEL,
-      messages,
-      tools: toolsForOllama(),
-    });
-
-    const msg = response.message;
-
-    // If the model wants to call tools
-    if (msg.tool_calls && msg.tool_calls.length > 0) {
-      // Store assistant message with tool calls
+    // LLM wants to call tools
+    if (response.toolCalls && response.toolCalls.length > 0) {
+      // Store assistant message with tool calls (include IDs for Groq)
       addMessage(platform, userId, {
         role: 'assistant',
-        content: msg.content || '',
-        tool_calls: msg.tool_calls.map((tc) => ({
-          function: {
-            name: tc.function.name,
-            arguments: tc.function.arguments as Record<string, unknown>,
-          },
+        content: response.content,
+        tool_calls: response.toolCalls.map((tc) => ({
+          id: tc.id,
+          function: { name: tc.name, arguments: tc.arguments },
         })),
       });
 
-      // Execute each tool call
-      for (const tc of msg.tool_calls) {
-        const toolName = tc.function.name;
-        const toolArgs = tc.function.arguments as Record<string, unknown>;
-
-        const toolDef = ALL_TOOLS.find((t) => t.name === toolName);
+      // Execute each tool and store result
+      for (const tc of response.toolCalls) {
+        const toolDef = ALL_TOOLS.find((t) => t.name === tc.name);
         let result: string;
 
+        console.log(`[tool] ${tc.name} args: ${JSON.stringify(tc.arguments)}`);
+
         if (!toolDef) {
-          result = `Error: Unknown tool "${toolName}"`;
+          result = `Error: Unknown tool "${tc.name}"`;
         } else {
           try {
-            result = await toolDef.handler(client, toolArgs);
+            result = await toolDef.handler(client, tc.arguments);
           } catch (err) {
             const errMsg = err instanceof Error ? err.message : String(err);
+            const stack = err instanceof Error ? err.stack : undefined;
+            if (errMsg.includes('401') || errMsg.toLowerCase().includes('unauthorized') || errMsg.toLowerCase().includes('invalid or expired')) {
+              clearAutoToken();
+              return {
+                text: 'Session expired. Clearing cached token — please send your message again to re-authenticate automatically.',
+                toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+              };
+            }
+            if (stack) console.error(`[tool] ${tc.name} stack: ${stack}`);
             result = `Error: ${errMsg}`;
           }
         }
 
-        toolCalls.push({ name: toolName, args: toolArgs, result });
-        addMessage(platform, userId, { role: 'tool', content: result });
+        console.log(`[tool] ${tc.name} → ${result.slice(0, 200)}${result.length > 200 ? '...' : ''}`);
+        toolCalls.push({ name: tc.name, args: tc.arguments, result });
+
+        // Store tool result — include tool_call_id for Groq/OpenAI compatibility
+        addMessage(platform, userId, {
+          role: 'tool',
+          content: result,
+          tool_call_id: tc.id,
+        });
       }
 
-      // Continue the loop — LLM needs to process tool results
       continue;
     }
 
-    // No tool calls — this is the final response
-    const finalText = msg.content || 'I have nothing to add.';
+    // Final response
+    const finalText = response.content || 'I have nothing to add.';
     addMessage(platform, userId, { role: 'assistant', content: finalText });
-
     return { text: finalText, toolCalls: toolCalls.length > 0 ? toolCalls : undefined };
   }
 
-  // Safety: max iterations reached
   const fallback = 'I ran into too many steps processing your request. Could you try simplifying it?';
   addMessage(platform, userId, { role: 'assistant', content: fallback });
   return { text: fallback, toolCalls: toolCalls.length > 0 ? toolCalls : undefined };
