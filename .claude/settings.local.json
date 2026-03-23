@@ -100,7 +100,8 @@
       "Bash(curl -s http://192.168.68.63:11434/api/tags)",
       "Bash(grep -rn .date D:/Personal/5rivers.app/5rivers.server/src/services/ --include=*.ts)",
       "Bash(grep -rn parseListOptions D:/Personal/5rivers.app/5rivers.server/src/ --include=*.ts)",
-      "Bash(grep -rn .dateb D:/Personal/5rivers.app/5rivers.server/src/db/ --include=*.ts)"
+      "Bash(grep -rn .dateb D:/Personal/5rivers.app/5rivers.server/src/db/ --include=*.ts)",
+      "Bash(ls D:/Personal/5rivers.app/*.bat D:/Personal/5rivers.app/*.ps1 D:/Personal/5rivers.app/*.sh)"
     ],
     "deny": [],
     "ask": []

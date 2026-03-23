@@ -98,6 +98,19 @@ export function createRestClient(config) {
     // ── Invoice extras ────────────────────────────────────────
     const invoiceExtras = {
         nextNumber: () => request('GET', '/invoices/next-number'),
+        getJobs: (invoiceId) => request('GET', `/invoices/${invoiceId}/jobs`),
+        addJob: (invoiceId, data) => request('POST', `/invoices/${invoiceId}/jobs`, data),
+        updateJob: (invoiceId, jobId, data) => request('PATCH', `/invoices/${invoiceId}/jobs/${jobId}`, data),
+        removeJob: (invoiceId, jobId) => request('DELETE', `/invoices/${invoiceId}/jobs/${jobId}`),
+    };
+    // ── Driver payments ────────────────────────────────────────
+    const driverPayments = crudFor('driver-payments');
+    // ── Job driver pay ─────────────────────────────────────────
+    const jobDriverPay = {
+        get: (jobId) => request('GET', `/jobs/${jobId}/driver-pay`),
+        set: (jobId, data) => request('PUT', `/jobs/${jobId}/driver-pay`, data),
+        update: (jobId, data) => request('PATCH', `/jobs/${jobId}/driver-pay`, data),
+        delete: (jobId) => request('DELETE', `/jobs/${jobId}/driver-pay`),
     };
     return {
         jobs,
@@ -109,6 +122,8 @@ export function createRestClient(config) {
         carriers,
         invoices,
         invoiceExtras,
+        driverPayments,
+        jobDriverPay,
         expenses,
         expenseCategories,
         analytics,

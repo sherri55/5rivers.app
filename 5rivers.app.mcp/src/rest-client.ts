@@ -147,6 +147,29 @@ export function createRestClient(config: RestClientConfig) {
   const invoiceExtras = {
     nextNumber: () =>
       request<{ nextNumber: string }>('GET', '/invoices/next-number'),
+    getJobs: (invoiceId: string) =>
+      request<unknown[]>('GET', `/invoices/${invoiceId}/jobs`),
+    addJob: (invoiceId: string, data: Record<string, unknown>) =>
+      request<unknown>('POST', `/invoices/${invoiceId}/jobs`, data),
+    updateJob: (invoiceId: string, jobId: string, data: Record<string, unknown>) =>
+      request<unknown>('PATCH', `/invoices/${invoiceId}/jobs/${jobId}`, data),
+    removeJob: (invoiceId: string, jobId: string) =>
+      request<void>('DELETE', `/invoices/${invoiceId}/jobs/${jobId}`),
+  };
+
+  // ── Driver payments ────────────────────────────────────────
+  const driverPayments = crudFor<Record<string, unknown>>('driver-payments');
+
+  // ── Job driver pay ─────────────────────────────────────────
+  const jobDriverPay = {
+    get: (jobId: string) =>
+      request<Record<string, unknown>>('GET', `/jobs/${jobId}/driver-pay`),
+    set: (jobId: string, data: Record<string, unknown>) =>
+      request<Record<string, unknown>>('PUT', `/jobs/${jobId}/driver-pay`, data),
+    update: (jobId: string, data: Record<string, unknown>) =>
+      request<Record<string, unknown>>('PATCH', `/jobs/${jobId}/driver-pay`, data),
+    delete: (jobId: string) =>
+      request<void>('DELETE', `/jobs/${jobId}/driver-pay`),
   };
 
   return {
@@ -159,6 +182,8 @@ export function createRestClient(config: RestClientConfig) {
     carriers,
     invoices,
     invoiceExtras,
+    driverPayments,
+    jobDriverPay,
     expenses,
     expenseCategories,
     analytics,

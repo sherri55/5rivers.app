@@ -82,6 +82,23 @@ export declare function createRestClient(config: RestClientConfig): {
         nextNumber: () => Promise<{
             nextNumber: string;
         }>;
+        getJobs: (invoiceId: string) => Promise<unknown[]>;
+        addJob: (invoiceId: string, data: Record<string, unknown>) => Promise<unknown>;
+        updateJob: (invoiceId: string, jobId: string, data: Record<string, unknown>) => Promise<unknown>;
+        removeJob: (invoiceId: string, jobId: string) => Promise<void>;
+    };
+    driverPayments: {
+        list: (params?: ListParams) => Promise<ListResult<Record<string, unknown>>>;
+        get: (id: string) => Promise<Record<string, unknown>>;
+        create: (data: Record<string, unknown>) => Promise<Record<string, unknown>>;
+        update: (id: string, data: Record<string, unknown>) => Promise<Record<string, unknown>>;
+        delete: (id: string) => Promise<void>;
+    };
+    jobDriverPay: {
+        get: (jobId: string) => Promise<Record<string, unknown>>;
+        set: (jobId: string, data: Record<string, unknown>) => Promise<Record<string, unknown>>;
+        update: (jobId: string, data: Record<string, unknown>) => Promise<Record<string, unknown>>;
+        delete: (jobId: string) => Promise<void>;
     };
     expenses: {
         list: (params?: ListParams) => Promise<ListResult<Record<string, unknown>>>;
@@ -170,6 +187,23 @@ export declare function createRestClient(config: RestClientConfig): {
             nextNumber: () => Promise<{
                 nextNumber: string;
             }>;
+            getJobs: (invoiceId: string) => Promise<unknown[]>;
+            addJob: (invoiceId: string, data: Record<string, unknown>) => Promise<unknown>;
+            updateJob: (invoiceId: string, jobId: string, data: Record<string, unknown>) => Promise<unknown>;
+            removeJob: (invoiceId: string, jobId: string) => Promise<void>;
+        };
+        driverPayments: {
+            list: (params?: ListParams) => Promise<ListResult<Record<string, unknown>>>;
+            get: (id: string) => Promise<Record<string, unknown>>;
+            create: (data: Record<string, unknown>) => Promise<Record<string, unknown>>;
+            update: (id: string, data: Record<string, unknown>) => Promise<Record<string, unknown>>;
+            delete: (id: string) => Promise<void>;
+        };
+        jobDriverPay: {
+            get: (jobId: string) => Promise<Record<string, unknown>>;
+            set: (jobId: string, data: Record<string, unknown>) => Promise<Record<string, unknown>>;
+            update: (jobId: string, data: Record<string, unknown>) => Promise<Record<string, unknown>>;
+            delete: (jobId: string) => Promise<void>;
         };
         expenses: {
             list: (params?: ListParams) => Promise<ListResult<Record<string, unknown>>>;
