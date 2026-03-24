@@ -53,7 +53,7 @@ async function addMember(organizationId, input) {
         const passwordHash = await (0, auth_service_1.hashPassword)(input.password.trim());
         const name = (input.name ?? '').trim() || null;
         await (0, connection_1.query)(`INSERT INTO Users (id, email, passwordHash, name, createdAt, updatedAt)
-       VALUES (@userId, @email, @passwordHash, @name, GETUTCDATE(), GETUTCDATE())`, {
+       VALUES (@userId, @email, @passwordHash, @name, CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATETIME2), CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATETIME2))`, {
             params: {
                 userId,
                 email,
@@ -67,7 +67,7 @@ async function addMember(organizationId, input) {
         throw new Error('User is already a member of this organization');
     }
     await (0, connection_1.query)(`INSERT INTO OrganizationMember (userId, organizationId, role, createdAt)
-     VALUES (@userId, @organizationId, @role, GETUTCDATE())`, {
+     VALUES (@userId, @organizationId, @role, CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATETIME2))`, {
         params: {
             userId,
             organizationId,
@@ -86,7 +86,7 @@ async function updateMember(organizationId, userId, input) {
        WHERE userId = @userId AND organizationId = @organizationId`, { params: { userId, organizationId, role: input.role } });
     }
     if (input.name !== undefined) {
-        await (0, connection_1.query)(`UPDATE Users SET name = @name, updatedAt = GETUTCDATE() WHERE id = @userId`, { params: { userId, name: (input.name ?? '').trim() || null } });
+        await (0, connection_1.query)(`UPDATE Users SET name = @name, updatedAt = CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATETIME2) WHERE id = @userId`, { params: { userId, name: (input.name ?? '').trim() || null } });
     }
     const members = await listMembers(organizationId);
     return members.find((m) => m.userId === userId) ?? null;

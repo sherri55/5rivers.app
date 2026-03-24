@@ -17,18 +17,18 @@ async function getDashboardStats(organizationId) {
     const rows = await (0, connection_1.query)(`
     SELECT
       COALESCE(SUM(j.amount), 0) AS revenueTotal,
-      COALESCE(SUM(CASE WHEN j.jobDate >= DATEFROMPARTS(YEAR(GETUTCDATE()), MONTH(GETUTCDATE()), 1) THEN j.amount END), 0) AS revenueThisMonth,
-      COALESCE(SUM(CASE WHEN j.jobDate >= DATEADD(MONTH, -1, DATEFROMPARTS(YEAR(GETUTCDATE()), MONTH(GETUTCDATE()), 1))
-                         AND j.jobDate <  DATEFROMPARTS(YEAR(GETUTCDATE()), MONTH(GETUTCDATE()), 1)
+      COALESCE(SUM(CASE WHEN j.jobDate >= DATEFROMPARTS(YEAR(CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATETIME2)), MONTH(CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATETIME2)), 1) THEN j.amount END), 0) AS revenueThisMonth,
+      COALESCE(SUM(CASE WHEN j.jobDate >= DATEADD(MONTH, -1, DATEFROMPARTS(YEAR(CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATETIME2)), MONTH(CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATETIME2)), 1))
+                         AND j.jobDate <  DATEFROMPARTS(YEAR(CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATETIME2)), MONTH(CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATETIME2)), 1)
                     THEN j.amount END), 0) AS revenueLastMonth,
-      COALESCE(SUM(CASE WHEN j.jobDate >= DATEADD(DAY, 1-DATEPART(WEEKDAY, GETUTCDATE()), CAST(GETUTCDATE() AS DATE)) THEN j.amount END), 0) AS revenueThisWeek,
-      COALESCE(SUM(CASE WHEN j.jobDate = CAST(GETUTCDATE() AS DATE) THEN j.amount END), 0) AS revenueToday,
+      COALESCE(SUM(CASE WHEN j.jobDate >= DATEADD(DAY, 1-DATEPART(WEEKDAY, CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATETIME2)), CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATE)) THEN j.amount END), 0) AS revenueThisWeek,
+      COALESCE(SUM(CASE WHEN j.jobDate = CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATE) THEN j.amount END), 0) AS revenueToday,
       COUNT(*) AS jobsTotal,
-      COUNT(CASE WHEN j.jobDate >= DATEFROMPARTS(YEAR(GETUTCDATE()), MONTH(GETUTCDATE()), 1) THEN 1 END) AS jobsThisMonth,
-      COUNT(CASE WHEN j.jobDate >= DATEADD(MONTH, -1, DATEFROMPARTS(YEAR(GETUTCDATE()), MONTH(GETUTCDATE()), 1))
-                      AND j.jobDate <  DATEFROMPARTS(YEAR(GETUTCDATE()), MONTH(GETUTCDATE()), 1) THEN 1 END) AS jobsLastMonth,
-      COUNT(CASE WHEN j.jobDate >= DATEADD(DAY, 1-DATEPART(WEEKDAY, GETUTCDATE()), CAST(GETUTCDATE() AS DATE)) THEN 1 END) AS jobsThisWeek,
-      COUNT(CASE WHEN j.jobDate = CAST(GETUTCDATE() AS DATE) THEN 1 END) AS jobsToday,
+      COUNT(CASE WHEN j.jobDate >= DATEFROMPARTS(YEAR(CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATETIME2)), MONTH(CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATETIME2)), 1) THEN 1 END) AS jobsThisMonth,
+      COUNT(CASE WHEN j.jobDate >= DATEADD(MONTH, -1, DATEFROMPARTS(YEAR(CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATETIME2)), MONTH(CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATETIME2)), 1))
+                      AND j.jobDate <  DATEFROMPARTS(YEAR(CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATETIME2)), MONTH(CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATETIME2)), 1) THEN 1 END) AS jobsLastMonth,
+      COUNT(CASE WHEN j.jobDate >= DATEADD(DAY, 1-DATEPART(WEEKDAY, CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATETIME2)), CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATE)) THEN 1 END) AS jobsThisWeek,
+      COUNT(CASE WHEN j.jobDate = CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATE) THEN 1 END) AS jobsToday,
       COUNT(CASE WHEN j.jobPaid = 0 THEN 1 END) AS unpaidCount,
       COUNT(CASE WHEN j.jobPaid = 1 THEN 1 END) AS paidCount,
       CONVERT(VARCHAR(10), MIN(j.jobDate), 120) AS minDate,
@@ -64,12 +64,12 @@ async function getDashboardStats(organizationId) {
     const expenseRows = await (0, connection_1.query)(`SELECT
       COUNT(*) AS expenseCount,
       COALESCE(SUM(amount), 0) AS expenseTotal,
-      COALESCE(SUM(CASE WHEN expenseDate >= DATEFROMPARTS(YEAR(GETUTCDATE()), MONTH(GETUTCDATE()), 1) THEN amount END), 0) AS expenseThisMonth,
-      COALESCE(SUM(CASE WHEN expenseDate >= DATEADD(MONTH, -1, DATEFROMPARTS(YEAR(GETUTCDATE()), MONTH(GETUTCDATE()), 1))
-                         AND expenseDate <  DATEFROMPARTS(YEAR(GETUTCDATE()), MONTH(GETUTCDATE()), 1)
+      COALESCE(SUM(CASE WHEN expenseDate >= DATEFROMPARTS(YEAR(CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATETIME2)), MONTH(CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATETIME2)), 1) THEN amount END), 0) AS expenseThisMonth,
+      COALESCE(SUM(CASE WHEN expenseDate >= DATEADD(MONTH, -1, DATEFROMPARTS(YEAR(CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATETIME2)), MONTH(CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATETIME2)), 1))
+                         AND expenseDate <  DATEFROMPARTS(YEAR(CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATETIME2)), MONTH(CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATETIME2)), 1)
                     THEN amount END), 0) AS expenseLastMonth,
-      COALESCE(SUM(CASE WHEN expenseDate >= DATEADD(DAY, 1-DATEPART(WEEKDAY, GETUTCDATE()), CAST(GETUTCDATE() AS DATE)) THEN amount END), 0) AS expenseThisWeek,
-      COALESCE(SUM(CASE WHEN expenseDate = CAST(GETUTCDATE() AS DATE) THEN amount END), 0) AS expenseToday
+      COALESCE(SUM(CASE WHEN expenseDate >= DATEADD(DAY, 1-DATEPART(WEEKDAY, CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATETIME2)), CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATE)) THEN amount END), 0) AS expenseThisWeek,
+      COALESCE(SUM(CASE WHEN expenseDate = CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATE) THEN amount END), 0) AS expenseToday
     FROM Expenses WHERE organizationId = @organizationId`, { params: { organizationId } });
     const r = rows[0] || {};
     const inv = invoiceRows[0] || {};
@@ -222,7 +222,7 @@ async function getMonthlyRevenue(organizationId, months = 24) {
       COUNT(*) AS jobs
     FROM Jobs j
     WHERE j.organizationId = @organizationId
-      AND j.jobDate >= DATEADD(MONTH, -@months, (SELECT COALESCE(MAX(jobDate), GETUTCDATE()) FROM Jobs WHERE organizationId = @organizationId))
+      AND j.jobDate >= DATEADD(MONTH, -@months, (SELECT COALESCE(MAX(jobDate), CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATETIME2)) FROM Jobs WHERE organizationId = @organizationId))
     GROUP BY FORMAT(j.jobDate, 'yyyy-MM')
     ORDER BY month`, { params: { organizationId, months } });
 }
@@ -291,7 +291,7 @@ async function getMonthlyExpenses(organizationId, months = 24) {
       COUNT(*) AS count
     FROM Expenses e
     WHERE e.organizationId = @organizationId
-      AND e.expenseDate >= DATEADD(MONTH, -@months, GETUTCDATE())
+      AND e.expenseDate >= DATEADD(MONTH, -@months, CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATETIME2))
     GROUP BY FORMAT(e.expenseDate, 'yyyy-MM')
     ORDER BY month`, { params: { organizationId, months } });
 }
@@ -317,7 +317,7 @@ async function getMonthlyProfit(organizationId, months = 12) {
       FROM Expenses e WHERE e.organizationId = @organizationId
       GROUP BY FORMAT(e.expenseDate, 'yyyy-MM')
     ) x ON x.month = m.month
-    WHERE m.month >= FORMAT(DATEADD(MONTH, -@months, GETUTCDATE()), 'yyyy-MM')
+    WHERE m.month >= FORMAT(DATEADD(MONTH, -@months, CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATETIME2)), 'yyyy-MM')
     ORDER BY m.month`, { params: { organizationId, months } });
 }
 async function getTopJobTypes(organizationId, startDate, endDate, limit = 10) {

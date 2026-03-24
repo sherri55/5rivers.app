@@ -1,6 +1,7 @@
 import { v4 as uuid } from 'uuid';
 import { query } from '../db/connection';
 import { type Pagination, type ListResult, type SortOrder } from '../types';
+import { nowEastern } from '../utils/timezone';
 
 const SORT_COLUMNS = ['jobDate', 'amount', 'sourceType', 'createdAt'] as const;
 const FILTER_COLUMNS = ['jobDate', 'amount', 'sourceType', 'driverId', 'dispatcherId', 'unitId', 'jobTypeId'] as const;
@@ -30,6 +31,12 @@ export interface Job {
   driverPaid: boolean;
   createdAt: Date;
   updatedAt: Date;
+  // Resolved names from joins
+  jobTypeTitle: string | null;
+  companyName: string | null;
+  driverName: string | null;
+  dispatcherName: string | null;
+  unitName: string | null;
 }
 
 export interface CreateJobInput {
@@ -70,7 +77,7 @@ export async function listJobs(
   const order = options?.order === 'asc' ? 'ASC' : 'DESC';
   const filterClauses: string[] = [];
   const params: Record<string, unknown> = { organizationId, offset: pagination.offset, limit: pagination.limit };
-  let needsJoins = false;
+  let needsJoins = true; // always join to resolve names (companyName, driverName, etc.)
   if (options?.filters) {
     // Global search across multiple columns including joined tables
     const searchTerm = options.filters['search'];
@@ -143,7 +150,8 @@ export async function listJobs(
     LEFT JOIN Companies c ON jt.companyId = c.id
     LEFT JOIN Units u ON j.unitId = u.id`;
 
-  const jobColumns = ALL_COLUMNS.split(', ').map(c => `j.${c}`).join(', ');
+  const jobColumns = ALL_COLUMNS.split(', ').map(c => `j.${c}`).join(', ')
+    + ', jt.title AS jobTypeTitle, c.name AS companyName, d.name AS driverName, dp.name AS dispatcherName, u.name AS unitName';
 
   const [rows, countRows] = await Promise.all([
     query<Job[]>(
@@ -173,8 +181,16 @@ export async function listJobs(
 
 export async function getJobById(id: string, organizationId: string): Promise<Job | null> {
   const rows = await query<Job[]>(
-    `SELECT ${ALL_COLUMNS}
-     FROM Jobs WHERE id = @id AND organizationId = @organizationId`,
+    `SELECT ${ALL_COLUMNS.split(', ').map(c => `j.${c}`).join(', ')},
+            jt.title AS jobTypeTitle, c.name AS companyName,
+            d.name AS driverName, dp.name AS dispatcherName, u.name AS unitName
+     FROM Jobs j
+     LEFT JOIN JobTypes jt ON j.jobTypeId = jt.id
+     LEFT JOIN Companies c  ON jt.companyId = c.id
+     LEFT JOIN Drivers d    ON j.driverId = d.id
+     LEFT JOIN Dispatchers dp ON j.dispatcherId = dp.id
+     LEFT JOIN Units u      ON j.unitId = u.id
+     WHERE j.id = @id AND j.organizationId = @organizationId`,
     { params: { id, organizationId } }
   );
   return Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
@@ -182,7 +198,7 @@ export async function getJobById(id: string, organizationId: string): Promise<Jo
 
 export async function createJob(organizationId: string, input: CreateJobInput): Promise<Job> {
   const id = uuid();
-  const now = new Date();
+  const now = nowEastern();
   const jobPaid = input.jobPaid ?? false;
   const driverPaid = input.driverPaid ?? false;
   await query(
@@ -224,7 +240,7 @@ export async function updateJob(organizationId: string, input: UpdateJobInput): 
     ticketIds: input.ticketIds !== undefined ? input.ticketIds : existing.ticketIds,
     jobPaid: input.jobPaid !== undefined ? input.jobPaid : existing.jobPaid,
     driverPaid: input.driverPaid !== undefined ? input.driverPaid : existing.driverPaid,
-    updatedAt: new Date(),
+    updatedAt: nowEastern(),
   };
   await query(
     `UPDATE Jobs SET jobDate = @jobDate, jobTypeId = @jobTypeId, driverId = @driverId, dispatcherId = @dispatcherId, unitId = @unitId,

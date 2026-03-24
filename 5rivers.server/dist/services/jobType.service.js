@@ -7,6 +7,7 @@ exports.updateJobType = updateJobType;
 exports.deleteJobType = deleteJobType;
 const uuid_1 = require("uuid");
 const connection_1 = require("../db/connection");
+const timezone_1 = require("../utils/timezone");
 const SORT_COLUMNS = ['title', 'startLocation', 'endLocation', 'dispatchType', 'rateOfJob', 'createdAt'];
 const FILTER_COLUMNS = ['title'];
 const company_service_1 = require("./company.service");
@@ -75,7 +76,7 @@ async function getJobTypeById(id, organizationId) {
 async function createJobType(organizationId, input) {
     await ensureCompanyInOrg(input.companyId, organizationId);
     const id = (0, uuid_1.v4)();
-    const now = new Date();
+    const now = (0, timezone_1.nowEastern)();
     await (0, connection_1.query)(`INSERT INTO JobTypes (id, companyId, title, startLocation, endLocation, dispatchType, rateOfJob, createdAt, updatedAt)
      VALUES (@id, @companyId, @title, @startLocation, @endLocation, @dispatchType, @rateOfJob, @createdAt, @updatedAt)`, {
         params: {
@@ -101,7 +102,7 @@ async function updateJobType(organizationId, input) {
         endLocation: input.endLocation !== undefined ? input.endLocation : existing.endLocation,
         dispatchType: input.dispatchType ?? existing.dispatchType,
         rateOfJob: input.rateOfJob !== undefined ? input.rateOfJob : existing.rateOfJob,
-        updatedAt: new Date(),
+        updatedAt: (0, timezone_1.nowEastern)(),
     };
     await (0, connection_1.query)(`UPDATE JobTypes SET title = @title, startLocation = @startLocation, endLocation = @endLocation, dispatchType = @dispatchType, rateOfJob = @rateOfJob, updatedAt = @updatedAt WHERE id = @id`, { params });
     return getJobTypeById(input.id, organizationId);

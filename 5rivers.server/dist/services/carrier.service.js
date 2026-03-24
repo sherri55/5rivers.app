@@ -7,6 +7,7 @@ exports.updateCarrier = updateCarrier;
 exports.deleteCarrier = deleteCarrier;
 const uuid_1 = require("uuid");
 const connection_1 = require("../db/connection");
+const timezone_1 = require("../utils/timezone");
 const ALL_COLUMNS = 'id, organizationId, name, description, contactPerson, email, phone, rateType, rate, status, createdAt, updatedAt';
 const SORT_COLUMNS = ['name', 'contactPerson', 'email', 'phone', 'rateType', 'rate', 'status', 'createdAt'];
 const FILTER_COLUMNS = ['name', 'email', 'rateType', 'status'];
@@ -72,7 +73,7 @@ async function getCarrierById(id, organizationId) {
 }
 async function createCarrier(organizationId, input) {
     const id = (0, uuid_1.v4)();
-    const now = new Date();
+    const now = (0, timezone_1.nowEastern)();
     await (0, connection_1.query)(`INSERT INTO Carriers (id, organizationId, name, description, contactPerson, email, phone, rateType, rate, status, createdAt, updatedAt)
      VALUES (@id, @organizationId, @name, @description, @contactPerson, @email, @phone, @rateType, @rate, @status, @createdAt, @updatedAt)`, {
         params: {
@@ -110,7 +111,7 @@ async function updateCarrier(organizationId, input) {
         rateType: input.rateType !== undefined ? input.rateType : existing.rateType,
         rate: input.rate !== undefined ? input.rate : existing.rate,
         status: input.status !== undefined ? input.status : existing.status,
-        updatedAt: new Date(),
+        updatedAt: (0, timezone_1.nowEastern)(),
     };
     await (0, connection_1.query)(`UPDATE Carriers SET
        name = @name, description = @description, contactPerson = @contactPerson, email = @email, phone = @phone,

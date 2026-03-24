@@ -45,9 +45,10 @@ const COLORS = ['#465fff', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'
 
 function getPresetDates(preset: string): { startDate?: string; endDate?: string } {
   const now = new Date();
-  const y = now.getFullYear();
-  const m = now.getMonth();
-  const fmt = (d: Date) => d.toISOString().slice(0, 10);
+  const eastern = new Date(now.toLocaleString('en-US', { timeZone: 'America/Toronto' }));
+  const y = eastern.getFullYear();
+  const m = eastern.getMonth();
+  const fmt = (d: Date) => d.toLocaleDateString('en-CA', { timeZone: 'America/Toronto' });
   switch (preset) {
     case 'this-month': return { startDate: fmt(new Date(y, m, 1)), endDate: fmt(now) };
     case 'last-month': return { startDate: fmt(new Date(y, m - 1, 1)), endDate: fmt(new Date(y, m, 0)) };

@@ -1,6 +1,7 @@
 import { v4 as uuid } from 'uuid';
 import { query } from '../db/connection';
 import { type Pagination, type ListResult, type SortOrder } from '../types';
+import { nowEastern } from '../utils/timezone';
 
 const SORT_COLUMNS = ['title', 'startLocation', 'endLocation', 'dispatchType', 'rateOfJob', 'createdAt'] as const;
 const FILTER_COLUMNS = ['title'] as const;
@@ -114,7 +115,7 @@ export async function getJobTypeById(id: string, organizationId: string): Promis
 export async function createJobType(organizationId: string, input: CreateJobTypeInput): Promise<JobType> {
   await ensureCompanyInOrg(input.companyId, organizationId);
   const id = uuid();
-  const now = new Date();
+  const now = nowEastern();
   await query(
     `INSERT INTO JobTypes (id, companyId, title, startLocation, endLocation, dispatchType, rateOfJob, createdAt, updatedAt)
      VALUES (@id, @companyId, @title, @startLocation, @endLocation, @dispatchType, @rateOfJob, @createdAt, @updatedAt)`,
@@ -142,7 +143,7 @@ export async function updateJobType(organizationId: string, input: UpdateJobType
     endLocation: input.endLocation !== undefined ? input.endLocation : existing.endLocation,
     dispatchType: input.dispatchType ?? existing.dispatchType,
     rateOfJob: input.rateOfJob !== undefined ? input.rateOfJob : existing.rateOfJob,
-    updatedAt: new Date(),
+    updatedAt: nowEastern(),
   };
   await query(
     `UPDATE JobTypes SET title = @title, startLocation = @startLocation, endLocation = @endLocation, dispatchType = @dispatchType, rateOfJob = @rateOfJob, updatedAt = @updatedAt WHERE id = @id`,

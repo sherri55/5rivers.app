@@ -8,6 +8,7 @@ exports.updateInvoice = updateInvoice;
 exports.deleteInvoice = deleteInvoice;
 const uuid_1 = require("uuid");
 const connection_1 = require("../db/connection");
+const timezone_1 = require("../utils/timezone");
 const SORT_COLUMNS = ['invoiceNumber', 'invoiceDate', 'status', 'billedTo', 'billedEmail', 'createdAt'];
 const FILTER_COLUMNS = ['invoiceNumber', 'status', 'billedTo', 'billedEmail', 'dispatcherId'];
 const ALL_COLUMNS = 'id, organizationId, invoiceNumber, invoiceDate, status, dispatcherId, companyId, billedTo, billedEmail, createdAt, updatedAt';
@@ -71,7 +72,7 @@ async function getInvoiceById(id, organizationId) {
 }
 const INVOICE_PREFIX = '5RT';
 async function generateNextInvoiceNumber(organizationId) {
-    const year = new Date().getFullYear();
+    const year = (0, timezone_1.nowEastern)().getFullYear();
     const prefix = `${INVOICE_PREFIX}-${year}-`;
     const rows = await (0, connection_1.query)(`SELECT MAX(invoiceNumber) AS maxNum FROM Invoices
      WHERE organizationId = @organizationId AND invoiceNumber LIKE @prefix`, { params: { organizationId, prefix: `${prefix}%` } });
@@ -86,7 +87,7 @@ async function generateNextInvoiceNumber(organizationId) {
 }
 async function createInvoice(organizationId, input) {
     const id = (0, uuid_1.v4)();
-    const now = new Date();
+    const now = (0, timezone_1.nowEastern)();
     const invoiceNumber = await generateNextInvoiceNumber(organizationId);
     const status = input.status && ['CREATED', 'RAISED', 'RECEIVED'].includes(input.status) ? input.status : 'CREATED';
     await (0, connection_1.query)(`INSERT INTO Invoices (id, organizationId, invoiceNumber, invoiceDate, status, dispatcherId, companyId, billedTo, billedEmail, createdAt, updatedAt)
@@ -123,7 +124,7 @@ async function updateInvoice(organizationId, input) {
         companyId: input.companyId !== undefined ? input.companyId : existing.companyId,
         billedTo: input.billedTo !== undefined ? input.billedTo : existing.billedTo,
         billedEmail: input.billedEmail !== undefined ? input.billedEmail : existing.billedEmail,
-        updatedAt: new Date(),
+        updatedAt: (0, timezone_1.nowEastern)(),
     };
     await (0, connection_1.query)(`UPDATE Invoices SET invoiceDate = @invoiceDate, status = @status, dispatcherId = @dispatcherId, companyId = @companyId, billedTo = @billedTo, billedEmail = @billedEmail, updatedAt = @updatedAt
      WHERE id = @id AND organizationId = @organizationId`, { params });
@@ -131,13 +132,13 @@ async function updateInvoice(organizationId, input) {
     const newStatus = params.status;
     const oldStatus = existing.status;
     if (newStatus === 'RECEIVED' && oldStatus !== 'RECEIVED') {
-        await (0, connection_1.query)(`UPDATE Jobs SET jobPaid = 1, updatedAt = GETUTCDATE()
+        await (0, connection_1.query)(`UPDATE Jobs SET jobPaid = 1, updatedAt = CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATETIME2)
        WHERE id IN (SELECT jobId FROM JobInvoice WHERE invoiceId = @invoiceId)
        AND organizationId = @organizationId`, { params: { invoiceId: input.id, organizationId } });
     }
     // If status reverts from RECEIVED, unmark jobPaid
     if (oldStatus === 'RECEIVED' && newStatus !== 'RECEIVED') {
-        await (0, connection_1.query)(`UPDATE Jobs SET jobPaid = 0, updatedAt = GETUTCDATE()
+        await (0, connection_1.query)(`UPDATE Jobs SET jobPaid = 0, updatedAt = CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATETIME2)
        WHERE id IN (SELECT jobId FROM JobInvoice WHERE invoiceId = @invoiceId)
        AND organizationId = @organizationId`, { params: { invoiceId: input.id, organizationId } });
     }

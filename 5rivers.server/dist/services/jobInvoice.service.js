@@ -8,6 +8,7 @@ exports.removeJobFromInvoice = removeJobFromInvoice;
 const connection_1 = require("../db/connection");
 const invoice_service_1 = require("./invoice.service");
 const job_service_1 = require("./job.service");
+const timezone_1 = require("../utils/timezone");
 async function listJobsOnInvoice(invoiceId, organizationId) {
     const invoice = await (0, invoice_service_1.getInvoiceById)(invoiceId, organizationId);
     if (!invoice)
@@ -71,7 +72,7 @@ async function addJobToInvoice(organizationId, invoiceId, jobId, amount) {
             jobId,
             invoiceId,
             amount: Number(amount),
-            addedAt: new Date(),
+            addedAt: (0, timezone_1.nowEastern)(),
         },
     });
     const line = await getJobInvoice(invoiceId, jobId, organizationId);

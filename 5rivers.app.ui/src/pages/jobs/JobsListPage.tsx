@@ -4,7 +4,7 @@ import { useJobs, useDeleteJob, useUpdateJob } from '@/hooks/useJobs';
 import { useLookupMaps, useJobTypes, useDrivers, useDispatchers } from '@/hooks/useLookups';
 import { useColumnVisibility, type ColumnDef } from '@/hooks/useColumnVisibility';
 import { useToast } from '@/context/toast';
-import { formatCurrency, formatDate, getInitials } from '@/lib/format';
+import { formatCurrency, formatDate, formatTime, getInitials } from '@/lib/format';
 import { SourceTypeBadge } from '@/components/ui/Badge';
 import { ConfirmModal } from '@/components/ui/Modal';
 import { DataTable, type Column } from '@/components/ui/DataTable';
@@ -152,9 +152,10 @@ export function JobsListPage() {
             <span className="text-[13px] font-semibold text-on-surface">
               {formatDate(job.jobDate)}
             </span>
-            {job.startTime && (
+            {(job.startTime || job.endTime) && (
               <span className="block text-[11px] text-slate-400 mt-0.5">
-                {job.startTime}
+                {formatTime(job.startTime)}
+                {job.endTime && ` – ${formatTime(job.endTime)}`}
               </span>
             )}
           </div>

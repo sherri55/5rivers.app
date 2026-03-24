@@ -24,7 +24,7 @@ function fmtDate(d: string | Date | null | undefined): string {
   const s = String(d).slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return String(d);
   const [y, m, day] = s.split('-').map(Number);
-  return new Date(y, m - 1, day).toLocaleDateString('en-CA', { year: 'numeric', month: 'short', day: 'numeric' });
+  return new Date(y, m - 1, day).toLocaleDateString('en-CA', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'America/Toronto' });
 }
 
 function fmtCurrency(v: number | null | undefined): string {
@@ -49,8 +49,8 @@ function buildSubtitle(filters: Record<string, string>): string {
   for (const [k, v] of Object.entries(filters)) {
     if (v) parts.push(`${k}: ${v}`);
   }
-  if (parts.length === 0) return `All records · ${new Date().toLocaleDateString('en-CA')}`;
-  return `Filtered by ${parts.join(', ')} · ${new Date().toLocaleDateString('en-CA')}`;
+  if (parts.length === 0) return `All records · ${new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' })}`;
+  return `Filtered by ${parts.join(', ')} · ${new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' })}`;
 }
 
 // ============================================
@@ -305,7 +305,7 @@ router.get(
       c.phone ?? '',
     ]);
 
-    const buffer = await generateListPDF('Carriers Report', `All records · ${new Date().toLocaleDateString('en-CA')}`, columns, data, 'portrait');
+    const buffer = await generateListPDF('Carriers Report', `All records · ${new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' })}`, columns, data, 'portrait');
     sendPdf(res, buffer, 'carriers-report.pdf');
   }),
 );

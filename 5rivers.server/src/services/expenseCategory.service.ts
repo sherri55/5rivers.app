@@ -6,6 +6,7 @@ import {
   type ListResult,
   type SortOrder,
 } from '../types';
+import { nowEastern } from '../utils/timezone';
 
 const SORT_COLUMNS = ['name', 'createdAt'] as const;
 
@@ -107,7 +108,7 @@ export async function createExpenseCategory(
   input: CreateExpenseCategoryInput
 ): Promise<ExpenseCategory> {
   const id = uuid();
-  const now = new Date();
+  const now = nowEastern();
   await query(
     `INSERT INTO ExpenseCategories (id, organizationId, name, description, color, isActive, createdAt, updatedAt)
      VALUES (@id, @organizationId, @name, @description, @color, @isActive, @createdAt, @updatedAt)`,
@@ -143,7 +144,7 @@ export async function updateExpenseCategory(
     description: input.description !== undefined ? input.description : existing.description,
     color: input.color !== undefined ? input.color : existing.color,
     isActive: input.isActive !== undefined ? (input.isActive ? 1 : 0) : (existing.isActive ? 1 : 0),
-    updatedAt: new Date(),
+    updatedAt: nowEastern(),
   };
 
   await query(

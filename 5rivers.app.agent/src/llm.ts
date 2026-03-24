@@ -12,8 +12,14 @@
  * 4. If LLM returns tool calls → execute → feed results back → repeat
  * 5. Return final text response
  */
+import { setGlobalDispatcher, Agent } from 'undici';
 import { Ollama } from 'ollama';
 import Groq from 'groq-sdk';
+
+// Increase undici's default headersTimeout (30s) so remote Ollama calls don't abort
+// before the model starts generating tokens.
+const _timeoutMs = parseInt(process.env.OLLAMA_TIMEOUT_MS ?? '300000');
+setGlobalDispatcher(new Agent({ headersTimeout: _timeoutMs, bodyTimeout: _timeoutMs }));
 import { createRestClient, type RestClient } from '../../5rivers.app.mcp/dist/rest-client.js';
 import { ALL_TOOLS } from '../../5rivers.app.mcp/dist/tools.js';
 import {
@@ -70,7 +76,9 @@ let _ollama: Ollama | null = null;
 class OllamaProvider implements LLMProvider {
   private getClient(): Ollama {
     if (!_ollama) {
-      const host = process.env.OLLAMA_HOST ?? 'http://localhost:11434';
+      // Strip any path suffix (e.g. system env may have /api/generate appended)
+      const rawHost = process.env.OLLAMA_HOST ?? 'http://localhost:11434';
+      const host = new URL(rawHost).origin;
       const timeoutMs = parseInt(process.env.OLLAMA_TIMEOUT_MS ?? '300000');
       _ollama = new Ollama({
         host,
@@ -93,6 +101,10 @@ class OllamaProvider implements LLMProvider {
         })),
       })),
       tools: getToolDefs(),
+      options: {
+        temperature: 0.1,
+        num_ctx: parseInt(process.env.OLLAMA_NUM_CTX ?? '16384'),
+      },
     });
 
     const msg = response.message;
@@ -181,7 +193,9 @@ function getProvider(): LLMProvider {
       console.log(`[llm] Provider: Groq (${process.env.GROQ_MODEL ?? 'llama-3.1-70b-versatile'})`);
       _provider = new GroqProvider();
     } else {
-      console.log(`[llm] Provider: Ollama (${process.env.OLLAMA_MODEL ?? 'llama3.1'} @ ${process.env.OLLAMA_HOST ?? 'http://localhost:11434'})`);
+      const _rawHost = process.env.OLLAMA_HOST ?? 'http://localhost:11434';
+      const _cleanHost = new URL(_rawHost).origin;
+      console.log(`[llm] Provider: Ollama (${process.env.OLLAMA_MODEL ?? 'llama3.1'} @ ${_cleanHost})`);
       _provider = new OllamaProvider();
     }
   }
@@ -210,32 +224,37 @@ async function loadEntityContext(client: RestClient): Promise<string> {
     client.expenseCategories.list({ limit: 100 }).catch(() => ({ data: [] })),
   ]);
 
-  const fmt = (items: Record<string, unknown>[], fields: string[]) =>
-    items.map((item) => fields.map((f) => `${f}: ${item[f] ?? '—'}`).join(', ')).join('\n  ') || '(none)';
+  // Compact format: "id | name" — keeps token count low
+  const fmtPairs = (items: Record<string, unknown>[], nameField = 'name') =>
+    items.map((item) => `${item['id']} | ${item[nameField] ?? '—'}`).join('\n  ') || '(none)';
+
+  // Job types: group by company name to avoid repeating UUIDs; only show title + rate
+  const fmtJobTypes = (items: Record<string, unknown>[]) =>
+    items.map((jt) => `${jt['id']} | ${jt['title']} ($${jt['rateOfJob'] ?? '?'})`).join('\n  ') || '(none)';
 
   entityContextCache = `
-## Known Entities (use these IDs when creating jobs/invoices)
+## Known Entities (use IDs when calling tools)
 
 ### Companies
-  ${fmt(companies.data, ['id', 'name'])}
+  ${fmtPairs(companies.data)}
 
 ### Drivers
-  ${fmt(drivers.data, ['id', 'name'])}
+  ${fmtPairs(drivers.data)}
 
 ### Dispatchers
-  ${fmt(dispatchers.data, ['id', 'name'])}
+  ${fmtPairs(dispatchers.data)}
 
 ### Job Types
-  ${fmt(jobTypes.data, ['id', 'title', 'companyId', 'rateOfJob'])}
+  ${fmtJobTypes(jobTypes.data)}
 
 ### Units
-  ${fmt(units.data, ['id', 'name'])}
+  ${fmtPairs(units.data)}
 
 ### Carriers
-  ${fmt(carriers.data, ['id', 'name'])}
+  ${fmtPairs(carriers.data)}
 
 ### Expense Categories
-  ${fmt(categories.data, ['id', 'name'])}
+  ${fmtPairs(categories.data)}
 `.trim();
 
   entityContextTimestamp = now;
@@ -245,7 +264,25 @@ async function loadEntityContext(client: RestClient): Promise<string> {
 // ─── System prompt ────────────────────────────────────────────────────────────
 
 function buildSystemPrompt(entityContext: string): string {
+  const easternNow = new Date().toLocaleString('en-US', {
+    timeZone: 'America/Toronto',
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+  const easternDate = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' });
+
   return `You are a fleet operations assistant for 5Rivers. You help manage jobs, drivers, companies, dispatchers, units, carriers, invoices, and expenses.
+
+## Timezone
+All dates and times are in **Eastern Time** (America/Toronto — EDT in summer, EST in winter).
+Current date/time: **${easternNow}** (${easternDate}).
+When the user says "today", "tomorrow", "this week", "last month", etc., interpret it relative to this Eastern Time date.
+All startTime/endTime values are in Eastern Time. All jobDate values are calendar dates in Eastern Time.
 
 ## How to interpret user messages
 
@@ -280,6 +317,15 @@ Parse these messages by extracting:
 - **Expense**: description (required), amount (required), expenseDate (required). Optional: categoryId, vendor, paymentMethod, recurring, recurringFrequency
 - **Invoice**: invoiceDate (required), plus dispatcherId OR companyId
 - **Driver/Company/Dispatcher/Unit/Carrier**: name (required)
+
+## How to search for jobs
+When the user mentions a company, dispatcher, or driver name TOGETHER with a date:
+- **ALWAYS pass BOTH the date AND the search parameter in a single list_jobs call.**
+- Example: "Wroom job on Oct 3" → list_jobs(date="2025-10-03", search="Wroom")
+- Example: "Bre-Ex jobs in October" → list_jobs(dateFrom="2025-10-01", dateTo="2025-10-31", search="Bre-Ex")
+- NEVER call list_jobs with only search (no date) or only date (no search) when the user specified both.
+- The search parameter searches across company name, dispatcher name, driver name, job type title, locations, and ticket IDs.
+- Each job in the response contains: companyName, dispatcherName, driverName, unitName, startTime, endTime, amount, jobPaid, driverPaid.
 
 ## Behavior rules
 1. **Ask for missing required fields** — never guess company, driver, or amounts

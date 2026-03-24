@@ -1,6 +1,7 @@
 import { v4 as uuid } from 'uuid';
 import { query } from '../db/connection';
 import { type Pagination, type ListResult, type SortOrder } from '../types';
+import { nowEastern } from '../utils/timezone';
 
 const SORT_COLUMNS = ['name', 'description', 'color', 'plateNumber', 'vin', 'status', 'year', 'make', 'model', 'mileage', 'insuranceExpiry', 'lastMaintenanceDate', 'nextMaintenanceDate', 'createdAt'] as const;
 const FILTER_COLUMNS = ['name', 'plateNumber', 'vin', 'color', 'status', 'make', 'model'] as const;
@@ -130,7 +131,7 @@ export async function getUnitById(id: string, organizationId: string): Promise<U
 
 export async function createUnit(organizationId: string, input: CreateUnitInput): Promise<Unit> {
   const id = uuid();
-  const now = new Date();
+  const now = nowEastern();
   await query(
     `INSERT INTO Units (id, organizationId, name, description, color, plateNumber, vin, status, year, make, model, mileage, insuranceExpiry, lastMaintenanceDate, nextMaintenanceDate, createdAt, updatedAt)
      VALUES (@id, @organizationId, @name, @description, @color, @plateNumber, @vin, @status, @year, @make, @model, @mileage, @insuranceExpiry, @lastMaintenanceDate, @nextMaintenanceDate, @createdAt, @updatedAt)`,
@@ -172,7 +173,7 @@ export async function updateUnit(organizationId: string, input: UpdateUnitInput)
     insuranceExpiry: input.insuranceExpiry !== undefined ? input.insuranceExpiry : existing.insuranceExpiry,
     lastMaintenanceDate: input.lastMaintenanceDate !== undefined ? input.lastMaintenanceDate : existing.lastMaintenanceDate,
     nextMaintenanceDate: input.nextMaintenanceDate !== undefined ? input.nextMaintenanceDate : existing.nextMaintenanceDate,
-    updatedAt: new Date(),
+    updatedAt: nowEastern(),
   };
   await query(
     `UPDATE Units SET name = @name, description = @description, color = @color, plateNumber = @plateNumber, vin = @vin,

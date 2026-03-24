@@ -716,7 +716,7 @@ function RecordPaymentModal({
   const createPayment = useCreateDriverPayment();
   const { addToast } = useToast();
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' });
   const [amount, setAmount] = useState('');
   const [paidAt, setPaidAt] = useState(today);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CASH');

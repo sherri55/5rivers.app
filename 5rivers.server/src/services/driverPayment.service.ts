@@ -2,6 +2,7 @@ import { v4 as uuid } from 'uuid';
 import { query } from '../db/connection';
 import { normalizePagination, type Pagination, type ListResult } from '../types';
 import { getDriverById } from './driver.service';
+import { nowEastern } from '../utils/timezone';
 
 export const PAYMENT_METHODS = ['CASH', 'CHECK', 'BANK_TRANSFER', 'E_TRANSFER', 'OTHER'] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
@@ -108,7 +109,7 @@ export async function createDriverPayment(
     ? input.paymentMethod
     : 'OTHER';
   const id = uuid();
-  const now = new Date();
+  const now = nowEastern();
   await query(
     `INSERT INTO DriverPayment (id, driverId, organizationId, amount, paidAt, paymentMethod, reference, notes, createdAt, updatedAt)
      VALUES (@id, @driverId, @organizationId, @amount, @paidAt, @paymentMethod, @reference, @notes, @createdAt, @updatedAt)`,
@@ -164,7 +165,7 @@ export async function updateDriverPayment(
   }
   if (updates.length === 0) return existing;
   updates.push('updatedAt = @updatedAt');
-  params.updatedAt = new Date();
+  params.updatedAt = nowEastern();
 
   await query(
     `UPDATE DriverPayment SET ${updates.join(', ')}

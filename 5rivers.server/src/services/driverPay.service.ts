@@ -117,14 +117,14 @@ export async function listDriverPaySummaries(
 
   const jobsByDriver = new Map<string, DriverPayJobRow[]>();
   const toJobDate = (d: Date | string) =>
-    typeof d === 'string' ? d.slice(0, 10) : (d as Date).toISOString().slice(0, 10);
+    typeof d === 'string' ? d.slice(0, 10) : (d as Date).toLocaleDateString('en-CA', { timeZone: 'America/Toronto' });
   for (const row of Array.isArray(jobRows) ? jobRows : []) {
     const paidAt =
       row.paidAt == null
         ? null
         : typeof row.paidAt === 'string'
           ? row.paidAt.slice(0, 10)
-          : (row.paidAt as Date).toISOString().slice(0, 10);
+          : (row.paidAt as Date).toLocaleDateString('en-CA', { timeZone: 'America/Toronto' });
     const item: DriverPayJobRow = {
       jobId: row.jobId,
       jobDate: toJobDate(row.jobDate),
@@ -160,7 +160,7 @@ export async function listDriverPaySummaries(
     const paidAt =
       typeof row.paidAt === 'string'
         ? row.paidAt.slice(0, 10)
-        : (row.paidAt as Date).toISOString().slice(0, 10);
+        : (row.paidAt as Date).toLocaleDateString('en-CA', { timeZone: 'America/Toronto' });
     const item: DriverPayPaymentRow = {
       id: row.id,
       amount: Number(row.amount),

@@ -7,6 +7,7 @@ exports.updateJob = updateJob;
 exports.deleteJob = deleteJob;
 const uuid_1 = require("uuid");
 const connection_1 = require("../db/connection");
+const timezone_1 = require("../utils/timezone");
 const SORT_COLUMNS = ['jobDate', 'amount', 'sourceType', 'createdAt'];
 const FILTER_COLUMNS = ['jobDate', 'amount', 'sourceType', 'driverId', 'dispatcherId', 'unitId', 'jobTypeId'];
 const ALL_COLUMNS = 'id, organizationId, jobDate, jobTypeId, driverId, dispatcherId, unitId, carrierId, sourceType, weight, loads, startTime, endTime, amount, carrierAmount, ticketIds, jobPaid, driverPaid, createdAt, updatedAt';
@@ -15,7 +16,7 @@ async function listJobs(organizationId, pagination, options) {
     const order = options?.order === 'asc' ? 'ASC' : 'DESC';
     const filterClauses = [];
     const params = { organizationId, offset: pagination.offset, limit: pagination.limit };
-    let needsJoins = false;
+    let needsJoins = true; // always join to resolve names (companyName, driverName, etc.)
     if (options?.filters) {
         // Global search across multiple columns including joined tables
         const searchTerm = options.filters['search'];
@@ -92,7 +93,8 @@ async function listJobs(organizationId, pagination, options) {
     LEFT JOIN JobTypes jt ON j.jobTypeId = jt.id
     LEFT JOIN Companies c ON jt.companyId = c.id
     LEFT JOIN Units u ON j.unitId = u.id`;
-    const jobColumns = ALL_COLUMNS.split(', ').map(c => `j.${c}`).join(', ');
+    const jobColumns = ALL_COLUMNS.split(', ').map(c => `j.${c}`).join(', ')
+        + ', jt.title AS jobTypeTitle, c.name AS companyName, d.name AS driverName, dp.name AS dispatcherName, u.name AS unitName';
     const [rows, countRows] = await Promise.all([
         (0, connection_1.query)(needsJoins
             ? `SELECT ${jobColumns} FROM Jobs j${joins} WHERE j.organizationId = @organizationId${whereExtra}
@@ -113,13 +115,21 @@ async function listJobs(organizationId, pagination, options) {
     };
 }
 async function getJobById(id, organizationId) {
-    const rows = await (0, connection_1.query)(`SELECT ${ALL_COLUMNS}
-     FROM Jobs WHERE id = @id AND organizationId = @organizationId`, { params: { id, organizationId } });
+    const rows = await (0, connection_1.query)(`SELECT ${ALL_COLUMNS.split(', ').map(c => `j.${c}`).join(', ')},
+            jt.title AS jobTypeTitle, c.name AS companyName,
+            d.name AS driverName, dp.name AS dispatcherName, u.name AS unitName
+     FROM Jobs j
+     LEFT JOIN JobTypes jt ON j.jobTypeId = jt.id
+     LEFT JOIN Companies c  ON jt.companyId = c.id
+     LEFT JOIN Drivers d    ON j.driverId = d.id
+     LEFT JOIN Dispatchers dp ON j.dispatcherId = dp.id
+     LEFT JOIN Units u      ON j.unitId = u.id
+     WHERE j.id = @id AND j.organizationId = @organizationId`, { params: { id, organizationId } });
     return Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
 }
 async function createJob(organizationId, input) {
     const id = (0, uuid_1.v4)();
-    const now = new Date();
+    const now = (0, timezone_1.nowEastern)();
     const jobPaid = input.jobPaid ?? false;
     const driverPaid = input.driverPaid ?? false;
     await (0, connection_1.query)(`INSERT INTO Jobs (id, organizationId, jobDate, jobTypeId, driverId, dispatcherId, unitId, carrierId, sourceType, weight, loads, startTime, endTime, amount, carrierAmount, ticketIds, jobPaid, driverPaid, createdAt, updatedAt)
@@ -159,7 +169,7 @@ async function updateJob(organizationId, input) {
         ticketIds: input.ticketIds !== undefined ? input.ticketIds : existing.ticketIds,
         jobPaid: input.jobPaid !== undefined ? input.jobPaid : existing.jobPaid,
         driverPaid: input.driverPaid !== undefined ? input.driverPaid : existing.driverPaid,
-        updatedAt: new Date(),
+        updatedAt: (0, timezone_1.nowEastern)(),
     };
     await (0, connection_1.query)(`UPDATE Jobs SET jobDate = @jobDate, jobTypeId = @jobTypeId, driverId = @driverId, dispatcherId = @dispatcherId, unitId = @unitId,
        carrierId = @carrierId, sourceType = @sourceType, weight = @weight, loads = @loads, startTime = @startTime, endTime = @endTime,

@@ -7,6 +7,7 @@ exports.updateCompany = updateCompany;
 exports.deleteCompany = deleteCompany;
 const uuid_1 = require("uuid");
 const connection_1 = require("../db/connection");
+const timezone_1 = require("../utils/timezone");
 const SORT_COLUMNS = ['name', 'description', 'email', 'phone', 'createdAt'];
 const FILTER_COLUMNS = ['name', 'description', 'email', 'phone'];
 async function listCompanies(organizationId, pagination, options) {
@@ -69,7 +70,7 @@ async function getCompanyById(id, organizationId) {
 }
 async function createCompany(organizationId, input) {
     const id = (0, uuid_1.v4)();
-    const now = new Date();
+    const now = (0, timezone_1.nowEastern)();
     await (0, connection_1.query)(`INSERT INTO Companies (id, organizationId, name, description, website, industry, location, size, founded, logo, email, phone, createdAt, updatedAt)
      VALUES (@id, @organizationId, @name, @description, @website, @industry, @location, @size, @founded, @logo, @email, @phone, @createdAt, @updatedAt)`, {
         params: {
@@ -111,7 +112,7 @@ async function updateCompany(organizationId, input) {
         logo: input.logo !== undefined ? input.logo : existing.logo,
         email: input.email !== undefined ? input.email : existing.email,
         phone: input.phone !== undefined ? input.phone : existing.phone,
-        updatedAt: new Date(),
+        updatedAt: (0, timezone_1.nowEastern)(),
     };
     await (0, connection_1.query)(`UPDATE Companies SET
        name = @name, description = @description, website = @website, industry = @industry,

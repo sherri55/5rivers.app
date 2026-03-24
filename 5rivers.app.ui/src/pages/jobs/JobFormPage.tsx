@@ -47,7 +47,9 @@ export function JobFormPage() {
 
   // Form state
   const [sourceType, setSourceType] = useState<JobSourceType>('DISPATCHED');
-  const [jobDate, setJobDate] = useState(new Date().toISOString().split('T')[0]);
+  const [jobDate, setJobDate] = useState(
+    new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' }),
+  );
   const [selectedCompanyId, setSelectedCompanyId] = useState('');
   const [jobTypeId, setJobTypeId] = useState('');
   const [driverId, setDriverId] = useState('');
@@ -147,8 +149,8 @@ export function JobFormPage() {
     setDispatcherId(existingJob.dispatcherId ?? '');
     setCarrierId(existingJob.carrierId ?? '');
     setCarrierAmount(existingJob.carrierAmount?.toString() ?? '');
-    setStartTime(existingJob.startTime ?? '');
-    setEndTime(existingJob.endTime ?? '');
+    setStartTime(existingJob.startTime?.match(/(\d{2}:\d{2})$/)?.[1] ?? existingJob.startTime ?? '');
+    setEndTime(existingJob.endTime?.match(/(\d{2}:\d{2})$/)?.[1] ?? existingJob.endTime ?? '');
     setWeight(existingJob.weight ?? '');
     setLoads(existingJob.loads?.toString() ?? '');
     setAmount(existingJob.amount?.toString() ?? '');

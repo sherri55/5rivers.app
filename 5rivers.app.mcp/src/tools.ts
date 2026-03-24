@@ -16,13 +16,12 @@ function json(data: unknown): string {
   return JSON.stringify(data, null, 2);
 }
 
+/** Parse a date string and return YYYY-MM-DD in Eastern Time. */
 function parseDateArg(dateStr: string): string {
   const d = new Date(dateStr);
   if (isNaN(d.getTime())) return dateStr;
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
+  // Use en-CA locale which gives YYYY-MM-DD format, in Eastern timezone
+  return d.toLocaleDateString('en-CA', { timeZone: 'America/Toronto' });
 }
 
 // ── Read Tools ──────────────────────────────────────────────
@@ -30,18 +29,26 @@ function parseDateArg(dateStr: string): string {
 const list_jobs: ToolDefinition = {
   name: 'list_jobs',
   description:
-    'List jobs with optional filters. Use for "show me jobs for today", "jobs from March 1 to 15", "pending jobs", "jobs for driver X". Returns paginated job list with date, amount, driver, status.',
+    'List jobs with optional filters. Use for "show me jobs for today", "jobs from March 1 to 15", "jobs for Wroom dispatcher", "Bre-Ex jobs in October". ' +
+    'Each job in the response includes companyName, dispatcherName, driverName, unitName, startTime, endTime, amount, jobPaid, driverPaid. ' +
+    'Use the search parameter to find jobs by company name, dispatcher name, driver name, job type, location, or ticket ID — e.g. search="Wroom" or search="Bre-Ex".',
   inputSchema: {
     type: 'object',
     properties: {
-      date: { type: 'string', description: 'Single date — returns jobs on that day. Accepts "2025-02-12", "12th feb 2025", etc.' },
-      dateFrom: { type: 'string', description: 'Start date for range filter.' },
-      dateTo: { type: 'string', description: 'End date for range filter.' },
-      driverId: { type: 'string', description: 'Filter by driver ID.' },
-      jobTypeId: { type: 'string', description: 'Filter by job type ID.' },
-      search: { type: 'string', description: 'Search term (ticket IDs, etc.).' },
-      limit: { type: 'number', description: 'Max results (default 50, max 100).', default: 50 },
-      page: { type: 'number', description: 'Page number (default 1).', default: 1 },
+      date: { type: 'string', description: 'Single date — returns jobs on that day. Accepts "2025-02-12", "12th feb 2025", "Oct 3 2025", etc.' },
+      dateFrom: { type: 'string', description: 'Start of date range. e.g. "2025-11-01"' },
+      dateTo: { type: 'string', description: 'End of date range. e.g. "2025-11-30"' },
+      search: {
+        type: 'string',
+        description: 'Full-text search across company name, dispatcher name, driver name, job type title, start/end location, and ticket IDs. Use this when the user mentions a company or dispatcher by name, e.g. search="Wroom" or search="Bre-Ex".',
+      },
+      driverId: { type: 'string', description: 'Filter by driver UUID (use list_drivers to look up IDs by name).' },
+      dispatcherId: { type: 'string', description: 'Filter by dispatcher UUID (use list_dispatchers to look up IDs by name).' },
+      jobTypeId: { type: 'string', description: 'Filter by job type UUID.' },
+      jobPaid: { type: 'boolean', description: 'Filter by payment received status. true = paid, false = unpaid.' },
+      driverPaid: { type: 'boolean', description: 'Filter by driver paid status.' },
+      limit: { type: 'number', description: 'Max results per page (default 50, max 100).', default: 50 },
+      page: { type: 'number', description: 'Page number for pagination (default 1).', default: 1 },
     },
   },
   handler: async (client, args) => {
@@ -53,8 +60,11 @@ const list_jobs: ToolDefinition = {
       if (args.dateFrom) filters.dateFrom = parseDateArg(String(args.dateFrom));
       if (args.dateTo) filters.dateTo = parseDateArg(String(args.dateTo));
     }
-    if (args.driverId) filters.driverId = String(args.driverId);
-    if (args.jobTypeId) filters.jobTypeId = String(args.jobTypeId);
+    if (args.driverId)     filters.driverId     = String(args.driverId);
+    if (args.dispatcherId) filters.dispatcherId  = String(args.dispatcherId);
+    if (args.jobTypeId)    filters.jobTypeId     = String(args.jobTypeId);
+    if (args.jobPaid    !== undefined) filters.jobPaid    = String(args.jobPaid);
+    if (args.driverPaid !== undefined) filters.driverPaid = String(args.driverPaid);
 
     const result = await client.jobs.list({
       page: Number(args.page) || 1,

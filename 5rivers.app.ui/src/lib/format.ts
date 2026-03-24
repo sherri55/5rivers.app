@@ -13,6 +13,7 @@ export function formatCurrency(value: number | null | undefined): string {
 /**
  * Format an ISO date string to a readable format.
  * e.g. "2026-03-15" → "Mar 15, 2026"
+ * All dates are treated as Eastern Time (America/Toronto).
  */
 export function formatDate(dateStr: string | null | undefined): string {
   if (!dateStr) return '—';
@@ -24,15 +25,33 @@ export function formatDate(dateStr: string | null | undefined): string {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
+    timeZone: 'America/Toronto',
   });
 }
 
 /**
- * Format time string. Passes through if already in HH:MM format.
+ * Returns today's date as YYYY-MM-DD in Eastern Time.
+ * Use this instead of new Date().toISOString().split('T')[0] to avoid
+ * UTC date boundary issues (e.g. after 8pm ET, toISOString() returns tomorrow).
+ */
+export function todayEastern(): string {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' });
+}
+
+/**
+ * Format time string. Handles both "07:30" and "2025-10-03T07:30" formats.
+ * Always returns HH:MM (12-hour with am/pm).
  */
 export function formatTime(timeStr: string | null | undefined): string {
   if (!timeStr) return '—';
-  return timeStr;
+  // Extract HH:MM from "2025-10-03T07:30" or "07:30"
+  const match = String(timeStr).match(/(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if (!match) return timeStr;
+  const h = parseInt(match[1], 10);
+  const m = match[2];
+  const suffix = h >= 12 ? 'pm' : 'am';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${m}${suffix}`;
 }
 
 /**

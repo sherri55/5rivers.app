@@ -6,6 +6,7 @@ import {
   type ListResult,
   type SortOrder,
 } from '../types';
+import { nowEastern } from '../utils/timezone';
 
 const SORT_COLUMNS = ['description', 'amount', 'expenseDate', 'vendor', 'paymentMethod', 'createdAt'] as const;
 const FILTER_COLUMNS = ['description', 'vendor', 'paymentMethod'] as const;
@@ -156,7 +157,7 @@ export async function createExpense(
   input: CreateExpenseInput
 ): Promise<Expense> {
   const id = uuid();
-  const now = new Date();
+  const now = nowEastern();
   await query(
     `INSERT INTO Expenses (id, organizationId, categoryId, description, amount, expenseDate, vendor, paymentMethod, reference, notes, recurring, recurringFrequency, createdAt, updatedAt)
      VALUES (@id, @organizationId, @categoryId, @description, @amount, @expenseDate, @vendor, @paymentMethod, @reference, @notes, @recurring, @recurringFrequency, @createdAt, @updatedAt)`,
@@ -204,7 +205,7 @@ export async function updateExpense(
     notes: input.notes !== undefined ? input.notes : existing.notes,
     recurring: input.recurring !== undefined ? (input.recurring ? 1 : 0) : (existing.recurring ? 1 : 0),
     recurringFrequency: input.recurringFrequency !== undefined ? input.recurringFrequency : existing.recurringFrequency,
-    updatedAt: new Date(),
+    updatedAt: nowEastern(),
   };
 
   await query(

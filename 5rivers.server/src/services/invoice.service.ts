@@ -1,6 +1,7 @@
 import { v4 as uuid } from 'uuid';
 import { query } from '../db/connection';
 import { type Pagination, type ListResult, type SortOrder } from '../types';
+import { nowEastern } from '../utils/timezone';
 
 const SORT_COLUMNS = ['invoiceNumber', 'invoiceDate', 'status', 'billedTo', 'billedEmail', 'createdAt'] as const;
 const FILTER_COLUMNS = ['invoiceNumber', 'status', 'billedTo', 'billedEmail', 'dispatcherId'] as const;
@@ -116,7 +117,7 @@ export async function getInvoiceById(
 const INVOICE_PREFIX = '5RT';
 
 export async function generateNextInvoiceNumber(organizationId: string): Promise<string> {
-  const year = new Date().getFullYear();
+  const year = nowEastern().getFullYear();
   const prefix = `${INVOICE_PREFIX}-${year}-`;
   const rows = await query<Array<{ maxNum: string | null }>>(
     `SELECT MAX(invoiceNumber) AS maxNum FROM Invoices
@@ -137,7 +138,7 @@ export async function createInvoice(
   input: CreateInvoiceInput
 ): Promise<Invoice> {
   const id = uuid();
-  const now = new Date();
+  const now = nowEastern();
   const invoiceNumber = await generateNextInvoiceNumber(organizationId);
   const status = input.status && ['CREATED', 'RAISED', 'RECEIVED'].includes(input.status) ? input.status : 'CREATED';
   await query(
@@ -180,7 +181,7 @@ export async function updateInvoice(
     companyId: input.companyId !== undefined ? input.companyId : existing.companyId,
     billedTo: input.billedTo !== undefined ? input.billedTo : existing.billedTo,
     billedEmail: input.billedEmail !== undefined ? input.billedEmail : existing.billedEmail,
-    updatedAt: new Date(),
+    updatedAt: nowEastern(),
   };
 
   await query(
@@ -194,7 +195,7 @@ export async function updateInvoice(
   const oldStatus = existing.status;
   if (newStatus === 'RECEIVED' && oldStatus !== 'RECEIVED') {
     await query(
-      `UPDATE Jobs SET jobPaid = 1, updatedAt = GETUTCDATE()
+      `UPDATE Jobs SET jobPaid = 1, updatedAt = CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATETIME2)
        WHERE id IN (SELECT jobId FROM JobInvoice WHERE invoiceId = @invoiceId)
        AND organizationId = @organizationId`,
       { params: { invoiceId: input.id, organizationId } }
@@ -203,7 +204,7 @@ export async function updateInvoice(
   // If status reverts from RECEIVED, unmark jobPaid
   if (oldStatus === 'RECEIVED' && newStatus !== 'RECEIVED') {
     await query(
-      `UPDATE Jobs SET jobPaid = 0, updatedAt = GETUTCDATE()
+      `UPDATE Jobs SET jobPaid = 0, updatedAt = CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATETIME2)
        WHERE id IN (SELECT jobId FROM JobInvoice WHERE invoiceId = @invoiceId)
        AND organizationId = @organizationId`,
       { params: { invoiceId: input.id, organizationId } }

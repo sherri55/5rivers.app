@@ -34,7 +34,9 @@ export function ExpenseFormPage() {
   // Form state
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
-  const [expenseDate, setExpenseDate] = useState(new Date().toISOString().slice(0, 10));
+  const [expenseDate, setExpenseDate] = useState(
+    new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' }),
+  );
   const [categoryId, setCategoryId] = useState('');
   const [vendor, setVendor] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<ExpensePaymentMethod>('OTHER');

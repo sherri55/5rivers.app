@@ -87,7 +87,7 @@ export async function addMember(
     const name = (input.name ?? '').trim() || null;
     await query(
       `INSERT INTO Users (id, email, passwordHash, name, createdAt, updatedAt)
-       VALUES (@userId, @email, @passwordHash, @name, GETUTCDATE(), GETUTCDATE())`,
+       VALUES (@userId, @email, @passwordHash, @name, CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATETIME2), CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATETIME2))`,
       {
         params: {
           userId,
@@ -109,7 +109,7 @@ export async function addMember(
 
   await query(
     `INSERT INTO OrganizationMember (userId, organizationId, role, createdAt)
-     VALUES (@userId, @organizationId, @role, GETUTCDATE())`,
+     VALUES (@userId, @organizationId, @role, CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATETIME2))`,
     {
       params: {
         userId,
@@ -144,7 +144,7 @@ export async function updateMember(
   }
   if (input.name !== undefined) {
     await query(
-      `UPDATE Users SET name = @name, updatedAt = GETUTCDATE() WHERE id = @userId`,
+      `UPDATE Users SET name = @name, updatedAt = CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATETIME2) WHERE id = @userId`,
       { params: { userId, name: (input.name ?? '').trim() || null } }
     );
   }

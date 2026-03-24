@@ -8,6 +8,7 @@ const connection_1 = require("../db/connection");
 const job_service_1 = require("./job.service");
 const driver_service_1 = require("./driver.service");
 const driverPayment_service_1 = require("./driverPayment.service");
+const timezone_1 = require("../utils/timezone");
 async function getJobDriverPay(jobId, organizationId) {
     const job = await (0, job_service_1.getJobById)(jobId, organizationId);
     if (!job)
@@ -24,7 +25,7 @@ async function setJobDriverPay(organizationId, jobId, driverId, amount) {
     if (!driver)
         throw new Error('Driver not found');
     const existing = await getJobDriverPay(jobId, organizationId);
-    const now = new Date();
+    const now = (0, timezone_1.nowEastern)();
     if (existing) {
         await (0, connection_1.query)(`UPDATE JobDriverPay SET driverId = @driverId, amount = @amount, createdAt = @createdAt WHERE jobId = @jobId`, { params: { jobId, driverId, amount, createdAt: now } });
     }
@@ -47,7 +48,7 @@ async function markJobDriverPayPaid(organizationId, jobId, paymentId) {
     const existing = await getJobDriverPay(jobId, organizationId);
     if (!existing)
         return null;
-    const now = new Date();
+    const now = (0, timezone_1.nowEastern)();
     await (0, connection_1.query)(`UPDATE JobDriverPay SET paidAt = @paidAt, paymentId = @paymentId WHERE jobId = @jobId`, { params: { jobId, paidAt: now, paymentId } });
     return getJobDriverPay(jobId, organizationId);
 }

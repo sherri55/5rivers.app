@@ -9,6 +9,7 @@ exports.deleteDriverPayment = deleteDriverPayment;
 const uuid_1 = require("uuid");
 const connection_1 = require("../db/connection");
 const driver_service_1 = require("./driver.service");
+const timezone_1 = require("../utils/timezone");
 exports.PAYMENT_METHODS = ['CASH', 'CHECK', 'BANK_TRANSFER', 'E_TRANSFER', 'OTHER'];
 async function listDriverPayments(organizationId, pagination, driverId) {
     const driverClause = driverId ? ' AND driverId = @driverId' : '';
@@ -59,7 +60,7 @@ async function createDriverPayment(organizationId, input) {
         ? input.paymentMethod
         : 'OTHER';
     const id = (0, uuid_1.v4)();
-    const now = new Date();
+    const now = (0, timezone_1.nowEastern)();
     await (0, connection_1.query)(`INSERT INTO DriverPayment (id, driverId, organizationId, amount, paidAt, paymentMethod, reference, notes, createdAt, updatedAt)
      VALUES (@id, @driverId, @organizationId, @amount, @paidAt, @paymentMethod, @reference, @notes, @createdAt, @updatedAt)`, {
         params: {
@@ -109,7 +110,7 @@ async function updateDriverPayment(id, organizationId, input) {
     if (updates.length === 0)
         return existing;
     updates.push('updatedAt = @updatedAt');
-    params.updatedAt = new Date();
+    params.updatedAt = (0, timezone_1.nowEastern)();
     await (0, connection_1.query)(`UPDATE DriverPayment SET ${updates.join(', ')}
      WHERE id = @id AND organizationId = @organizationId`, { params });
     return getDriverPaymentById(id, organizationId);

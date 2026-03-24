@@ -1,6 +1,7 @@
 import { query } from '../db/connection';
 import { getInvoiceById } from './invoice.service';
 import { getJobById } from './job.service';
+import { nowEastern } from '../utils/timezone';
 
 export interface JobInvoiceLine {
   jobId: string;
@@ -109,7 +110,7 @@ export async function addJobToInvoice(
         jobId,
         invoiceId,
         amount: Number(amount),
-        addedAt: new Date(),
+        addedAt: nowEastern(),
       },
     }
   );

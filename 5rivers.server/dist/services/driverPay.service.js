@@ -44,13 +44,13 @@ async function listDriverPaySummaries(organizationId) {
      WHERE organizationId = @organizationId
      ORDER BY driverId, paidAt DESC`, { params: { organizationId } });
     const jobsByDriver = new Map();
-    const toJobDate = (d) => typeof d === 'string' ? d.slice(0, 10) : d.toISOString().slice(0, 10);
+    const toJobDate = (d) => typeof d === 'string' ? d.slice(0, 10) : d.toLocaleDateString('en-CA', { timeZone: 'America/Toronto' });
     for (const row of Array.isArray(jobRows) ? jobRows : []) {
         const paidAt = row.paidAt == null
             ? null
             : typeof row.paidAt === 'string'
                 ? row.paidAt.slice(0, 10)
-                : row.paidAt.toISOString().slice(0, 10);
+                : row.paidAt.toLocaleDateString('en-CA', { timeZone: 'America/Toronto' });
         const item = {
             jobId: row.jobId,
             jobDate: toJobDate(row.jobDate),
@@ -84,7 +84,7 @@ async function listDriverPaySummaries(organizationId) {
     for (const row of Array.isArray(paymentRows) ? paymentRows : []) {
         const paidAt = typeof row.paidAt === 'string'
             ? row.paidAt.slice(0, 10)
-            : row.paidAt.toISOString().slice(0, 10);
+            : row.paidAt.toLocaleDateString('en-CA', { timeZone: 'America/Toronto' });
         const item = {
             id: row.id,
             amount: Number(row.amount),

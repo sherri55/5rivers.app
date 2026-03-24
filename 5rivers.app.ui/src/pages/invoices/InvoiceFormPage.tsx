@@ -69,7 +69,7 @@ export function InvoiceFormPage() {
   // Form state
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [invoiceDate, setInvoiceDate] = useState(
-    new Date().toISOString().split('T')[0],
+    new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' }),
   );
   const [status, setStatus] = useState<InvoiceStatus>('CREATED');
   const [billingType, setBillingType] = useState<BillingType>('dispatcher');

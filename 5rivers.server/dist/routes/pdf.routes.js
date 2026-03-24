@@ -58,7 +58,7 @@ function fmtDate(d) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(s))
         return String(d);
     const [y, m, day] = s.split('-').map(Number);
-    return new Date(y, m - 1, day).toLocaleDateString('en-CA', { year: 'numeric', month: 'short', day: 'numeric' });
+    return new Date(y, m - 1, day).toLocaleDateString('en-CA', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'America/Toronto' });
 }
 function fmtCurrency(v) {
     const n = Number(v ?? 0);
@@ -81,8 +81,8 @@ function buildSubtitle(filters) {
             parts.push(`${k}: ${v}`);
     }
     if (parts.length === 0)
-        return `All records · ${new Date().toLocaleDateString('en-CA')}`;
-    return `Filtered by ${parts.join(', ')} · ${new Date().toLocaleDateString('en-CA')}`;
+        return `All records · ${new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' })}`;
+    return `Filtered by ${parts.join(', ')} · ${new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' })}`;
 }
 // ============================================
 // Invoice PDF (full invoice with jobs + images)
@@ -274,7 +274,7 @@ router.get('/export/carriers', (0, asyncHandler_1.asyncHandler)(async (req, res)
         c.email ?? '',
         c.phone ?? '',
     ]);
-    const buffer = await (0, pdf_service_1.generateListPDF)('Carriers Report', `All records · ${new Date().toLocaleDateString('en-CA')}`, columns, data, 'portrait');
+    const buffer = await (0, pdf_service_1.generateListPDF)('Carriers Report', `All records · ${new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' })}`, columns, data, 'portrait');
     sendPdf(res, buffer, 'carriers-report.pdf');
 }));
 exports.default = router;

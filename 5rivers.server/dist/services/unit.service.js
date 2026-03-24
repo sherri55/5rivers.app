@@ -7,6 +7,7 @@ exports.updateUnit = updateUnit;
 exports.deleteUnit = deleteUnit;
 const uuid_1 = require("uuid");
 const connection_1 = require("../db/connection");
+const timezone_1 = require("../utils/timezone");
 const SORT_COLUMNS = ['name', 'description', 'color', 'plateNumber', 'vin', 'status', 'year', 'make', 'model', 'mileage', 'insuranceExpiry', 'lastMaintenanceDate', 'nextMaintenanceDate', 'createdAt'];
 const FILTER_COLUMNS = ['name', 'plateNumber', 'vin', 'color', 'status', 'make', 'model'];
 const ALL_COLUMNS = 'id, organizationId, name, description, color, plateNumber, vin, status, year, make, model, mileage, insuranceExpiry, lastMaintenanceDate, nextMaintenanceDate, createdAt, updatedAt';
@@ -73,7 +74,7 @@ async function getUnitById(id, organizationId) {
 }
 async function createUnit(organizationId, input) {
     const id = (0, uuid_1.v4)();
-    const now = new Date();
+    const now = (0, timezone_1.nowEastern)();
     await (0, connection_1.query)(`INSERT INTO Units (id, organizationId, name, description, color, plateNumber, vin, status, year, make, model, mileage, insuranceExpiry, lastMaintenanceDate, nextMaintenanceDate, createdAt, updatedAt)
      VALUES (@id, @organizationId, @name, @description, @color, @plateNumber, @vin, @status, @year, @make, @model, @mileage, @insuranceExpiry, @lastMaintenanceDate, @nextMaintenanceDate, @createdAt, @updatedAt)`, {
         params: {
@@ -113,7 +114,7 @@ async function updateUnit(organizationId, input) {
         insuranceExpiry: input.insuranceExpiry !== undefined ? input.insuranceExpiry : existing.insuranceExpiry,
         lastMaintenanceDate: input.lastMaintenanceDate !== undefined ? input.lastMaintenanceDate : existing.lastMaintenanceDate,
         nextMaintenanceDate: input.nextMaintenanceDate !== undefined ? input.nextMaintenanceDate : existing.nextMaintenanceDate,
-        updatedAt: new Date(),
+        updatedAt: (0, timezone_1.nowEastern)(),
     };
     await (0, connection_1.query)(`UPDATE Units SET name = @name, description = @description, color = @color, plateNumber = @plateNumber, vin = @vin,
        status = @status, year = @year, make = @make, model = @model, mileage = @mileage,

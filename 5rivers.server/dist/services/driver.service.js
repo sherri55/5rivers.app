@@ -7,6 +7,7 @@ exports.updateDriver = updateDriver;
 exports.deleteDriver = deleteDriver;
 const uuid_1 = require("uuid");
 const connection_1 = require("../db/connection");
+const timezone_1 = require("../utils/timezone");
 const SORT_COLUMNS = ['name', 'description', 'email', 'phone', 'hourlyRate', 'percentageRate', 'payType', 'createdAt'];
 const FILTER_COLUMNS = ['name', 'email', 'phone', 'payType'];
 async function listDrivers(organizationId, pagination, options) {
@@ -66,7 +67,7 @@ async function getDriverById(id, organizationId) {
 }
 async function createDriver(organizationId, input) {
     const id = (0, uuid_1.v4)();
-    const now = new Date();
+    const now = (0, timezone_1.nowEastern)();
     await (0, connection_1.query)(`INSERT INTO Drivers (id, organizationId, name, description, email, phone, payType, hourlyRate, percentageRate, createdAt, updatedAt)
      VALUES (@id, @organizationId, @name, @description, @email, @phone, @payType, @hourlyRate, @percentageRate, @createdAt, @updatedAt)`, {
         params: {
@@ -102,7 +103,7 @@ async function updateDriver(organizationId, input) {
         payType: input.payType !== undefined ? input.payType : existing.payType,
         hourlyRate: input.hourlyRate !== undefined ? input.hourlyRate : existing.hourlyRate,
         percentageRate: input.percentageRate !== undefined ? input.percentageRate : existing.percentageRate,
-        updatedAt: new Date(),
+        updatedAt: (0, timezone_1.nowEastern)(),
     };
     await (0, connection_1.query)(`UPDATE Drivers SET
        name = @name, description = @description, email = @email, phone = @phone, payType = @payType, hourlyRate = @hourlyRate, percentageRate = @percentageRate, updatedAt = @updatedAt

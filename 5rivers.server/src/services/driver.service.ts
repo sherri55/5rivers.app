@@ -5,6 +5,7 @@ import {
   type ListResult,
   type SortOrder,
 } from '../types';
+import { nowEastern } from '../utils/timezone';
 
 const SORT_COLUMNS = ['name', 'description', 'email', 'phone', 'hourlyRate', 'percentageRate', 'payType', 'createdAt'] as const;
 const FILTER_COLUMNS = ['name', 'email', 'phone', 'payType'] as const;
@@ -121,7 +122,7 @@ export async function createDriver(
   input: CreateDriverInput
 ): Promise<Driver> {
   const id = uuid();
-  const now = new Date();
+  const now = nowEastern();
   await query(
     `INSERT INTO Drivers (id, organizationId, name, description, email, phone, payType, hourlyRate, percentageRate, createdAt, updatedAt)
      VALUES (@id, @organizationId, @name, @description, @email, @phone, @payType, @hourlyRate, @percentageRate, @createdAt, @updatedAt)`,
@@ -163,7 +164,7 @@ export async function updateDriver(
     payType: input.payType !== undefined ? input.payType : existing.payType,
     hourlyRate: input.hourlyRate !== undefined ? input.hourlyRate : existing.hourlyRate,
     percentageRate: input.percentageRate !== undefined ? input.percentageRate : existing.percentageRate,
-    updatedAt: new Date(),
+    updatedAt: nowEastern(),
   };
 
   await query(

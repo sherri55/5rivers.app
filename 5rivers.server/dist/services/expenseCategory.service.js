@@ -7,6 +7,7 @@ exports.updateExpenseCategory = updateExpenseCategory;
 exports.deleteExpenseCategory = deleteExpenseCategory;
 const uuid_1 = require("uuid");
 const connection_1 = require("../db/connection");
+const timezone_1 = require("../utils/timezone");
 const SORT_COLUMNS = ['name', 'createdAt'];
 async function listExpenseCategories(organizationId, pagination, options) {
     const sortBy = options?.sortBy && SORT_COLUMNS.includes(options.sortBy) ? options.sortBy : 'name';
@@ -55,7 +56,7 @@ async function getExpenseCategoryById(id, organizationId) {
 }
 async function createExpenseCategory(organizationId, input) {
     const id = (0, uuid_1.v4)();
-    const now = new Date();
+    const now = (0, timezone_1.nowEastern)();
     await (0, connection_1.query)(`INSERT INTO ExpenseCategories (id, organizationId, name, description, color, isActive, createdAt, updatedAt)
      VALUES (@id, @organizationId, @name, @description, @color, @isActive, @createdAt, @updatedAt)`, {
         params: {
@@ -85,7 +86,7 @@ async function updateExpenseCategory(organizationId, input) {
         description: input.description !== undefined ? input.description : existing.description,
         color: input.color !== undefined ? input.color : existing.color,
         isActive: input.isActive !== undefined ? (input.isActive ? 1 : 0) : (existing.isActive ? 1 : 0),
-        updatedAt: new Date(),
+        updatedAt: (0, timezone_1.nowEastern)(),
     };
     await (0, connection_1.query)(`UPDATE ExpenseCategories SET
        name = @name, description = @description, color = @color, isActive = @isActive, updatedAt = @updatedAt

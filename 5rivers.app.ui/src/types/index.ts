@@ -173,6 +173,12 @@ export interface Job {
   driverPaid: boolean;
   createdAt: string;
   updatedAt: string;
+  // Resolved names from server joins
+  jobTypeTitle: string | null;
+  companyName: string | null;
+  driverName: string | null;
+  dispatcherName: string | null;
+  unitName: string | null;
 }
 
 export interface CreateJobInput {

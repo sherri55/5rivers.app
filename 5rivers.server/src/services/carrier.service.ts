@@ -5,6 +5,7 @@ import {
   type ListResult,
   type SortOrder,
 } from '../types';
+import { nowEastern } from '../utils/timezone';
 
 const ALL_COLUMNS = 'id, organizationId, name, description, contactPerson, email, phone, rateType, rate, status, createdAt, updatedAt';
 const SORT_COLUMNS = ['name', 'contactPerson', 'email', 'phone', 'rateType', 'rate', 'status', 'createdAt'] as const;
@@ -129,7 +130,7 @@ export async function createCarrier(
   input: CreateCarrierInput
 ): Promise<Carrier> {
   const id = uuid();
-  const now = new Date();
+  const now = nowEastern();
   await query(
     `INSERT INTO Carriers (id, organizationId, name, description, contactPerson, email, phone, rateType, rate, status, createdAt, updatedAt)
      VALUES (@id, @organizationId, @name, @description, @contactPerson, @email, @phone, @rateType, @rate, @status, @createdAt, @updatedAt)`,
@@ -173,7 +174,7 @@ export async function updateCarrier(
     rateType: input.rateType !== undefined ? input.rateType : existing.rateType,
     rate: input.rate !== undefined ? input.rate : existing.rate,
     status: input.status !== undefined ? input.status : existing.status,
-    updatedAt: new Date(),
+    updatedAt: nowEastern(),
   };
 
   await query(

@@ -7,6 +7,7 @@ exports.updateExpense = updateExpense;
 exports.deleteExpense = deleteExpense;
 const uuid_1 = require("uuid");
 const connection_1 = require("../db/connection");
+const timezone_1 = require("../utils/timezone");
 const SORT_COLUMNS = ['description', 'amount', 'expenseDate', 'vendor', 'paymentMethod', 'createdAt'];
 const FILTER_COLUMNS = ['description', 'vendor', 'paymentMethod'];
 async function listExpenses(organizationId, pagination, options) {
@@ -88,7 +89,7 @@ async function getExpenseById(id, organizationId) {
 }
 async function createExpense(organizationId, input) {
     const id = (0, uuid_1.v4)();
-    const now = new Date();
+    const now = (0, timezone_1.nowEastern)();
     await (0, connection_1.query)(`INSERT INTO Expenses (id, organizationId, categoryId, description, amount, expenseDate, vendor, paymentMethod, reference, notes, recurring, recurringFrequency, createdAt, updatedAt)
      VALUES (@id, @organizationId, @categoryId, @description, @amount, @expenseDate, @vendor, @paymentMethod, @reference, @notes, @recurring, @recurringFrequency, @createdAt, @updatedAt)`, {
         params: {
@@ -130,7 +131,7 @@ async function updateExpense(organizationId, input) {
         notes: input.notes !== undefined ? input.notes : existing.notes,
         recurring: input.recurring !== undefined ? (input.recurring ? 1 : 0) : (existing.recurring ? 1 : 0),
         recurringFrequency: input.recurringFrequency !== undefined ? input.recurringFrequency : existing.recurringFrequency,
-        updatedAt: new Date(),
+        updatedAt: (0, timezone_1.nowEastern)(),
     };
     await (0, connection_1.query)(`UPDATE Expenses SET
        categoryId = @categoryId, description = @description, amount = @amount, expenseDate = @expenseDate,

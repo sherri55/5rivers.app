@@ -7,6 +7,7 @@ exports.deleteImage = deleteImage;
 const uuid_1 = require("uuid");
 const connection_1 = require("../db/connection");
 const job_service_1 = require("./job.service");
+const timezone_1 = require("../utils/timezone");
 async function listImagesByJob(jobId, organizationId) {
     const job = await (0, job_service_1.getJobById)(jobId, organizationId);
     if (!job)
@@ -31,7 +32,7 @@ async function createImage(organizationId, jobId, content, contentType, fileName
     if (!job)
         throw new Error('Job not found');
     const id = (0, uuid_1.v4)();
-    const now = new Date();
+    const now = (0, timezone_1.nowEastern)();
     await (0, connection_1.query)(`INSERT INTO Images (id, jobId, content, contentType, fileName, createdAt)
      VALUES (@id, @jobId, @content, @contentType, @fileName, @createdAt)`, {
         params: {

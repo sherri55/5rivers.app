@@ -1,6 +1,7 @@
 import { v4 as uuid } from 'uuid';
 import { query } from '../db/connection';
 import { getJobById } from './job.service';
+import { nowEastern } from '../utils/timezone';
 
 export interface ImageMeta {
   id: string;
@@ -59,7 +60,7 @@ export async function createImage(
   if (!job) throw new Error('Job not found');
 
   const id = uuid();
-  const now = new Date();
+  const now = nowEastern();
   await query(
     `INSERT INTO Images (id, jobId, content, contentType, fileName, createdAt)
      VALUES (@id, @jobId, @content, @contentType, @fileName, @createdAt)`,

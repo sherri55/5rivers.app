@@ -2,6 +2,7 @@ import { query } from '../db/connection';
 import { getJobById } from './job.service';
 import { getDriverById } from './driver.service';
 import { getDriverPaymentById } from './driverPayment.service';
+import { nowEastern } from '../utils/timezone';
 
 export interface JobDriverPay {
   jobId: string;
@@ -39,7 +40,7 @@ export async function setJobDriverPay(
   if (!driver) throw new Error('Driver not found');
 
   const existing = await getJobDriverPay(jobId, organizationId);
-  const now = new Date();
+  const now = nowEastern();
 
   if (existing) {
     await query(
@@ -72,7 +73,7 @@ export async function markJobDriverPayPaid(
   const existing = await getJobDriverPay(jobId, organizationId);
   if (!existing) return null;
 
-  const now = new Date();
+  const now = nowEastern();
   await query(
     `UPDATE JobDriverPay SET paidAt = @paidAt, paymentId = @paymentId WHERE jobId = @jobId`,
     { params: { jobId, paidAt: now, paymentId } }

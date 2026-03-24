@@ -7,6 +7,7 @@ exports.updateDispatcher = updateDispatcher;
 exports.deleteDispatcher = deleteDispatcher;
 const uuid_1 = require("uuid");
 const connection_1 = require("../db/connection");
+const timezone_1 = require("../utils/timezone");
 const SORT_COLUMNS = ['name', 'email', 'phone', 'commissionPercent', 'createdAt'];
 const FILTER_COLUMNS = ['name', 'email', 'phone'];
 async function listDispatchers(organizationId, pagination, options) {
@@ -62,7 +63,7 @@ async function getDispatcherById(id, organizationId) {
 }
 async function createDispatcher(organizationId, input) {
     const id = (0, uuid_1.v4)();
-    const now = new Date();
+    const now = (0, timezone_1.nowEastern)();
     await (0, connection_1.query)(`INSERT INTO Dispatchers (id, organizationId, name, description, email, phone, commissionPercent, createdAt, updatedAt)
      VALUES (@id, @organizationId, @name, @description, @email, @phone, @commissionPercent, @createdAt, @updatedAt)`, {
         params: {
@@ -94,7 +95,7 @@ async function updateDispatcher(organizationId, input) {
         email: input.email !== undefined ? input.email : existing.email,
         phone: input.phone !== undefined ? input.phone : existing.phone,
         commissionPercent: input.commissionPercent !== undefined ? input.commissionPercent : existing.commissionPercent,
-        updatedAt: new Date(),
+        updatedAt: (0, timezone_1.nowEastern)(),
     };
     await (0, connection_1.query)(`UPDATE Dispatchers SET
        name = @name, description = @description, email = @email, phone = @phone, commissionPercent = @commissionPercent, updatedAt = @updatedAt

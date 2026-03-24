@@ -6,6 +6,7 @@ import {
   type ListResult,
   type SortOrder,
 } from '../types';
+import { nowEastern } from '../utils/timezone';
 
 const SORT_COLUMNS = ['name', 'description', 'email', 'phone', 'createdAt'] as const;
 const FILTER_COLUMNS = ['name', 'description', 'email', 'phone'] as const;
@@ -129,7 +130,7 @@ export async function createCompany(
   input: CreateCompanyInput
 ): Promise<Company> {
   const id = uuid();
-  const now = new Date();
+  const now = nowEastern();
   await query(
     `INSERT INTO Companies (id, organizationId, name, description, website, industry, location, size, founded, logo, email, phone, createdAt, updatedAt)
      VALUES (@id, @organizationId, @name, @description, @website, @industry, @location, @size, @founded, @logo, @email, @phone, @createdAt, @updatedAt)`,
@@ -177,7 +178,7 @@ export async function updateCompany(
     logo: input.logo !== undefined ? input.logo : existing.logo,
     email: input.email !== undefined ? input.email : existing.email,
     phone: input.phone !== undefined ? input.phone : existing.phone,
-    updatedAt: new Date(),
+    updatedAt: nowEastern(),
   };
 
   await query(

@@ -49,7 +49,7 @@ function parseDate(dateStr) {
             return String(dateStr);
         return d.toLocaleDateString('en-CA', {
             year: 'numeric', month: 'short', day: '2-digit',
-            timeZone: 'UTC',
+            timeZone: 'America/Toronto',
         });
     }
     catch {
@@ -154,7 +154,7 @@ async function generateInvoicePDF(invoiceId, organizationId) {
     const jobsByMonth = {};
     for (const job of jobs) {
         const d = job.jobDate instanceof Date ? job.jobDate : new Date(job.jobDate);
-        const key = d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', timeZone: 'UTC' });
+        const key = d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', timeZone: 'America/Toronto' });
         (jobsByMonth[key] ??= []).push(job);
     }
     const sortedMonths = Object.keys(jobsByMonth).sort((a, b) => new Date(a + ' 1').getTime() - new Date(b + ' 1').getTime());
@@ -371,7 +371,7 @@ async function generateListPDF(title, subtitle, columns, rows, orientation = 'la
             layout: listTableLayout(),
         });
         content.push({
-            text: `${rows.length} record${rows.length !== 1 ? 's' : ''}  ·  Generated ${new Date().toLocaleDateString('en-CA')}`,
+            text: `${rows.length} record${rows.length !== 1 ? 's' : ''}  ·  Generated ${new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' })}`,
             fontSize: 8, color: '#999', alignment: 'right', margin: [0, 10, 0, 0],
         });
     }

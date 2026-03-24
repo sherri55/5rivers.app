@@ -1,6 +1,7 @@
 import { v4 as uuid } from 'uuid';
 import { query } from '../db/connection';
 import { type Pagination, type ListResult, type SortOrder } from '../types';
+import { nowEastern } from '../utils/timezone';
 
 const SORT_COLUMNS = ['name', 'email', 'phone', 'commissionPercent', 'createdAt'] as const;
 const FILTER_COLUMNS = ['name', 'email', 'phone'] as const;
@@ -107,7 +108,7 @@ export async function createDispatcher(
   input: CreateDispatcherInput
 ): Promise<Dispatcher> {
   const id = uuid();
-  const now = new Date();
+  const now = nowEastern();
   await query(
     `INSERT INTO Dispatchers (id, organizationId, name, description, email, phone, commissionPercent, createdAt, updatedAt)
      VALUES (@id, @organizationId, @name, @description, @email, @phone, @commissionPercent, @createdAt, @updatedAt)`,
@@ -145,7 +146,7 @@ export async function updateDispatcher(
     email: input.email !== undefined ? input.email : existing.email,
     phone: input.phone !== undefined ? input.phone : existing.phone,
     commissionPercent: input.commissionPercent !== undefined ? input.commissionPercent : existing.commissionPercent,
-    updatedAt: new Date(),
+    updatedAt: nowEastern(),
   };
 
   await query(
