@@ -37,11 +37,28 @@ const express_1 = require("express");
 const asyncHandler_1 = require("../utils/asyncHandler");
 const driverPayService = __importStar(require("../services/driverPay.service"));
 const auth_middleware_1 = require("../middleware/auth.middleware");
+const errorHandler_1 = require("../middleware/errorHandler");
 const router = (0, express_1.Router)();
 router.use(auth_middleware_1.requireAuth);
 router.get('/driver-pay', (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     const orgId = req.user.organizationId;
     const drivers = await driverPayService.listDriverPaySummaries(orgId);
     res.json({ drivers });
+}));
+router.post('/driver-pay/mark-jobs-paid', (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+    const body = req.body ?? {};
+    if (!body.driverId || !Array.isArray(body.jobIds) || !body.jobIds.length || body.amount == null || !body.paidAt) {
+        throw (0, errorHandler_1.badRequest)('driverId, jobIds, amount and paidAt are required');
+    }
+    const result = await driverPayService.markJobsAsPaid(req.user.organizationId, {
+        driverId: String(body.driverId),
+        jobIds: body.jobIds.map(String),
+        amount: Number(body.amount),
+        paidAt: String(body.paidAt),
+        paymentMethod: body.paymentMethod,
+        reference: body.reference ?? null,
+        notes: body.notes ?? null,
+    });
+    res.status(201).json(result);
 }));
 exports.default = router;

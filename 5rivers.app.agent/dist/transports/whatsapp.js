@@ -10,7 +10,7 @@
  */
 import pkg from 'whatsapp-web.js';
 const { Client, LocalAuth } = pkg;
-import { processMessage, invalidateEntityCache } from '../llm.js';
+import { processMessage } from '../llm.js';
 import { getToken, setToken } from '../auth.js';
 import { clearHistory } from '../conversation.js';
 const PLATFORM = 'whatsapp';
@@ -75,9 +75,6 @@ export function createWhatsAppBot() {
         }
         try {
             const response = await processMessage(PLATFORM, userId, text, token);
-            if (response.toolCalls?.some((tc) => tc.name.startsWith('create_') || tc.name.startsWith('update_'))) {
-                invalidateEntityCache();
-            }
             await message.reply(response.text);
         }
         catch (err) {

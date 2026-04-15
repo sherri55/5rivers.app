@@ -11,7 +11,7 @@ import {
   useCarriers,
 } from '@/hooks/useLookups';
 import { useToast } from '@/context/toast';
-import { formatCurrency } from '@/lib/format';
+import { formatCurrency, extractTimeForInput } from '@/lib/format';
 import { PageSpinner, ButtonSpinner } from '@/components/ui/Spinner';
 import { ConfirmModal } from '@/components/ui/Modal';
 import { Select } from '@/components/ui/Select';
@@ -149,8 +149,8 @@ export function JobFormPage() {
     setDispatcherId(existingJob.dispatcherId ?? '');
     setCarrierId(existingJob.carrierId ?? '');
     setCarrierAmount(existingJob.carrierAmount?.toString() ?? '');
-    setStartTime(existingJob.startTime?.match(/(\d{2}:\d{2})$/)?.[1] ?? existingJob.startTime ?? '');
-    setEndTime(existingJob.endTime?.match(/(\d{2}:\d{2})$/)?.[1] ?? existingJob.endTime ?? '');
+    setStartTime(extractTimeForInput(existingJob.startTime));
+    setEndTime(extractTimeForInput(existingJob.endTime));
     setWeight(existingJob.weight ?? '');
     setLoads(existingJob.loads?.toString() ?? '');
     setAmount(existingJob.amount?.toString() ?? '');
@@ -162,13 +162,12 @@ export function JobFormPage() {
     // This will be resolved when jobTypesData loads
   }, [existingJob]);
 
-  // Resolve company from job type when editing
+  // Resolve company from job when editing — use companyId returned directly by the API
   useEffect(() => {
-    if (existingJob && jobTypesData && !selectedCompanyId) {
-      const jt = jobTypesData.data.find((t) => t.id === existingJob.jobTypeId);
-      if (jt) setSelectedCompanyId(jt.companyId);
+    if (existingJob?.companyId && !selectedCompanyId) {
+      setSelectedCompanyId(existingJob.companyId);
     }
-  }, [existingJob, jobTypesData, selectedCompanyId]);
+  }, [existingJob, selectedCompanyId]);
 
   // Handle form submission
   async function handleSubmit(e: FormEvent) {
@@ -215,6 +214,7 @@ export function JobFormPage() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
 
   const uploadFiles = useCallback((files: File[]) => {
     if (!id) return;
@@ -787,13 +787,21 @@ export function JobFormPage() {
                     <AuthImage
                       src={jobImagesApi.getUrl(id, img.id)}
                       alt={img.fileName || 'Job image'}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover cursor-zoom-in"
+                      onClick={() => setLightboxSrc(jobImagesApi.getUrl(id, img.id))}
                     />
-                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center gap-2 pointer-events-none">
+                      <button
+                        type="button"
+                        onClick={() => setLightboxSrc(jobImagesApi.getUrl(id, img.id))}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 p-2 rounded-full shadow-md hover:bg-primary hover:text-white pointer-events-auto"
+                      >
+                        <span className="material-symbols-outlined text-lg">zoom_in</span>
+                      </button>
                       <button
                         type="button"
                         onClick={() => handleDeleteImage(img.id)}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 p-2 rounded-full shadow-md hover:bg-error hover:text-white"
+                        className="opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 p-2 rounded-full shadow-md hover:bg-error hover:text-white pointer-events-auto"
                       >
                         <span className="material-symbols-outlined text-lg">delete</span>
                       </button>
@@ -877,6 +885,28 @@ export function JobFormPage() {
         message="Are you sure you want to delete this image? This cannot be undone."
         isLoading={deleteImage.isPending}
       />
+
+      {/* Lightbox */}
+      {lightboxSrc && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
+          onClick={() => setLightboxSrc(null)}
+        >
+          <button
+            type="button"
+            onClick={() => setLightboxSrc(null)}
+            className="absolute top-4 right-4 bg-white/20 hover:bg-white/40 text-white p-2 rounded-full transition-colors"
+          >
+            <span className="material-symbols-outlined text-2xl">close</span>
+          </button>
+          <AuthImage
+            src={lightboxSrc}
+            alt="Full size"
+            className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -905,7 +935,7 @@ function FormField({
 
 // --- Auth-aware image component ---
 
-function AuthImage({ src, alt, className }: { src: string; alt: string; className?: string }) {
+function AuthImage({ src, alt, className, onClick }: { src: string; alt: string; className?: string; onClick?: (e: React.MouseEvent<HTMLImageElement>) => void }) {
   const [objectUrl, setObjectUrl] = useState<string>('');
 
   useEffect(() => {
@@ -925,5 +955,5 @@ function AuthImage({ src, alt, className }: { src: string; alt: string; classNam
   }, [src]);
 
   if (!objectUrl) return <div className={`bg-slate-100 animate-pulse ${className ?? ''}`} />;
-  return <img src={objectUrl} alt={alt} className={className} loading="lazy" />;
+  return <img src={objectUrl} alt={alt} className={className} onClick={onClick} loading="lazy" />;
 }

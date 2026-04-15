@@ -166,6 +166,15 @@ export const invoicesApi = {
 export const driverPayApi = {
   summary: () =>
     api.get<{ drivers: DriverPaySummary[] }>('/driver-pay'),
+  markJobsPaid: (data: {
+    driverId: string;
+    jobIds: string[];
+    amount: number;
+    paidAt: string;
+    paymentMethod?: string;
+    reference?: string | null;
+    notes?: string | null;
+  }) => api.post<{ paymentId: string; markedCount: number }>('/driver-pay/mark-jobs-paid', data),
 };
 
 // --- Driver Payments CRUD ---

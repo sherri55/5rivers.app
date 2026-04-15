@@ -6,12 +6,15 @@ export interface AgentResponse {
         result: string;
     }>;
 }
+export interface ImageInput {
+    data: string;
+    mimeType: string;
+}
 /**
  * Process a user message through the agent loop.
  * Returns the final text response.
+ *
+ * When SUPERVISION_MODE=true (default), any write tool calls are held and the
+ * user is shown a confirmation prompt before they are executed.
  */
-export declare function processMessage(platform: string, userId: string, userMessage: string, authToken?: string): Promise<AgentResponse>;
-/**
- * Force-refresh the entity context cache (e.g. after creating a new entity).
- */
-export declare function invalidateEntityCache(): void;
+export declare function processMessage(platform: string, userId: string, userMessage: string, authToken?: string, images?: ImageInput[]): Promise<AgentResponse>;

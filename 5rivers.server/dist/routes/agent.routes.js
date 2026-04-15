@@ -47,24 +47,25 @@ router.use(auth_middleware_1.requireAuth);
  * Passes the user's JWT to the agent so it operates with their org context.
  */
 router.post('/agent/chat', (0, asyncHandler_1.asyncHandler)(async (req, res) => {
-    const { message } = req.body ?? {};
+    const { message, images } = req.body ?? {};
     if (!message || typeof message !== 'string' || !message.trim()) {
         throw (0, errorHandler_1.badRequest)('message is required');
     }
     // Dynamic import to avoid hard dependency on the agent package
-    const { processMessage, invalidateEntityCache } = await Promise.resolve().then(() => __importStar(require('../../../5rivers.app.agent/dist/index.js')));
+    const { processMessage } = await Promise.resolve().then(() => __importStar(require('../../../5rivers.app.agent/dist/index.js')));
     const token = req.headers.authorization?.slice(7)?.trim();
     if (!token)
         throw (0, errorHandler_1.badRequest)('Missing auth token');
     const userId = req.user.userId;
-    const response = await processMessage('web', userId, message.trim(), token);
-    // Invalidate entity cache on writes
-    if (response.toolCalls?.some((tc) => tc.name.startsWith('create_') || tc.name.startsWith('update_'))) {
-        invalidateEntityCache();
-    }
+    const response = await processMessage('web', userId, message.trim(), token, images);
     res.json({
         reply: response.text,
         toolCalls: response.toolCalls,
     });
+}));
+router.post('/agent/clear', (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+    const { clearHistory } = await Promise.resolve().then(() => __importStar(require('../../../5rivers.app.agent/dist/index.js')));
+    clearHistory('web', req.user.userId);
+    res.json({ ok: true });
 }));
 exports.default = router;

@@ -30,7 +30,10 @@ console.log(`  Provider: ${provider}`);
 if (provider === 'groq') {
   const key = process.env.GROQ_API_KEY ?? '(not set)';
   console.log(`  Groq key: ${key.slice(0, 8)}...${key.slice(-4)}`);
-  console.log(`  Model:    ${process.env.GROQ_MODEL ?? 'llama-3.1-70b-versatile'}`);
+  console.log(`  Model:    ${process.env.GROQ_MODEL ?? 'llama-3.3-70b-versatile'}`);
+} else if (provider === 'lmstudio') {
+  console.log(`  LM Studio: ${process.env.LMSTUDIO_HOST ?? 'http://localhost:1234'}`);
+  console.log(`  Model:     ${process.env.LMSTUDIO_MODEL ?? '(auto)'}`);
 } else {
   console.log(`  Ollama: ${process.env.OLLAMA_HOST ?? 'http://localhost:11434'}`);
   console.log(`  Model:  ${process.env.OLLAMA_MODEL ?? 'llama3.1'}`);

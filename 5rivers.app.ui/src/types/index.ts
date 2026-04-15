@@ -175,6 +175,8 @@ export interface Job {
   updatedAt: string;
   // Resolved names from server joins
   jobTypeTitle: string | null;
+  jobTypeDispatchType: string | null;
+  companyId: string | null;
   companyName: string | null;
   driverName: string | null;
   dispatcherName: string | null;
@@ -244,6 +246,7 @@ export interface DriverPayJobDetail {
   jobId: string;
   jobDate: string;
   jobTypeTitle: string;
+  jobAmount: number | null;
   amount: number;
   paidAt: string | null;
   paymentId: string | null;

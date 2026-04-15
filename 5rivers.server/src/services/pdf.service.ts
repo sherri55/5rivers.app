@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import sharp from 'sharp';
 import { query } from '../db/connection';
+import { utcToEastern } from '../utils/timezone';
 
 // pdfmake v0.3.7 — use require() for CJS compatibility
 /* eslint-disable @typescript-eslint/no-var-requires */
@@ -498,14 +499,36 @@ function parseTicketIds(ticketIds: string | null | undefined): string {
   }
 }
 
+/**
+ * Extract hours and minutes from a time value (Eastern time).
+ * Handles Date objects (DATETIME2 UTC → Eastern) and legacy strings ("07:15", "2025-12-05T07:00").
+ */
+function extractHM(val: unknown): [number, number] | null {
+  if (!val) return null;
+  // Date object from DATETIME2 → UTC, convert to Eastern
+  if (val instanceof Date) {
+    const { hour, minute } = utcToEastern(val);
+    return [hour, minute];
+  }
+  if (typeof val !== 'string') return null;
+  // ISO with Z → UTC, convert to Eastern
+  if ((val.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(val)) && val.includes('T')) {
+    const { hour, minute } = utcToEastern(new Date(val));
+    return [hour, minute];
+  }
+  // String: extract HH:MM ("07:15", "2025-12-05T07:00", etc.)
+  const m = val.match(/(\d{1,2}):(\d{2})/);
+  if (!m) return null;
+  return [parseInt(m[1], 10), parseInt(m[2], 10)];
+}
+
 function computeQuantity(job: InvoiceJobRow): string {
   const dt = (job.dispatchType ?? '').toLowerCase();
   if (dt === 'hourly' && job.startTime && job.endTime) {
-    const extract = (t: string) => t.includes('T') ? t.split('T')[1].split('Z')[0] : t;
-    const [sh, sm] = extract(job.startTime).split(':').map(Number);
-    const [eh, em] = extract(job.endTime).split(':').map(Number);
-    if ([sh, sm, eh, em].some(isNaN)) return '';
-    let mins = (eh * 60 + em) - (sh * 60 + sm);
+    const s = extractHM(job.startTime);
+    const e = extractHM(job.endTime);
+    if (!s || !e || s.some(isNaN) || e.some(isNaN)) return '';
+    let mins = (e[0] * 60 + e[1]) - (s[0] * 60 + s[1]);
     if (mins < 0) mins += 24 * 60;
     return (mins / 60).toFixed(2);
   }

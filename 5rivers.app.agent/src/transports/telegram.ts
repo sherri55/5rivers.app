@@ -9,7 +9,7 @@
  *   Any other message → processed by the agent
  */
 import { Telegraf } from 'telegraf';
-import { processMessage, invalidateEntityCache } from '../llm.js';
+import { processMessage } from '../llm.js';
 import { getToken, setToken, hasToken } from '../auth.js';
 import { clearHistory } from '../conversation.js';
 
@@ -79,11 +79,6 @@ export function createTelegramBot(botToken: string): Telegraf {
       await ctx.sendChatAction('typing');
 
       const response = await processMessage(PLATFORM, userId, userMessage, token);
-
-      // Invalidate entity cache if any write tools were called
-      if (response.toolCalls?.some((tc) => tc.name.startsWith('create_') || tc.name.startsWith('update_'))) {
-        invalidateEntityCache();
-      }
 
       // Split long messages (Telegram limit is 4096 chars)
       const text = response.text;

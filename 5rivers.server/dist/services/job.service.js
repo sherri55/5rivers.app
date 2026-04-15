@@ -74,6 +74,17 @@ async function listJobs(organizationId, pagination, options) {
             filterClauses.push(`(j.jobDate <= @filter_dateTo)`);
             params['filter_dateTo'] = dateTo;
         }
+        // Boolean payment status filters — accept 'true'/'false' strings
+        const jobPaidVal = options.filters['jobPaid'];
+        if (jobPaidVal === 'true' || jobPaidVal === 'false') {
+            filterClauses.push(`(j.jobPaid = @filter_jobPaid)`);
+            params['filter_jobPaid'] = jobPaidVal === 'true' ? 1 : 0;
+        }
+        const driverPaidVal = options.filters['driverPaid'];
+        if (driverPaidVal === 'true' || driverPaidVal === 'false') {
+            filterClauses.push(`(j.driverPaid = @filter_driverPaid)`);
+            params['filter_driverPaid'] = driverPaidVal === 'true' ? 1 : 0;
+        }
     }
     const whereExtra = filterClauses.length ? ` AND ${filterClauses.join(' AND ')}` : '';
     const countParams = { organizationId };
@@ -83,6 +94,10 @@ async function listJobs(organizationId, pagination, options) {
         countParams['filter_dateFrom'] = params['filter_dateFrom'];
     if (params['filter_dateTo'] != null)
         countParams['filter_dateTo'] = params['filter_dateTo'];
+    if (params['filter_jobPaid'] != null)
+        countParams['filter_jobPaid'] = params['filter_jobPaid'];
+    if (params['filter_driverPaid'] != null)
+        countParams['filter_driverPaid'] = params['filter_driverPaid'];
     FILTER_COLUMNS.forEach((col) => {
         if (params[`filter_${col}`] != null)
             countParams[`filter_${col}`] = params[`filter_${col}`];
@@ -94,7 +109,7 @@ async function listJobs(organizationId, pagination, options) {
     LEFT JOIN Companies c ON jt.companyId = c.id
     LEFT JOIN Units u ON j.unitId = u.id`;
     const jobColumns = ALL_COLUMNS.split(', ').map(c => `j.${c}`).join(', ')
-        + ', jt.title AS jobTypeTitle, c.name AS companyName, d.name AS driverName, dp.name AS dispatcherName, u.name AS unitName';
+        + ', jt.title AS jobTypeTitle, jt.dispatchType AS jobTypeDispatchType, c.id AS companyId, c.name AS companyName, d.name AS driverName, dp.name AS dispatcherName, u.name AS unitName';
     const [rows, countRows] = await Promise.all([
         (0, connection_1.query)(needsJoins
             ? `SELECT ${jobColumns} FROM Jobs j${joins} WHERE j.organizationId = @organizationId${whereExtra}
@@ -116,7 +131,7 @@ async function listJobs(organizationId, pagination, options) {
 }
 async function getJobById(id, organizationId) {
     const rows = await (0, connection_1.query)(`SELECT ${ALL_COLUMNS.split(', ').map(c => `j.${c}`).join(', ')},
-            jt.title AS jobTypeTitle, c.name AS companyName,
+            jt.title AS jobTypeTitle, jt.dispatchType AS jobTypeDispatchType, c.id AS companyId, c.name AS companyName,
             d.name AS driverName, dp.name AS dispatcherName, u.name AS unitName
      FROM Jobs j
      LEFT JOIN JobTypes jt ON j.jobTypeId = jt.id
@@ -124,21 +139,25 @@ async function getJobById(id, organizationId) {
      LEFT JOIN Drivers d    ON j.driverId = d.id
      LEFT JOIN Dispatchers dp ON j.dispatcherId = dp.id
      LEFT JOIN Units u      ON j.unitId = u.id
-     WHERE j.id = @id AND j.organizationId = @organizationId`, { params: { id, organizationId } });
+     WHERE j.id = @id AND j.organizationId = @organizationId
+    `, { params: { id, organizationId } });
     return Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
 }
 async function createJob(organizationId, input) {
     const id = (0, uuid_1.v4)();
-    const now = (0, timezone_1.nowEastern)();
+    const now = (0, timezone_1.nowUTC)();
     const jobPaid = input.jobPaid ?? false;
     const driverPaid = input.driverPaid ?? false;
+    // Normalize startTime/endTime: parse any format as Eastern → store as UTC
+    const startTime = (0, timezone_1.parseTimeInputToUTC)(input.jobDate, input.startTime);
+    const endTime = (0, timezone_1.parseTimeInputToUTC)(input.jobDate, input.endTime);
     await (0, connection_1.query)(`INSERT INTO Jobs (id, organizationId, jobDate, jobTypeId, driverId, dispatcherId, unitId, carrierId, sourceType, weight, loads, startTime, endTime, amount, carrierAmount, ticketIds, jobPaid, driverPaid, createdAt, updatedAt)
      VALUES (@id, @organizationId, @jobDate, @jobTypeId, @driverId, @dispatcherId, @unitId, @carrierId, @sourceType, @weight, @loads, @startTime, @endTime, @amount, @carrierAmount, @ticketIds, @jobPaid, @driverPaid, @createdAt, @updatedAt)`, {
         params: {
             id, organizationId, jobDate: input.jobDate, jobTypeId: input.jobTypeId,
             driverId: input.driverId ?? null, dispatcherId: input.dispatcherId ?? null, unitId: input.unitId ?? null,
             carrierId: input.carrierId ?? null, sourceType: input.sourceType ?? 'DISPATCHED',
-            weight: input.weight ?? null, loads: input.loads ?? null, startTime: input.startTime ?? null, endTime: input.endTime ?? null,
+            weight: input.weight ?? null, loads: input.loads ?? null, startTime, endTime,
             amount: input.amount ?? null, carrierAmount: input.carrierAmount ?? null,
             ticketIds: input.ticketIds ?? null, jobPaid, driverPaid, createdAt: now, updatedAt: now,
         },
@@ -152,6 +171,15 @@ async function updateJob(organizationId, input) {
     const existing = await getJobById(input.id, organizationId);
     if (!existing)
         return null;
+    // Resolve the effective jobDate (needed for time parsing context)
+    const effectiveJobDate = String(input.jobDate ?? existing.jobDate);
+    // Normalize startTime/endTime if provided — parse as Eastern → UTC
+    const startTime = input.startTime !== undefined
+        ? (0, timezone_1.parseTimeInputToUTC)(effectiveJobDate, input.startTime)
+        : existing.startTime;
+    const endTime = input.endTime !== undefined
+        ? (0, timezone_1.parseTimeInputToUTC)(effectiveJobDate, input.endTime)
+        : existing.endTime;
     const params = {
         id: input.id, organizationId,
         jobDate: input.jobDate ?? existing.jobDate, jobTypeId: input.jobTypeId ?? existing.jobTypeId,
@@ -162,14 +190,13 @@ async function updateJob(organizationId, input) {
         sourceType: input.sourceType !== undefined ? input.sourceType : existing.sourceType,
         weight: input.weight !== undefined ? input.weight : existing.weight,
         loads: input.loads !== undefined ? input.loads : existing.loads,
-        startTime: input.startTime !== undefined ? input.startTime : existing.startTime,
-        endTime: input.endTime !== undefined ? input.endTime : existing.endTime,
+        startTime, endTime,
         amount: input.amount !== undefined ? input.amount : existing.amount,
         carrierAmount: input.carrierAmount !== undefined ? input.carrierAmount : existing.carrierAmount,
         ticketIds: input.ticketIds !== undefined ? input.ticketIds : existing.ticketIds,
         jobPaid: input.jobPaid !== undefined ? input.jobPaid : existing.jobPaid,
         driverPaid: input.driverPaid !== undefined ? input.driverPaid : existing.driverPaid,
-        updatedAt: (0, timezone_1.nowEastern)(),
+        updatedAt: (0, timezone_1.nowUTC)(),
     };
     await (0, connection_1.query)(`UPDATE Jobs SET jobDate = @jobDate, jobTypeId = @jobTypeId, driverId = @driverId, dispatcherId = @dispatcherId, unitId = @unitId,
        carrierId = @carrierId, sourceType = @sourceType, weight = @weight, loads = @loads, startTime = @startTime, endTime = @endTime,

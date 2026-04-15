@@ -29,6 +29,15 @@ export function addMessage(platform, userId, message) {
 export function clearHistory(platform, userId) {
     conversations.delete(key(platform, userId));
 }
+/** Strip imageUrls from all messages in history — call after LLM has processed them. */
+export function stripImageUrls(platform, userId) {
+    const history = conversations.get(key(platform, userId));
+    if (!history)
+        return;
+    for (const msg of history) {
+        delete msg.imageUrls;
+    }
+}
 export function setSystemPrompt(platform, userId, systemPrompt) {
     const k = key(platform, userId);
     const history = conversations.get(k) ?? [];

@@ -7,6 +7,7 @@ export interface Message {
     content: string;
     tool_calls?: ToolCall[];
     tool_call_id?: string;
+    imageUrls?: string[];
 }
 export interface ToolCall {
     id?: string;
@@ -18,4 +19,6 @@ export interface ToolCall {
 export declare function getHistory(platform: string, userId: string): Message[];
 export declare function addMessage(platform: string, userId: string, message: Message): void;
 export declare function clearHistory(platform: string, userId: string): void;
+/** Strip imageUrls from all messages in history — call after LLM has processed them. */
+export declare function stripImageUrls(platform: string, userId: string): void;
 export declare function setSystemPrompt(platform: string, userId: string, systemPrompt: string): void;

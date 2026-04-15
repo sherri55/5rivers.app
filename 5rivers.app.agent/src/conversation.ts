@@ -8,6 +8,7 @@ export interface Message {
   content: string;
   tool_calls?: ToolCall[];
   tool_call_id?: string; // required by OpenAI/Groq for tool result messages
+  imageUrls?: string[];  // base64 data URIs for vision messages (current turn only)
 }
 
 export interface ToolCall {
@@ -48,6 +49,15 @@ export function addMessage(platform: string, userId: string, message: Message): 
 
 export function clearHistory(platform: string, userId: string): void {
   conversations.delete(key(platform, userId));
+}
+
+/** Strip imageUrls from all messages in history — call after LLM has processed them. */
+export function stripImageUrls(platform: string, userId: string): void {
+  const history = conversations.get(key(platform, userId));
+  if (!history) return;
+  for (const msg of history) {
+    delete msg.imageUrls;
+  }
 }
 
 export function setSystemPrompt(platform: string, userId: string, systemPrompt: string): void {

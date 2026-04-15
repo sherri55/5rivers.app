@@ -9,6 +9,7 @@ import { EmptyState } from './EmptyState';
 export interface Column<T> {
   key: string;
   label: string;
+  renderHeader?: () => ReactNode;
   sortable?: boolean;
   align?: 'left' | 'center' | 'right';
   render: (row: T) => ReactNode;
@@ -94,7 +95,7 @@ export function DataTable<T>({
                   onClick={() => col.sortable && onSort?.(col.key)}
                 >
                   <span className="inline-flex items-center gap-1">
-                    {col.label}
+                    {col.renderHeader ? col.renderHeader() : col.label}
                     {col.sortable && sortBy === col.key && (
                       <span className="material-symbols-outlined text-xs text-primary">
                         {order === 'asc' ? 'arrow_upward' : 'arrow_downward'}

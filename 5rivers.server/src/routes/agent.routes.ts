@@ -16,13 +16,13 @@ router.use(requireAuth);
 router.post(
   '/agent/chat',
   asyncHandler(async (req: Request, res: Response) => {
-    const { message } = req.body ?? {};
+    const { message, images } = req.body ?? {};
     if (!message || typeof message !== 'string' || !message.trim()) {
       throw badRequest('message is required');
     }
 
     // Dynamic import to avoid hard dependency on the agent package
-    const { processMessage, invalidateEntityCache } = await import(
+    const { processMessage } = await import(
       '../../../5rivers.app.agent/dist/index.js'
     );
 
@@ -30,17 +30,21 @@ router.post(
     if (!token) throw badRequest('Missing auth token');
 
     const userId = req.user!.userId;
-    const response = await processMessage('web', userId, message.trim(), token);
-
-    // Invalidate entity cache on writes
-    if (response.toolCalls?.some((tc: { name: string }) => tc.name.startsWith('create_') || tc.name.startsWith('update_'))) {
-      invalidateEntityCache();
-    }
+    const response = await processMessage('web', userId, message.trim(), token, images);
 
     res.json({
       reply: response.text,
       toolCalls: response.toolCalls,
     });
+  }),
+);
+
+router.post(
+  '/agent/clear',
+  asyncHandler(async (req: Request, res: Response) => {
+    const { clearHistory } = await import('../../../5rivers.app.agent/dist/index.js');
+    clearHistory('web', req.user!.userId);
+    res.json({ ok: true });
   }),
 );
 

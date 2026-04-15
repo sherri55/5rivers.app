@@ -48,3 +48,13 @@ export function useDeleteDriverPayment() {
     },
   });
 }
+
+export function useMarkJobsAsPaid() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: driverPayApi.markJobsPaid,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: driverPayKeys.all });
+    },
+  });
+}

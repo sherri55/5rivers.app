@@ -39,19 +39,87 @@ export function todayEastern(): string {
 }
 
 /**
- * Format time string. Handles both "07:30" and "2025-10-03T07:30" formats.
- * Always returns HH:MM (12-hour with am/pm).
+ * Format time for display. Returns "7:30am" in Eastern time.
+ *
+ * Handles:
+ *   "2025-12-05T12:00:00.000Z" → UTC ISO (convert to Eastern)
+ *   "2025-10-03T07:30"         → legacy ISO without Z (Eastern implied)
+ *   "07:30"                    → bare HH:MM (Eastern implied)
  */
 export function formatTime(timeStr: string | null | undefined): string {
   if (!timeStr) return '—';
-  // Extract HH:MM from "2025-10-03T07:30" or "07:30"
-  const match = String(timeStr).match(/(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  const s = String(timeStr);
+
+  // UTC ISO string → convert to Eastern for display
+  if (s.includes('T') && (s.endsWith('Z') || /[+-]\d{2}:\d{2}/.test(s))) {
+    const d = new Date(s);
+    if (!isNaN(d.getTime())) {
+      return d.toLocaleTimeString('en-US', {
+        timeZone: 'America/Toronto',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      }).toLowerCase().replace(' ', '');
+    }
+  }
+
+  // Legacy: extract HH:MM from "2025-10-03T07:30" or "07:30"
+  const match = s.match(/(\d{1,2}):(\d{2})/);
   if (!match) return timeStr;
   const h = parseInt(match[1], 10);
   const m = match[2];
   const suffix = h >= 12 ? 'pm' : 'am';
   const h12 = h % 12 === 0 ? 12 : h % 12;
   return `${h12}:${m}${suffix}`;
+}
+
+/**
+ * Extract "HH:MM" (24h, Eastern) from a time value — for <input type="time">.
+ *
+ * Handles:
+ *   "2025-12-05T12:00:00.000Z" → "07:00" (UTC → Eastern)
+ *   "2025-10-03T07:30"         → "07:30"
+ *   "07:30"                    → "07:30"
+ */
+export function extractTimeForInput(timeStr: string | null | undefined): string {
+  if (!timeStr) return '';
+  const s = String(timeStr);
+
+  // UTC ISO string → convert to Eastern, return HH:MM
+  if (s.includes('T') && (s.endsWith('Z') || /[+-]\d{2}:\d{2}/.test(s))) {
+    const d = new Date(s);
+    if (!isNaN(d.getTime())) {
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/Toronto',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      }).formatToParts(d);
+      const h = parts.find(p => p.type === 'hour')?.value ?? '00';
+      const m = parts.find(p => p.type === 'minute')?.value ?? '00';
+      return `${h}:${m}`;
+    }
+  }
+
+  // Legacy: extract HH:MM
+  const match = s.match(/(\d{1,2}):(\d{2})/);
+  if (match) {
+    return match[1].padStart(2, '0') + ':' + match[2];
+  }
+  return '';
+}
+
+/**
+ * Parse a time value into total minutes from midnight (Eastern time).
+ * Used for hours/amount calculations.
+ */
+export function parseTimeMinutesET(timeStr: string | null | undefined): number | null {
+  if (!timeStr) return null;
+  const hhmm = extractTimeForInput(timeStr);
+  if (!hhmm) return null;
+  const [h, m] = hhmm.split(':').map(Number);
+  if (isNaN(h) || isNaN(m)) return null;
+  return h * 60 + m;
 }
 
 /**

@@ -1,0 +1,4 @@
+# SQL Server data files — track with Git LFS (can be large)
+*.mdf filter=lfs diff=lfs merge=lfs -text
+*.ldf filter=lfs diff=lfs merge=lfs -text
+*.ndf filter=lfs diff=lfs merge=lfs -text

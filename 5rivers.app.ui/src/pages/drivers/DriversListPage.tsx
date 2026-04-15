@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useDriversList, useDeleteDriver } from '@/hooks/useDrivers';
-import { useDriverPaySummary, useCreateDriverPayment, useDeleteDriverPayment } from '@/hooks/useDriverPay';
+import { useDriverPaySummary, useCreateDriverPayment, useDeleteDriverPayment, useMarkJobsAsPaid } from '@/hooks/useDriverPay';
 import { useToast } from '@/context/toast';
 import { formatCurrency, formatDate, getInitials } from '@/lib/format';
 import { PayTypeBadge } from '@/components/ui/Badge';
@@ -85,7 +85,47 @@ export function DriversListPage() {
   const { data: payData, isLoading: payLoading } = useDriverPaySummary();
   const [expandedDriver, setExpandedDriver] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Record<string, 'jobs' | 'payments'>>({});
-  const [paymentModal, setPaymentModal] = useState<DriverPaySummary | null>(null);
+  const [paymentModal, setPaymentModal] = useState<{ driver: DriverPaySummary; selectedJobIds?: string[] } | null>(null);
+
+  // Per-driver job selection: Map<driverId, Set<jobId>>
+  const [jobSelection, setJobSelection] = useState<Map<string, Set<string>>>(new Map());
+
+  const toggleJobSelection = useCallback((driverId: string, jobId: string) => {
+    setJobSelection((prev) => {
+      const next = new Map(prev);
+      const sel = new Set(next.get(driverId) ?? []);
+      sel.has(jobId) ? sel.delete(jobId) : sel.add(jobId);
+      next.set(driverId, sel);
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAllJobs = useCallback(
+    (driverId: string, jobIds: string[]) => {
+      setJobSelection((prev) => {
+        const next = new Map(prev);
+        const sel = next.get(driverId) ?? new Set();
+        const unpaid = jobIds.filter((id) => {
+          const driver = payData?.drivers.find((d) => d.driverId === driverId);
+          const job = driver?.jobs.find((j) => j.jobId === id);
+          return !job?.paidAt;
+        });
+        const allSelected = unpaid.every((id) => sel.has(id));
+        const newSel = new Set(allSelected ? [] : unpaid);
+        next.set(driverId, newSel);
+        return next;
+      });
+    },
+    [payData],
+  );
+
+  const clearDriverSelection = useCallback((driverId: string) => {
+    setJobSelection((prev) => {
+      const next = new Map(prev);
+      next.set(driverId, new Set());
+      return next;
+    });
+  }, []);
 
   // Pay summary map for table view
   const payMap = useMemo(() => {
@@ -474,7 +514,7 @@ export function DriversListPage() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            setPaymentModal(driver);
+                            setPaymentModal({ driver });
                           }}
                           className="gradient-primary text-white px-4 py-2 rounded-lg font-semibold text-xs shadow-sm active:scale-[0.98] transition-all flex items-center gap-1.5"
                         >
@@ -484,50 +524,127 @@ export function DriversListPage() {
                       </div>
 
                       {/* Jobs tab */}
-                      {tab === 'jobs' && (
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-left">
-                            <thead>
-                              <tr className="bg-slate-50/50">
-                                <Th>Date</Th>
-                                <Th>Job Type</Th>
-                                <Th align="right">Amount</Th>
-                                <Th align="center">Paid</Th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                              {driver.jobs.length === 0 ? (
-                                <tr>
-                                  <td colSpan={4} className="px-6 py-8 text-center text-sm text-slate-400">
-                                    No jobs recorded
-                                  </td>
-                                </tr>
-                              ) : (
-                                driver.jobs.map((job) => (
-                                  <tr key={job.jobId} className="hover:bg-slate-50/50 transition-colors">
-                                    <td className="px-6 py-4 text-sm text-slate-600">{formatDate(job.jobDate)}</td>
-                                    <td className="px-6 py-4 text-sm font-medium text-slate-700">{job.jobTypeTitle}</td>
-                                    <td className="px-6 py-4 text-sm font-mono font-bold text-on-surface text-right">
-                                      {formatCurrency(job.amount)}
-                                    </td>
-                                    <td className="px-6 py-4 text-center">
-                                      {job.paidAt ? (
-                                        <span className="material-symbols-outlined filled text-emerald-500 text-lg">
-                                          check_circle
-                                        </span>
-                                      ) : (
-                                        <span className="material-symbols-outlined text-slate-300 text-lg">
-                                          radio_button_unchecked
-                                        </span>
-                                      )}
-                                    </td>
+                      {tab === 'jobs' && (() => {
+                        const sel = jobSelection.get(driver.driverId) ?? new Set<string>();
+                        const unpaidJobs = driver.jobs.filter((j) => !j.paidAt);
+                        const selIds = driver.jobs.filter((j) => sel.has(j.jobId));
+                        const selTotal = selIds.reduce((s, j) => s + j.amount, 0);
+                        const allUnpaidSelected = unpaidJobs.length > 0 && unpaidJobs.every((j) => sel.has(j.jobId));
+                        const someSelected = sel.size > 0 && !allUnpaidSelected;
+                        return (
+                          <div>
+                            {/* Selection banner */}
+                            {sel.size > 0 && (
+                              <div className="px-6 py-3 bg-primary/5 border-b border-primary/10 flex items-center justify-between">
+                                <div className="flex items-center gap-6">
+                                  <span className="text-xs font-bold text-primary">{sel.size} job{sel.size !== 1 ? 's' : ''} selected</span>
+                                  <span className="text-xs text-slate-600">
+                                    Driver Pay: <span className="font-bold font-mono">{formatCurrency(selTotal)}</span>
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={() => clearDriverSelection(driver.driverId)}
+                                    className="text-xs text-slate-500 hover:text-slate-700 transition-colors"
+                                  >
+                                    Clear
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setPaymentModal({ driver, selectedJobIds: [...sel] });
+                                    }}
+                                    className="gradient-primary text-white px-4 py-1.5 rounded-lg text-xs font-semibold shadow-sm active:scale-[0.98] transition-all flex items-center gap-1.5"
+                                  >
+                                    <span className="material-symbols-outlined text-[14px]">payments</span>
+                                    Mark as Paid
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-left">
+                                <thead>
+                                  <tr className="bg-slate-50/50">
+                                    <th className="px-4 py-3 w-8">
+                                      <input
+                                        type="checkbox"
+                                        readOnly
+                                        checked={allUnpaidSelected}
+                                        ref={(el) => { if (el) el.indeterminate = someSelected; }}
+                                        onClick={() => toggleSelectAllJobs(driver.driverId, unpaidJobs.map((j) => j.jobId))}
+                                        onChange={() => {}}
+                                        disabled={unpaidJobs.length === 0}
+                                        className="w-3.5 h-3.5 rounded accent-primary cursor-pointer disabled:opacity-30"
+                                      />
+                                    </th>
+                                    <Th>Date</Th>
+                                    <Th>Job Type</Th>
+                                    <Th align="right">Job Amount</Th>
+                                    <Th align="right">Driver Pay</Th>
+                                    <Th align="center">Paid</Th>
                                   </tr>
-                                ))
-                              )}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                  {driver.jobs.length === 0 ? (
+                                    <tr>
+                                      <td colSpan={6} className="px-6 py-8 text-center text-sm text-slate-400">
+                                        No jobs recorded
+                                      </td>
+                                    </tr>
+                                  ) : (
+                                    driver.jobs.map((job) => {
+                                      const isSelected = sel.has(job.jobId);
+                                      const isPaid = !!job.paidAt;
+                                      return (
+                                        <tr
+                                          key={job.jobId}
+                                          onClick={() => !isPaid && toggleJobSelection(driver.driverId, job.jobId)}
+                                          className={cn(
+                                            'transition-colors',
+                                            isPaid ? 'opacity-60' : 'hover:bg-slate-50/50 cursor-pointer',
+                                            isSelected && 'bg-primary/5',
+                                          )}
+                                        >
+                                          <td className="px-4 py-4">
+                                            <input
+                                              type="checkbox"
+                                              checked={isSelected}
+                                              disabled={isPaid}
+                                              onChange={() => toggleJobSelection(driver.driverId, job.jobId)}
+                                              onClick={(e) => e.stopPropagation()}
+                                              className="w-3.5 h-3.5 rounded accent-primary cursor-pointer disabled:opacity-30"
+                                            />
+                                          </td>
+                                          <td className="px-6 py-4 text-sm text-slate-600">{formatDate(job.jobDate)}</td>
+                                          <td className="px-6 py-4 text-sm font-medium text-slate-700">{job.jobTypeTitle}</td>
+                                          <td className="px-6 py-4 text-sm font-mono text-slate-500 text-right">
+                                            {job.jobAmount != null ? formatCurrency(job.jobAmount) : '—'}
+                                          </td>
+                                          <td className="px-6 py-4 text-sm font-mono font-bold text-on-surface text-right">
+                                            {formatCurrency(job.amount)}
+                                          </td>
+                                          <td className="px-6 py-4 text-center">
+                                            {isPaid ? (
+                                              <span className="material-symbols-outlined filled text-emerald-500 text-lg">
+                                                check_circle
+                                              </span>
+                                            ) : (
+                                              <span className="material-symbols-outlined text-slate-300 text-lg">
+                                                radio_button_unchecked
+                                              </span>
+                                            )}
+                                          </td>
+                                        </tr>
+                                      );
+                                    })
+                                  )}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        );
+                      })()}
 
                       {/* Payments tab */}
                       {tab === 'payments' && (
@@ -545,8 +662,9 @@ export function DriversListPage() {
       {/* Record Payment Modal */}
       {paymentModal && (
         <RecordPaymentModal
-          driver={paymentModal}
-          onClose={() => setPaymentModal(null)}
+          driver={paymentModal.driver}
+          selectedJobIds={paymentModal.selectedJobIds}
+          onClose={() => { setPaymentModal(null); if (paymentModal.selectedJobIds) clearDriverSelection(paymentModal.driver.driverId); }}
         />
       )}
 
@@ -708,20 +826,33 @@ function PaymentsTable({
 
 function RecordPaymentModal({
   driver,
+  selectedJobIds,
   onClose,
 }: {
   driver: DriverPaySummary;
+  selectedJobIds?: string[];
   onClose: () => void;
 }) {
   const createPayment = useCreateDriverPayment();
+  const markJobsPaid = useMarkJobsAsPaid();
   const { addToast } = useToast();
 
+  const isMarkingJobs = !!selectedJobIds?.length;
+  const prefilledAmount = isMarkingJobs
+    ? selectedJobIds!.reduce((sum, id) => {
+        const job = driver.jobs.find((j) => j.jobId === id);
+        return sum + (job?.amount ?? 0);
+      }, 0)
+    : null;
+
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' });
-  const [amount, setAmount] = useState('');
+  const [amount, setAmount] = useState(prefilledAmount != null ? prefilledAmount.toFixed(2) : '');
   const [paidAt, setPaidAt] = useState(today);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CASH');
   const [reference, setReference] = useState('');
   const [notes, setNotes] = useState('');
+
+  const isPending = createPayment.isPending || markJobsPaid.isPending;
 
   const handleSubmit = useCallback(() => {
     const parsedAmount = parseFloat(amount);
@@ -730,30 +861,51 @@ function RecordPaymentModal({
       return;
     }
 
-    createPayment.mutate(
-      {
-        driverId: driver.driverId,
-        amount: parsedAmount,
-        paidAt,
-        paymentMethod,
-        reference: reference || null,
-        notes: notes || null,
-      },
-      {
-        onSuccess: () => {
-          addToast('Payment recorded successfully', 'success');
-          onClose();
+    if (isMarkingJobs) {
+      markJobsPaid.mutate(
+        {
+          driverId: driver.driverId,
+          jobIds: selectedJobIds!,
+          amount: parsedAmount,
+          paidAt,
+          paymentMethod,
+          reference: reference || null,
+          notes: notes || null,
         },
-        onError: (err) => addToast(err.message, 'error'),
-      },
-    );
-  }, [amount, paidAt, paymentMethod, reference, notes, driver.driverId, createPayment, addToast, onClose]);
+        {
+          onSuccess: () => {
+            addToast(`${selectedJobIds!.length} job${selectedJobIds!.length !== 1 ? 's' : ''} marked as paid`, 'success');
+            onClose();
+          },
+          onError: (err) => addToast(err.message, 'error'),
+        },
+      );
+    } else {
+      createPayment.mutate(
+        {
+          driverId: driver.driverId,
+          amount: parsedAmount,
+          paidAt,
+          paymentMethod,
+          reference: reference || null,
+          notes: notes || null,
+        },
+        {
+          onSuccess: () => {
+            addToast('Payment recorded successfully', 'success');
+            onClose();
+          },
+          onError: (err) => addToast(err.message, 'error'),
+        },
+      );
+    }
+  }, [amount, paidAt, paymentMethod, reference, notes, driver.driverId, isMarkingJobs, selectedJobIds, createPayment, markJobsPaid, addToast, onClose]);
 
   return (
     <Modal
       open
       onClose={onClose}
-      title={`Record Payment — ${driver.driverName}`}
+      title={isMarkingJobs ? `Mark as Paid — ${driver.driverName}` : `Record Payment — ${driver.driverName}`}
       actions={
         <>
           <button
@@ -764,21 +916,27 @@ function RecordPaymentModal({
           </button>
           <button
             onClick={handleSubmit}
-            disabled={createPayment.isPending}
+            disabled={isPending}
             className="gradient-primary text-white px-5 py-2.5 rounded-lg text-sm font-semibold shadow-md disabled:opacity-50 transition-all"
           >
-            {createPayment.isPending ? 'Saving...' : 'Record Payment'}
+            {isPending ? 'Saving...' : isMarkingJobs ? `Mark ${selectedJobIds!.length} Job${selectedJobIds!.length !== 1 ? 's' : ''} Paid` : 'Record Payment'}
           </button>
         </>
       }
     >
       <div className="space-y-4">
-        {/* Balance hint */}
+        {/* Context hint */}
         <div className="bg-blue-50 rounded-lg p-3 flex items-center gap-3">
           <span className="material-symbols-outlined text-blue-500 text-lg">info</span>
-          <span className="text-xs text-blue-700 font-medium">
-            Current balance owed: <span className="font-bold">{formatCurrency(driver.balance)}</span>
-          </span>
+          {isMarkingJobs ? (
+            <span className="text-xs text-blue-700 font-medium">
+              Marking <span className="font-bold">{selectedJobIds!.length} job{selectedJobIds!.length !== 1 ? 's' : ''}</span> as paid &middot; Driver pay: <span className="font-bold">{formatCurrency(prefilledAmount!)}</span>
+            </span>
+          ) : (
+            <span className="text-xs text-blue-700 font-medium">
+              Current balance owed: <span className="font-bold">{formatCurrency(driver.balance)}</span>
+            </span>
+          )}
         </div>
 
         <div>

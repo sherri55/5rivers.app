@@ -4,22 +4,21 @@ Write-Host "Stopping existing 5Rivers processes..." -ForegroundColor Red
 
 # Kill processes on ports 4000 (server) and 5173 (UI)
 foreach ($port in @(4000, 5173)) {
-  $result = netstat -ano | Select-String ":$port\s"
-  if ($result) {
-    $pid = ($result -split '\s+')[-1]
-    if ($pid -match '^\d+$') {
-      Write-Host "  Killing process on port $port (PID $pid)..." -ForegroundColor DarkRed
-      Stop-Process -Id ([int]$pid) -Force -ErrorAction SilentlyContinue
-    }
+  $pids = netstat -ano | Select-String "LISTENING" | Select-String ":$port\s" |
+    ForEach-Object { ($_ -split '\s+')[-1] } | Where-Object { $_ -match '^\d+$' } | Select-Object -Unique
+  foreach ($p in $pids) {
+    Write-Host "  Killing process on port $port (PID $p)..." -ForegroundColor DarkRed
+    Stop-Process -Id ([int]$p) -Force -ErrorAction SilentlyContinue
   }
 }
 
-# Close any powershell windows titled "5Rivers *"
-Get-Process -Name "powershell","powershell_ise" -ErrorAction SilentlyContinue |
-  Where-Object { $_.MainWindowTitle -match "^5Rivers" } |
+# Kill node processes running our specific scripts
+$targets = @("5rivers.server", "5rivers.app.ui", "5rivers.app.agent")
+Get-WmiObject Win32_Process -Filter "name='node.exe'" -ErrorAction SilentlyContinue |
+  Where-Object { $cmd = $_.CommandLine; $targets | Where-Object { $cmd -like "*$_*" } } |
   ForEach-Object {
-    Write-Host "  Closing window: $($_.MainWindowTitle)" -ForegroundColor DarkRed
-    $_.CloseMainWindow() | Out-Null
+    Write-Host "  Killing node process PID $($_.ProcessId)..." -ForegroundColor DarkRed
+    Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
   }
 
 Start-Sleep -Seconds 2
