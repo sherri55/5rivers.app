@@ -97,12 +97,14 @@ export function JobFormPage() {
   const showTimeFields = dispatchType === 'hourly';
   const showLoadField = dispatchType === 'load' || dispatchType === 'loads';
   const showWeightField = dispatchType === 'tonnage';
-  const showAmountOverride = true; // Always show, but mark as override for non-fixed
 
   // Calculate preview amount
+  const isRatePending = selectedJobType != null && (selectedJobType.rateOfJob == null || selectedJobType.rateOfJob === 0);
+
   const previewAmount = useMemo(() => {
     if (!selectedJobType) return null;
     const rate = selectedJobType.rateOfJob;
+    if (rate == null || rate === 0) return null;
     switch (dispatchType) {
       case 'hourly': {
         if (!startTime || !endTime) return null;
@@ -381,7 +383,7 @@ export function JobFormPage() {
             </FormField>
 
             {/* Company */}
-            <FormField label="Company" required>
+            <FormField label="Company" required linkTo={selectedCompanyId ? `/companies/${selectedCompanyId}/edit` : undefined}>
               <Select
                 value={selectedCompanyId}
                 onChange={(e) => {
@@ -401,7 +403,7 @@ export function JobFormPage() {
             </FormField>
 
             {/* Job Type */}
-            <FormField label="Job Type" required>
+            <FormField label="Job Type" required linkTo={selectedCompanyId ? `/companies/${selectedCompanyId}/edit` : undefined}>
               <Select
                 value={jobTypeId}
                 onChange={(e) => setJobTypeId(e.target.value)}
@@ -422,14 +424,18 @@ export function JobFormPage() {
                 ))}
               </Select>
               {selectedJobType && (
-                <p className="text-[11px] text-slate-400 mt-1 ml-1">
-                  Base rate: {formatCurrency(selectedJobType.rateOfJob)}
+                <p className="text-[11px] mt-1 ml-1">
+                  {selectedJobType.rateOfJob != null && selectedJobType.rateOfJob > 0 ? (
+                    <span className="text-slate-400">Base rate: {formatCurrency(selectedJobType.rateOfJob)}</span>
+                  ) : (
+                    <span className="font-medium text-amber-600">Rate pending</span>
+                  )}
                 </p>
               )}
             </FormField>
 
             {/* Driver */}
-            <FormField label="Driver">
+            <FormField label="Driver" linkTo={driverId ? `/drivers/${driverId}/edit` : undefined}>
               <Select
                 value={driverId}
                 onChange={(e) => setDriverId(e.target.value)}
@@ -555,8 +561,17 @@ export function JobFormPage() {
                           ? 'scale'
                           : 'attach_money'}
                   </span>
-                  {dispatchType || 'select a job type'} — {formatCurrency(selectedJobType.rateOfJob)}{dispatchType === 'hourly' ? '/hr' : dispatchType === 'load' || dispatchType === 'loads' ? '/load' : dispatchType === 'tonnage' ? '/ton' : ''}
+                  {dispatchType || 'select a job type'} — {selectedJobType.rateOfJob != null && selectedJobType.rateOfJob > 0 ? `${formatCurrency(selectedJobType.rateOfJob)}${dispatchType === 'hourly' ? '/hr' : dispatchType === 'load' || dispatchType === 'loads' ? '/load' : dispatchType === 'tonnage' ? '/ton' : ''}` : 'Rate Pending'}
                 </span>
+              </div>
+            )}
+
+            {selectedJobType && (selectedJobType.rateOfJob == null || selectedJobType.rateOfJob === 0) && (
+              <div className="ml-4 mb-8 p-3 bg-amber-50 rounded-lg border border-amber-200 flex items-start gap-2.5">
+                <span className="material-symbols-rounded text-amber-600 text-[18px] mt-0.5">warning</span>
+                <p className="text-sm text-amber-800">
+                  Rate not yet set for this job type. Enter an amount manually or update the job type rate later.
+                </p>
               </div>
             )}
 
@@ -648,7 +663,7 @@ export function JobFormPage() {
           {/* Amount + Tickets sidebar */}
           <div className="bg-surface-container-highest/50 p-8 rounded-xl border border-outline-variant/10 flex flex-col gap-6">
             {/* Calculated amount preview */}
-            {previewAmount !== null && (
+            {previewAmount !== null ? (
               <div className="p-4 bg-emerald-50 rounded-lg border border-emerald-100">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-600 mb-1">
                   Calculated Amount
@@ -660,7 +675,19 @@ export function JobFormPage() {
                   Based on {dispatchType} rate × entered values
                 </p>
               </div>
-            )}
+            ) : isRatePending ? (
+              <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-amber-600 mb-1">
+                  Calculated Amount
+                </p>
+                <p className="text-xl font-bold text-amber-700">
+                  Rate Pending
+                </p>
+                <p className="text-[10px] text-amber-500 mt-1">
+                  Set the job type rate or enter an amount manually
+                </p>
+              </div>
+            ) : null}
 
             <FormField label={dispatchType === 'fixed' ? 'Amount ($)' : 'Amount Override ($)'}>
               <div className="relative">
@@ -916,18 +943,33 @@ export function JobFormPage() {
 function FormField({
   label,
   required,
+  linkTo,
   children,
 }: {
   label: string;
   required?: boolean;
+  linkTo?: string;
   children: React.ReactNode;
 }) {
   return (
     <div className="space-y-1.5">
-      <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-        {label}
-        {required && <span className="text-error ml-0.5">*</span>}
-      </label>
+      <div className="flex items-center justify-between">
+        <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+          {label}
+          {required && <span className="text-error ml-0.5">*</span>}
+        </label>
+        {linkTo && (
+          <a
+            href={linkTo}
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-0.5 text-[10px] text-slate-400 hover:text-primary transition-colors"
+            title={`Open ${label}`}
+          >
+            <span className="material-symbols-rounded text-[13px]">open_in_new</span>
+          </a>
+        )}
+      </div>
       {children}
     </div>
   );

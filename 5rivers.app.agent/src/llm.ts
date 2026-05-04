@@ -30,8 +30,8 @@ import {
   type Message,
 } from './conversation.js';
 import { getAutoToken, clearAutoToken } from './auth.js';
-import { parseOCROutput } from './ocr-parser.js';
-import { processDocument, formatWriteResults, type PendingDocAction } from './document-processor.js';
+import { parseOCROutputMulti } from './ocr-parser.js';
+import { processDocuments, formatWriteResults, type PendingDocAction } from './document-processor.js';
 
 const API_URL = process.env.FIVE_RIVERS_API_URL ?? 'http://localhost:4000/api';
 
@@ -391,9 +391,11 @@ async function callOCRModel(userMessage: string, images: ImageInput[]): Promise<
   // deterministic regardless of LM Studio preset configuration.
   const extractionInstruction = `Read this image carefully. Output ONLY structured data — no commentary.
 
-Determine if this is a TICKET or PAYSTUB.
+IMPORTANT: Analyze the ENTIRE document first. A single page may contain MULTIPLE entries (multiple tickets, multiple loads, multiple trips). Extract ALL of them.
 
-TICKET — output exactly:
+Determine if entries are TICKETs or PAYSTUBs.
+
+TICKET — output exactly (one block per entry):
 TYPE: ticket
 DATE: <date as printed>
 TICKET_NUMBER: <number or "not visible">
@@ -416,6 +418,7 @@ LINE_ITEMS:
 - DATE: <date as printed> | AMOUNT: <dollar amount for THIS ROW ONLY> | REF: <ref or "none">
 
 CRITICAL RULES:
+- If the document has MULTIPLE entries, output each one separately with a line of --- between them.
 - Each table row = one LINE_ITEMS entry. 20 rows → 20 entries.
 - NEVER include totals, subtotals, or cheque amounts as line items.
 - Copy dates and amounts exactly as printed.
@@ -801,14 +804,15 @@ export async function processMessage(
   if (!resumingFromConfirmation) {
     if (images && images.length > 0 && process.env.LLM_PROVIDER === 'lmstudio') {
       // ── Code-driven document pipeline ──────────────────────────────────────
-      // OCR → parse → validate → orchestrate tool calls → format output.
-      // No LLM involved unless the document type is unknown.
+      // OCR → parse ALL entries → validate → present summary → confirm → execute.
+      // No LLM involved unless every entry is unknown.
       const ocrText = await callOCRModel(userMessage, images);
-      const extraction = parseOCROutput(ocrText);
-      console.log(`[doc-pipeline] Detected document type: ${extraction.type}`);
+      const extractions = parseOCROutputMulti(ocrText);
+      const knownCount = extractions.filter((e) => e.type !== 'unknown').length;
+      console.log(`[doc-pipeline] Detected ${extractions.length} entry/entries (${knownCount} known)`);
 
-      if (extraction.type !== 'unknown') {
-        const result = await processDocument(extraction, client, isSupervisionEnabled());
+      if (knownCount > 0) {
+        const result = await processDocuments(extractions, client, isSupervisionEnabled());
 
         if (result) {
           // Record in conversation history for context
@@ -831,7 +835,7 @@ export async function processMessage(
         }
       }
 
-      // Unknown document or processor returned null → fall through to tool-calling model
+      // All entries unknown or processor returned null → fall through to tool-calling model
       const augmented = `${userMessage ? userMessage + '\n\n' : ''}[Image content extracted by OCR model]\n${ocrText}`;
       addMessage(platform, userId, { role: 'user', content: augmented });
     } else {

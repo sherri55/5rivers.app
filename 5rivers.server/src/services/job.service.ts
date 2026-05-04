@@ -2,6 +2,7 @@ import { v4 as uuid } from 'uuid';
 import { query } from '../db/connection';
 import { type Pagination, type ListResult, type SortOrder } from '../types';
 import { nowUTC, parseTimeInputToUTC } from '../utils/timezone';
+import { getJobTypeById } from './jobType.service';
 
 const SORT_COLUMNS = ['jobDate', 'amount', 'sourceType', 'createdAt'] as const;
 const FILTER_COLUMNS = ['jobDate', 'amount', 'sourceType', 'driverId', 'dispatcherId', 'unitId', 'jobTypeId'] as const;
@@ -212,6 +213,45 @@ export async function getJobById(id: string, organizationId: string): Promise<Jo
   return Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
 }
 
+/**
+ * Auto-calculate the job amount based on the job type's rate and dispatch type.
+ * Returns null if rate is pending (NULL) or if we don't have enough data.
+ */
+async function autoCalcAmount(
+  organizationId: string,
+  jobTypeId: string,
+  loads: number | null | undefined,
+  weight: string | null | undefined,
+  startTime: string | Date | null | undefined,
+  endTime: string | Date | null | undefined
+): Promise<number | null> {
+  const jt = await getJobTypeById(jobTypeId, organizationId);
+  if (!jt || jt.rateOfJob == null) return null;
+
+  switch (jt.dispatchType) {
+    case 'load':
+      return jt.rateOfJob * (loads ?? 1);
+    case 'fixed':
+      return jt.rateOfJob;
+    case 'hourly': {
+      if (!startTime || !endTime) return null;
+      const start = new Date(startTime).getTime();
+      const end = new Date(endTime).getTime();
+      if (isNaN(start) || isNaN(end) || end <= start) return null;
+      const hours = (end - start) / (1000 * 60 * 60);
+      return Math.round(jt.rateOfJob * hours * 100) / 100;
+    }
+    case 'tonnage': {
+      if (!weight) return null;
+      const w = parseFloat(weight);
+      if (isNaN(w)) return null;
+      return Math.round(jt.rateOfJob * w * 100) / 100;
+    }
+    default:
+      return null;
+  }
+}
+
 export async function createJob(organizationId: string, input: CreateJobInput): Promise<Job> {
   const id = uuid();
   const now = nowUTC();
@@ -222,6 +262,12 @@ export async function createJob(organizationId: string, input: CreateJobInput): 
   const startTime = parseTimeInputToUTC(input.jobDate, input.startTime);
   const endTime   = parseTimeInputToUTC(input.jobDate, input.endTime);
 
+  // Auto-calculate amount if not explicitly provided
+  let amount = input.amount ?? null;
+  if (amount == null) {
+    amount = await autoCalcAmount(organizationId, input.jobTypeId, input.loads, input.weight, startTime, endTime);
+  }
+
   await query(
     `INSERT INTO Jobs (id, organizationId, jobDate, jobTypeId, driverId, dispatcherId, unitId, carrierId, sourceType, weight, loads, startTime, endTime, amount, carrierAmount, ticketIds, jobPaid, driverPaid, createdAt, updatedAt)
      VALUES (@id, @organizationId, @jobDate, @jobTypeId, @driverId, @dispatcherId, @unitId, @carrierId, @sourceType, @weight, @loads, @startTime, @endTime, @amount, @carrierAmount, @ticketIds, @jobPaid, @driverPaid, @createdAt, @updatedAt)`,
@@ -231,7 +277,7 @@ export async function createJob(organizationId: string, input: CreateJobInput): 
         driverId: input.driverId ?? null, dispatcherId: input.dispatcherId ?? null, unitId: input.unitId ?? null,
         carrierId: input.carrierId ?? null, sourceType: input.sourceType ?? 'DISPATCHED',
         weight: input.weight ?? null, loads: input.loads ?? null, startTime, endTime,
-        amount: input.amount ?? null, carrierAmount: input.carrierAmount ?? null,
+        amount, carrierAmount: input.carrierAmount ?? null,
         ticketIds: input.ticketIds ?? null, jobPaid, driverPaid, createdAt: now, updatedAt: now,
       },
     }
@@ -256,18 +302,33 @@ export async function updateJob(organizationId: string, input: UpdateJobInput): 
     ? parseTimeInputToUTC(effectiveJobDate, input.endTime)
     : existing.endTime;
 
+  const effectiveJobTypeId = input.jobTypeId ?? existing.jobTypeId;
+  const effectiveWeight = input.weight !== undefined ? input.weight : existing.weight;
+  const effectiveLoads = input.loads !== undefined ? input.loads : existing.loads;
+
+  // Determine amount: if explicitly provided use it, otherwise try auto-calc if currently NULL
+  let amount: number | null;
+  if (input.amount !== undefined) {
+    amount = input.amount;
+  } else if (existing.amount == null) {
+    // Amount is still NULL — try to auto-calculate
+    amount = await autoCalcAmount(organizationId, effectiveJobTypeId, effectiveLoads, effectiveWeight, startTime, endTime);
+  } else {
+    amount = existing.amount;
+  }
+
   const params: Record<string, unknown> = {
     id: input.id, organizationId,
-    jobDate: input.jobDate ?? existing.jobDate, jobTypeId: input.jobTypeId ?? existing.jobTypeId,
+    jobDate: input.jobDate ?? existing.jobDate, jobTypeId: effectiveJobTypeId,
     driverId: input.driverId !== undefined ? input.driverId : existing.driverId,
     dispatcherId: input.dispatcherId !== undefined ? input.dispatcherId : existing.dispatcherId,
     unitId: input.unitId !== undefined ? input.unitId : existing.unitId,
     carrierId: input.carrierId !== undefined ? input.carrierId : existing.carrierId,
     sourceType: input.sourceType !== undefined ? input.sourceType : existing.sourceType,
-    weight: input.weight !== undefined ? input.weight : existing.weight,
-    loads: input.loads !== undefined ? input.loads : existing.loads,
+    weight: effectiveWeight,
+    loads: effectiveLoads,
     startTime, endTime,
-    amount: input.amount !== undefined ? input.amount : existing.amount,
+    amount,
     carrierAmount: input.carrierAmount !== undefined ? input.carrierAmount : existing.carrierAmount,
     ticketIds: input.ticketIds !== undefined ? input.ticketIds : existing.ticketIds,
     jobPaid: input.jobPaid !== undefined ? input.jobPaid : existing.jobPaid,

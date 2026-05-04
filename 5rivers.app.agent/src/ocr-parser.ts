@@ -197,3 +197,28 @@ export function parseOCROutput(rawText: string): DocumentExtraction {
       return { type: 'unknown', rawText };
   }
 }
+
+/**
+ * Parse raw OCR text that may contain multiple entries separated by `---`.
+ *
+ * A single document image might have multiple tickets, loads, or entries.
+ * The OCR instruction tells the model to separate them with `---`.
+ * Returns an array of extractions — one per entry found.
+ */
+export function parseOCROutputMulti(rawText: string): DocumentExtraction[] {
+  if (!rawText?.trim()) {
+    return [{ type: 'unknown', rawText: rawText ?? '' }];
+  }
+
+  // Split on separator lines: 3+ dashes alone on a line
+  const sections = rawText
+    .split(/\n-{3,}\n/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  if (sections.length <= 1) {
+    return [parseOCROutput(rawText)];
+  }
+
+  return sections.map((section) => parseOCROutput(section));
+}

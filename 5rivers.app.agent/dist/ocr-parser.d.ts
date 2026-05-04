@@ -44,3 +44,11 @@ export interface UnknownExtraction {
  * a ticket or paystub — the caller should fall through to the LLM.
  */
 export declare function parseOCROutput(rawText: string): DocumentExtraction;
+/**
+ * Parse raw OCR text that may contain multiple entries separated by `---`.
+ *
+ * A single document image might have multiple tickets, loads, or entries.
+ * The OCR instruction tells the model to separate them with `---`.
+ * Returns an array of extractions — one per entry found.
+ */
+export declare function parseOCROutputMulti(rawText: string): DocumentExtraction[];

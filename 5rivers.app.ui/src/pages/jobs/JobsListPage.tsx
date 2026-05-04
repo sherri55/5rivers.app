@@ -360,11 +360,13 @@ export function JobsListPage() {
                 )}
               </div>
               <span className="text-[12px] text-slate-500">{company}</span>
-              {rateOfJob != null && (
+              {jt && (rateOfJob != null && rateOfJob > 0) ? (
                 <span className="text-[11px] text-slate-400">
                   {formatCurrency(rateOfJob)}
                 </span>
-              )}
+              ) : jt && rateOfJob == null ? (
+                <span className="text-[11px] font-medium text-amber-600">Rate Pending</span>
+              ) : null}
             </div>
           );
         },
@@ -490,7 +492,14 @@ export function JobsListPage() {
         sortable: true,
         align: 'right' as const,
         render: (job) => {
-          if (job.amount == null) return <span className="text-slate-400">—</span>;
+          if (job.amount == null) {
+            return (
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700 ring-1 ring-inset ring-amber-600/20">
+                <span className="material-symbols-rounded text-[14px]">pending</span>
+                No Rate
+              </span>
+            );
+          }
           const withTax = job.amount * 1.13;
           return (
             <div className="text-right">
@@ -579,6 +588,7 @@ export function JobsListPage() {
     [dispatchersData],
   );
 
+  const selExcludedCount = [...selectedJobData.values()].filter((j) => j.amount == null).length;
   const selSubtotal = [...selectedJobData.values()].reduce((sum, j) => sum + (j.amount ?? 0), 0);
   const selHst = selSubtotal * 0.13;
   const selTotal = selSubtotal + selHst;
@@ -722,6 +732,11 @@ export function JobsListPage() {
             <div>
               <span className="text-slate-500 text-xs uppercase tracking-wide block">Subtotal</span>
               <span className="font-semibold text-on-surface">{formatCurrency(selSubtotal)}</span>
+              {selExcludedCount > 0 && (
+                <span className="block text-[10px] font-medium text-amber-600 mt-0.5">
+                  ({selExcludedCount} job{selExcludedCount !== 1 ? 's' : ''} excluded — no rate)
+                </span>
+              )}
             </div>
             <div>
               <span className="text-slate-500 text-xs uppercase tracking-wide block">HST (13%)</span>

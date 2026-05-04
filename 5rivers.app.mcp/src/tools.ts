@@ -74,9 +74,9 @@ function fmtTime(raw: unknown): string {
   return `${h}:${min} ${ampm}`;
 }
 
-/** Format a dollar amount: 525 → "$525.00" */
+/** Format a dollar amount: 525 → "$525.00", null → "⏳ pending" */
 function fmtMoney(raw: unknown): string {
-  if (raw === null || raw === undefined) return '—';
+  if (raw === null || raw === undefined) return '⏳ pending';
   const n = typeof raw === 'number' ? raw : parseFloat(String(raw));
   if (isNaN(n)) return String(raw);
   return `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -330,7 +330,7 @@ function projectJob(job: Record<string, unknown>): Record<string, unknown> {
     amount:       job.amount,
     jobPaid:      job.jobPaid,
     driverPaid:   job.driverPaid,
-    ticketNumber: job.ticketNumber,
+    ticketNumber: job.ticketIds,
     notes:        job.notes,
   };
 }
@@ -591,7 +591,14 @@ const list_job_types: ToolDefinition = {
       search: args.search ? String(args.search) : undefined,
     });
     if (result.data.length === 0) return 'No job types found.';
-    return json({ total: result.total, jobTypes: result.data });
+    // Annotate job types with null rateOfJob
+    const annotated = (result.data as Record<string, unknown>[]).map((jt) => {
+      if (jt.rateOfJob === null || jt.rateOfJob === undefined) {
+        return { ...jt, rateOfJob: null, _ratePending: true };
+      }
+      return jt;
+    });
+    return json({ total: result.total, jobTypes: annotated });
   },
 };
 
@@ -698,7 +705,7 @@ const create_job: ToolDefinition = {
       weight: { type: 'string', description: 'Weight.' },
       loads: { type: 'number', description: 'Number of loads.' },
       amount: { type: 'number', description: 'Job amount in dollars.' },
-      ticketIds: { type: 'string', description: 'Comma-separated ticket IDs.' },
+      ticketIds: { type: 'string', description: 'Ticket number(s) — single number like "4521" or comma-separated "4521,4522".' },
     },
     required: ['jobDate', 'jobTypeId'],
   },
@@ -707,6 +714,8 @@ const create_job: ToolDefinition = {
     for (const [k, v] of Object.entries(args)) {
       if (v !== undefined && v !== null && v !== '') {
         if (k === 'jobDate') data[k] = parseDateArg(String(v));
+        // Accept 'ticketNumber' as an alias for 'ticketIds' (from OCR pipeline)
+        else if (k === 'ticketNumber') data['ticketIds'] = v;
         else data[k] = v;
       }
     }
@@ -760,7 +769,7 @@ const create_job_type: ToolDefinition = {
     properties: {
       companyId: { type: 'string', description: 'Company ID this job type belongs to.' },
       title: { type: 'string', description: 'Job type title (e.g. "Hourly", "Flat Rate", "Tonnage").' },
-      rateOfJob: { type: 'number', description: 'Rate for the job type (e.g. 85 for $85/hr).' },
+      rateOfJob: { type: 'number', description: 'Rate for the job type (e.g. 85 for $85/hr). Omit or set to null if rate is not yet known (rate pending).' },
       dispatchType: { type: 'string', description: 'How dispatch works for this type.' },
     },
     required: ['companyId', 'title'],
@@ -772,6 +781,39 @@ const create_job_type: ToolDefinition = {
     }
     const jt = await client.jobTypes.create(data);
     return `Job type created successfully:\n${json(jt)}`;
+  },
+};
+
+const update_job_type: ToolDefinition = {
+  name: 'update_job_type',
+  description: 'Update an existing job type. When setting a rate on a previously rate-pending job type, this will also backfill amounts for existing jobs.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      id: { type: 'string', description: 'Job type ID to update.' },
+      title: { type: 'string', description: 'New title for the job type.' },
+      rateOfJob: { type: 'number', description: 'Rate for the job type. Set to null to mark as rate pending.' },
+      dispatchType: { type: 'string', description: 'How dispatch works for this type.' },
+      startLocation: { type: 'string', description: 'Default start location.' },
+      endLocation: { type: 'string', description: 'Default end location.' },
+    },
+    required: ['id'],
+  },
+  handler: async (client, args) => {
+    const { id, ...rest } = args as Record<string, unknown>;
+    const data: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(rest)) {
+      if (v !== undefined) {
+        // Allow null for rateOfJob (to clear the rate)
+        if (k === 'rateOfJob' && v === null) {
+          data[k] = null;
+        } else if (v !== null && v !== '') {
+          data[k] = v;
+        }
+      }
+    }
+    const jt = await client.jobTypes.update(String(id), data);
+    return `Job type updated successfully:\n${json(jt)}`;
   },
 };
 
@@ -1666,6 +1708,7 @@ export const ALL_TOOLS: ToolDefinition[] = [
   update_job,
   delete_job,
   create_job_type,
+  update_job_type,
   create_driver,
   update_driver,
   create_company,

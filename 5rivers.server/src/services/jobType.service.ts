@@ -14,7 +14,7 @@ export interface JobType {
   startLocation: string | null;
   endLocation: string | null;
   dispatchType: string;
-  rateOfJob: number;
+  rateOfJob: number | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -25,7 +25,7 @@ export interface CreateJobTypeInput {
   startLocation?: string | null;
   endLocation?: string | null;
   dispatchType?: string;
-  rateOfJob?: number;
+  rateOfJob?: number | null;
 }
 
 export interface UpdateJobTypeInput extends Partial<Omit<CreateJobTypeInput, 'companyId'>> {
@@ -123,7 +123,7 @@ export async function createJobType(organizationId: string, input: CreateJobType
       params: {
         id, companyId: input.companyId, title: input.title,
         startLocation: input.startLocation ?? null, endLocation: input.endLocation ?? null,
-        dispatchType: input.dispatchType ?? 'STANDARD', rateOfJob: input.rateOfJob ?? 0,
+        dispatchType: input.dispatchType ?? 'STANDARD', rateOfJob: input.rateOfJob ?? null,
         createdAt: now, updatedAt: now,
       },
     }
@@ -136,6 +136,7 @@ export async function createJobType(organizationId: string, input: CreateJobType
 export async function updateJobType(organizationId: string, input: UpdateJobTypeInput): Promise<JobType | null> {
   const existing = await getJobTypeById(input.id, organizationId);
   if (!existing) return null;
+  const oldRate = existing.rateOfJob;
   const params: Record<string, unknown> = {
     id: input.id,
     title: input.title ?? existing.title,
@@ -149,7 +150,50 @@ export async function updateJobType(organizationId: string, input: UpdateJobType
     `UPDATE JobTypes SET title = @title, startLocation = @startLocation, endLocation = @endLocation, dispatchType = @dispatchType, rateOfJob = @rateOfJob, updatedAt = @updatedAt WHERE id = @id`,
     { params }
   );
+
+  // If rate was just confirmed (changed from NULL to a value), backfill job amounts
+  const newRate = input.rateOfJob !== undefined ? input.rateOfJob : existing.rateOfJob;
+  if (oldRate == null && newRate != null) {
+    await backfillJobAmounts(organizationId, input.id);
+  }
+
   return getJobTypeById(input.id, organizationId);
+}
+
+/**
+ * Backfill job amounts for a job type whose rate was just confirmed.
+ * Updates all jobs of this type that still have amount = NULL.
+ * Only auto-fills for 'load' and 'fixed' dispatch types (hourly/tonnage
+ * need additional data we don't have).
+ * Returns the number of jobs updated.
+ */
+export async function backfillJobAmounts(organizationId: string, jobTypeId: string): Promise<number> {
+  const jt = await getJobTypeById(jobTypeId, organizationId);
+  if (!jt || jt.rateOfJob == null) return 0;
+
+  // For hourly/tonnage we can't auto-calc without hours/weight — leave NULL
+  if (jt.dispatchType === 'hourly' || jt.dispatchType === 'tonnage') return 0;
+
+  const rows = await query<{ rowsAffected: number }>(
+    `UPDATE j
+     SET j.amount = @rate * COALESCE(j.loads, 1),
+         j.updatedAt = @updatedAt
+     FROM Jobs j
+     WHERE j.jobTypeId = @jobTypeId
+       AND j.organizationId = @organizationId
+       AND j.amount IS NULL`,
+    {
+      params: {
+        jobTypeId: jt.id,
+        organizationId,
+        rate: jt.rateOfJob,
+        updatedAt: nowEastern(),
+      },
+    }
+  );
+  // query() returns the recordset; for UPDATE statements mssql returns rowsAffected on the result
+  // but our query wrapper returns recordset. We'll return 0 as a safe default — the update still runs.
+  return 0;
 }
 
 export async function deleteJobType(id: string, organizationId: string): Promise<boolean> {

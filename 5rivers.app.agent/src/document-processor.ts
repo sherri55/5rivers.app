@@ -412,7 +412,102 @@ function formatPaystubResults(results: MarkResult[], dispatcher: ResolvedEntity,
   ].join('\n');
 }
 
-// ─── Ticket processor ────────────────────────────────────────────────────────
+// ─── Shared helpers ─────────────────────────────────────────────────────────
+
+/** Format a ✓/❌ marker for a resolved entity */
+function markEntity(entity: ResolvedEntity | null, ocrName: string | null): string {
+  if (!ocrName) return '—';
+  if (entity) return `${entity.name} ✓`;
+  return `${ocrName} ❌ (not matched)`;
+}
+
+/** Resolve a job type for a given company + extraction locations */
+async function resolveJobType(
+  company: ResolvedEntity,
+  extraction: TicketExtraction,
+  client: RestClient,
+  actions: ProcessorAction[],
+): Promise<{ id: string; name: string } | null> {
+  const jtRes = await callTool(client, 'list_job_types', { companyId: company.id });
+  actions.push({ tool: 'list_job_types', args: { companyId: company.id }, ...jtRes });
+
+  try {
+    const parsed = JSON.parse(jtRes.result);
+    const types = parsed.jobTypes ?? parsed.data ?? [];
+    if (types.length === 1) {
+      return { id: String(types[0].id), name: String(types[0].title ?? types[0].name ?? '') };
+    }
+    if (types.length > 1 && (extraction.startLocation || extraction.endLocation)) {
+      const search = [extraction.startLocation, extraction.endLocation].filter(Boolean).join(' ').toLowerCase();
+      const match = types.find((jt: Record<string, unknown>) =>
+        String(jt.title ?? '').toLowerCase().includes(search),
+      );
+      if (match) {
+        return { id: String(match.id), name: String(match.title ?? match.name ?? '') };
+      }
+    }
+  } catch { /* not JSON — skip */ }
+  return null;
+}
+
+/**
+ * Cached entity resolver — avoids duplicate API calls when the same entity
+ * name appears across multiple tickets in one document.
+ */
+class EntityResolver {
+  private cache = new Map<string, ResolvedEntity | null>();
+  private actions: ProcessorAction[] = [];
+
+  constructor(private client: RestClient) {}
+
+  async resolve(
+    toolName: string,
+    search: string | null,
+  ): Promise<ResolvedEntity | null> {
+    if (!search) return null;
+    const key = `${toolName}:${search}`;
+    if (this.cache.has(key)) return this.cache.get(key)!;
+
+    const res = await callTool(this.client, toolName, { search });
+    this.actions.push({ tool: toolName, args: { search }, ...res });
+    const entity = parseUseIdFromResult(res.result);
+    this.cache.set(key, entity);
+    return entity;
+  }
+
+  /** Drain recorded actions (transfers ownership to caller) */
+  drainActions(): ProcessorAction[] {
+    const out = [...this.actions];
+    this.actions = [];
+    return out;
+  }
+}
+
+/** Build the create_job args from resolved entities and extraction */
+function buildCreateJobArgs(
+  extraction: TicketExtraction,
+  jobTypeId: string,
+  dispatcher: ResolvedEntity | null,
+  driver: ResolvedEntity | null,
+  unit: ResolvedEntity | null,
+): Record<string, unknown> {
+  const args: Record<string, unknown> = {
+    jobDate:   extraction.date,
+    jobTypeId,
+  };
+  if (dispatcher) args.dispatcherId   = dispatcher.id;
+  if (driver)     args.driverId       = driver.id;
+  if (unit)       args.unitId         = unit.id;
+  if (extraction.startTime)     args.startTime     = extraction.startTime;
+  if (extraction.endTime)       args.endTime       = extraction.endTime;
+  if (extraction.startLocation) args.startLocation = extraction.startLocation;
+  if (extraction.endLocation)   args.endLocation   = extraction.endLocation;
+  // Server stores ticket references in ticketIds (not ticketNumber)
+  if (extraction.ticketNumber)  args.ticketIds  = extraction.ticketNumber;
+  return args;
+}
+
+// ─── Ticket processor (single) ──────────────────────────────────────────────
 
 async function processTicket(
   extraction: TicketExtraction,
@@ -429,60 +524,28 @@ async function processTicket(
     extraction.driver     ? callTool(client, 'list_drivers',     { search: extraction.driver })      : null,
   ]);
 
-  // Record actions
   if (companyRes)    actions.push({ tool: 'list_companies',   args: { search: extraction.company },    ...companyRes });
   if (dispatcherRes) actions.push({ tool: 'list_dispatchers', args: { search: extraction.dispatcher }, ...dispatcherRes });
   if (unitRes)       actions.push({ tool: 'list_units',       args: { search: extraction.unit },       ...unitRes });
   if (driverRes)     actions.push({ tool: 'list_drivers',     args: { search: extraction.driver },     ...driverRes });
 
-  // Parse IDs
   const company    = companyRes    ? parseUseIdFromResult(companyRes.result)    : null;
   const dispatcher = dispatcherRes ? parseUseIdFromResult(dispatcherRes.result) : null;
   const unit       = unitRes       ? parseUseIdFromResult(unitRes.result)       : null;
   const driver     = driverRes     ? parseUseIdFromResult(driverRes.result)     : null;
 
-  // ── Resolve job type (if company found) ────────────────────────────────────
-  let jobTypeId: string | null = null;
-  let jobTypeName: string | null = null;
-
-  if (company) {
-    const jtRes = await callTool(client, 'list_job_types', { companyId: company.id });
-    actions.push({ tool: 'list_job_types', args: { companyId: company.id }, ...jtRes });
-
-    // Try to match by route or title from the extracted locations
-    try {
-      const parsed = JSON.parse(jtRes.result);
-      const types = parsed.jobTypes ?? parsed.data ?? [];
-      if (types.length === 1) {
-        jobTypeId   = String(types[0].id);
-        jobTypeName = String(types[0].title ?? types[0].name ?? '');
-      } else if (types.length > 1 && (extraction.startLocation || extraction.endLocation)) {
-        // Try matching by location in title
-        const search = [extraction.startLocation, extraction.endLocation].filter(Boolean).join(' ').toLowerCase();
-        const match = types.find((jt: Record<string, unknown>) =>
-          String(jt.title ?? '').toLowerCase().includes(search),
-        );
-        if (match) {
-          jobTypeId   = String(match.id);
-          jobTypeName = String(match.title ?? match.name ?? '');
-        }
-      }
-    } catch { /* not JSON — skip */ }
-  }
+  // ── Resolve job type ───────────────────────────────────────────────────────
+  const jobType = company
+    ? await resolveJobType(company, extraction, client, actions)
+    : null;
 
   // ── Build confirmation summary ─────────────────────────────────────────────
-  const mark = (entity: ResolvedEntity | null, ocrName: string | null) => {
-    if (!ocrName) return '—';
-    if (entity) return `${entity.name} ✓`;
-    return `${ocrName} ❌ (not matched)`;
-  };
-
   const lines: string[] = [];
   if (extraction.ticketNumber) lines.push(`**Ticket #${extraction.ticketNumber}** — ${extraction.date ?? 'date not readable'}`);
   else lines.push(`**Ticket** — ${extraction.date ?? 'date not readable'}`);
 
-  lines.push(`Company: ${mark(company, extraction.company)}  |  Dispatcher: ${mark(dispatcher, extraction.dispatcher)}`);
-  lines.push(`Unit: ${mark(unit, extraction.unit)}  |  Driver: ${mark(driver, extraction.driver)}`);
+  lines.push(`Company: ${markEntity(company, extraction.company)}  |  Dispatcher: ${markEntity(dispatcher, extraction.dispatcher)}`);
+  lines.push(`Unit: ${markEntity(unit, extraction.unit)}  |  Driver: ${markEntity(driver, extraction.driver)}`);
 
   if (extraction.startTime || extraction.endTime) {
     lines.push(`Time: ${extraction.startTime ?? '—'} → ${extraction.endTime ?? '—'}`);
@@ -490,8 +553,8 @@ async function processTicket(
   if (extraction.startLocation || extraction.endLocation) {
     lines.push(`Route: ${extraction.startLocation ?? '—'} → ${extraction.endLocation ?? '—'}`);
   }
-  if (jobTypeName) {
-    lines.push(`Job Type: ${jobTypeName} ✓`);
+  if (jobType) {
+    lines.push(`Job Type: ${jobType.name} ✓`);
   }
   if (extraction.material) {
     lines.push(`Material: ${extraction.material}`);
@@ -500,7 +563,7 @@ async function processTicket(
   // Check for critical missing fields
   const missing: string[] = [];
   if (!extraction.date) missing.push('date');
-  if (!jobTypeId)       missing.push('job type');
+  if (!jobType)         missing.push('job type');
 
   if (missing.length > 0) {
     lines.push('');
@@ -510,18 +573,7 @@ async function processTicket(
   }
 
   // ── Pre-build create_job args ──────────────────────────────────────────────
-  const createArgs: Record<string, unknown> = {
-    jobDate:    extraction.date,
-    jobTypeId:  jobTypeId,
-  };
-  if (dispatcher) createArgs.dispatcherId   = dispatcher.id;
-  if (driver)     createArgs.driverId       = driver.id;
-  if (unit)       createArgs.unitId         = unit.id;
-  if (extraction.startTime)     createArgs.startTime     = extraction.startTime;
-  if (extraction.endTime)       createArgs.endTime       = extraction.endTime;
-  if (extraction.startLocation) createArgs.startLocation = extraction.startLocation;
-  if (extraction.endLocation)   createArgs.endLocation   = extraction.endLocation;
-  if (extraction.ticketNumber)  createArgs.ticketNumber  = extraction.ticketNumber;
+  const createArgs = buildCreateJobArgs(extraction, jobType!.id, dispatcher, driver, unit);
 
   if (supervised) {
     lines.push('');
@@ -545,10 +597,111 @@ async function processTicket(
   return { text: lines.join('\n'), actions };
 }
 
+// ─── Multiple-ticket processor ──────────────────────────────────────────────
+
+/**
+ * Process multiple tickets extracted from a single document.
+ * Resolves all entities first, presents a unified summary of all entries,
+ * then collects all create_job writes into one confirmation prompt.
+ */
+async function processMultipleTickets(
+  tickets: TicketExtraction[],
+  client: RestClient,
+  supervised: boolean,
+): Promise<ProcessorResult> {
+  const resolver = new EntityResolver(client);
+  const actions: ProcessorAction[] = [];
+  const allWrites: Array<{ tool: string; args: Record<string, unknown> }> = [];
+  const summaryLines: string[] = [];
+  const skippedIndices: number[] = [];
+
+  summaryLines.push(`📋 **${tickets.length} entry/entries detected in document**\n`);
+
+  // ── Resolve entities and build per-ticket summaries (no writes yet) ────────
+  for (let i = 0; i < tickets.length; i++) {
+    const t = tickets[i];
+    const num = i + 1;
+
+    // Resolve entities (cached across tickets)
+    const company    = await resolver.resolve('list_companies',   t.company);
+    const dispatcher = await resolver.resolve('list_dispatchers', t.dispatcher);
+    const unit       = await resolver.resolve('list_units',       t.unit);
+    const driver     = await resolver.resolve('list_drivers',     t.driver);
+
+    // Resolve job type
+    const jobType = company
+      ? await resolveJobType(company, t, client, actions)
+      : null;
+
+    // Build summary block for this ticket
+    const header = t.ticketNumber
+      ? `**${num}. Ticket #${t.ticketNumber}** — ${t.date ?? 'no date'}`
+      : `**${num}. Ticket** — ${t.date ?? 'no date'}`;
+    summaryLines.push(header);
+    summaryLines.push(`Company: ${markEntity(company, t.company)}  |  Dispatcher: ${markEntity(dispatcher, t.dispatcher)}`);
+    summaryLines.push(`Unit: ${markEntity(unit, t.unit)}  |  Driver: ${markEntity(driver, t.driver)}`);
+    if (t.startTime || t.endTime) summaryLines.push(`Time: ${t.startTime ?? '—'} → ${t.endTime ?? '—'}`);
+    if (t.startLocation || t.endLocation) summaryLines.push(`Route: ${t.startLocation ?? '—'} → ${t.endLocation ?? '—'}`);
+    if (jobType) summaryLines.push(`Job Type: ${jobType.name} ✓`);
+    if (t.material) summaryLines.push(`Material: ${t.material}`);
+
+    // Check required fields
+    const missing: string[] = [];
+    if (!t.date)   missing.push('date');
+    if (!jobType)  missing.push('job type');
+
+    if (missing.length > 0) {
+      summaryLines.push(`⚠️ Cannot create — missing: **${missing.join(', ')}**`);
+      skippedIndices.push(num);
+    } else {
+      const createArgs = buildCreateJobArgs(t, jobType!.id, dispatcher, driver, unit);
+      allWrites.push({ tool: 'create_job', args: createArgs });
+    }
+
+    summaryLines.push(''); // blank line between tickets
+  }
+
+  // Merge resolver actions
+  actions.push(...resolver.drainActions());
+
+  // ── Summary footer ────────────────────────────────────────────────────────
+  if (allWrites.length === 0) {
+    summaryLines.push('❌ No jobs can be created — all entries have missing required fields.');
+    return { text: summaryLines.join('\n'), actions };
+  }
+
+  const skippedNote = skippedIndices.length > 0
+    ? ` (${skippedIndices.length} skipped: #${skippedIndices.join(', #')})`
+    : '';
+
+  if (supervised) {
+    summaryLines.push(`Shall I create **${allWrites.length}** job(s)?${skippedNote}`);
+    const confirmationText = summaryLines.join('\n');
+    return {
+      text: confirmationText,
+      actions,
+      needsConfirmation: { confirmationText, writes: allWrites },
+    };
+  }
+
+  // Execute directly (supervision off)
+  const results: string[] = [];
+  for (const w of allWrites) {
+    const call = await callTool(client, w.tool, w.args);
+    actions.push({ tool: w.tool, args: w.args, ...call });
+    results.push(call.status === 'success' ? '✅' : '❌');
+  }
+
+  const ok = results.filter((r) => r === '✅').length;
+  const fail = results.filter((r) => r === '❌').length;
+  summaryLines.push(`✅ ${ok} job(s) created${fail > 0 ? `, ❌ ${fail} failed` : ''}.${skippedNote}`);
+  return { text: summaryLines.join('\n'), actions };
+}
+
 // ─── Public API ──────────────────────────────────────────────────────────────
 
 /**
- * Process a parsed document extraction.
+ * Process a single parsed document extraction.
  * Returns a formatted text response and audit trail.
  *
  * For `unknown` extraction types, returns null — the caller should fall
@@ -570,6 +723,94 @@ export async function processDocument(
 }
 
 /**
+ * Process multiple document extractions from a single image/document.
+ *
+ * The OCR model may detect multiple entries (e.g. several tickets on one page,
+ * or multiple loads for one job). This function:
+ *   1. Analyzes ALL entries first (resolves entities, validates fields)
+ *   2. Presents a unified summary of everything found
+ *   3. Collects all write operations into one confirmation prompt
+ *   4. Only executes after user confirms (when supervised)
+ *
+ * Falls through to tool-calling model (returns null) if all entries are unknown.
+ */
+export async function processDocuments(
+  extractions: DocumentExtraction[],
+  client: RestClient,
+  supervised: boolean,
+): Promise<ProcessorResult | null> {
+  const known = extractions.filter((e) => e.type !== 'unknown');
+  if (known.length === 0) return null;
+
+  // Single entry → delegate to existing single-doc processor
+  if (known.length === 1) {
+    return processDocument(known[0], client, supervised);
+  }
+
+  // Multiple entries of the same type
+  const tickets  = known.filter((e): e is TicketExtraction  => e.type === 'ticket');
+  const paystubs = known.filter((e): e is PaystubExtraction => e.type === 'paystub');
+
+  if (tickets.length > 0 && paystubs.length === 0) {
+    return processMultipleTickets(tickets, client, supervised);
+  }
+
+  if (paystubs.length > 0 && tickets.length === 0) {
+    // Multiple paystub sections — merge line items if same issuer, else process first
+    if (paystubs.length === 1) {
+      return processPaystub(paystubs[0], client, supervised);
+    }
+    // Merge line items from all paystub sections into one extraction
+    const merged: PaystubExtraction = {
+      type: 'paystub',
+      issuedBy:   paystubs[0].issuedBy,
+      periodFrom: paystubs[0].periodFrom,
+      periodTo:   paystubs[paystubs.length - 1].periodTo,
+      lineItems:  paystubs.flatMap((p) => p.lineItems),
+      datesReadable: false, // recalculate below
+    };
+    const withDate = merged.lineItems.filter((li) => li.date !== null).length;
+    merged.datesReadable = merged.lineItems.length > 0 && withDate >= merged.lineItems.length * 0.5;
+    return processPaystub(merged, client, supervised);
+  }
+
+  // Mixed types — process tickets and paystubs separately, combine results
+  const results: ProcessorResult[] = [];
+  const allWrites: PendingDocAction['writes'] = [];
+  const allActions: ProcessorAction[] = [];
+
+  if (tickets.length > 0) {
+    const tr = tickets.length === 1
+      ? await processTicket(tickets[0], client, supervised)
+      : await processMultipleTickets(tickets, client, supervised);
+    results.push(tr);
+    allActions.push(...tr.actions);
+    if (tr.needsConfirmation) allWrites.push(...tr.needsConfirmation.writes);
+  }
+
+  if (paystubs.length > 0) {
+    const pr = await processPaystub(paystubs[0], client, supervised);
+    if (pr) {
+      results.push(pr);
+      allActions.push(...pr.actions);
+      if (pr.needsConfirmation) allWrites.push(...pr.needsConfirmation.writes);
+    }
+  }
+
+  const combinedText = results.map((r) => r.text).join('\n\n---\n\n');
+
+  if (allWrites.length > 0 && supervised) {
+    return {
+      text: combinedText,
+      actions: allActions,
+      needsConfirmation: { confirmationText: combinedText, writes: allWrites },
+    };
+  }
+
+  return { text: combinedText, actions: allActions };
+}
+
+/**
  * Format the results of executing pending document writes (after user confirmation).
  * Called from llm.ts when the user confirms a pending document action.
  */
@@ -578,14 +819,36 @@ export function formatWriteResults(
 ): string {
   if (toolResults.length === 0) return 'No actions were executed.';
 
-  // If this was a create_job, show simple success/failure
+  // ── Single create_job → simple success/failure ────────────────────────────
   if (toolResults.length === 1 && toolResults[0].name === 'create_job') {
     const r = toolResults[0];
     if (!r.result.startsWith('Error')) return '✅ Job created successfully.';
     return `❌ Failed to create job: ${r.result}`;
   }
 
-  // Multiple writes — likely mark_job_paid_by_date calls (paystub)
+  // ── Multiple create_job calls (multi-ticket document) ─────────────────────
+  const allCreateJobs = toolResults.every((r) => r.name === 'create_job');
+  if (allCreateJobs) {
+    const rows = toolResults.map((r, i) => {
+      const date   = String(r.args.jobDate ?? '—');
+      const ticket = String(r.args.ticketIds ?? '—');
+      const ok     = !r.result.startsWith('Error');
+      return `| ${i + 1} | ${date} | ${ticket} | ${ok ? '✅ Created' : '❌ Failed'} |`;
+    });
+
+    const ok   = toolResults.filter((r) => !r.result.startsWith('Error')).length;
+    const fail = toolResults.length - ok;
+
+    return [
+      `| # | Date | Ticket | Status |`,
+      `|---|------|--------|--------|`,
+      ...rows,
+      '',
+      `**${ok} created${fail > 0 ? `, ${fail} failed` : ''}.**`,
+    ].join('\n');
+  }
+
+  // ── mark_job_paid_by_date calls (paystub) ─────────────────────────────────
   const results = toolResults.map((r) => parseMarkResult(r.result));
   const rows = results.map((r, i) => {
     const date   = r.jobDate ?? '—';

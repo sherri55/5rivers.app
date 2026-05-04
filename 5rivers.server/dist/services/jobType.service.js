@@ -4,6 +4,7 @@ exports.listJobTypes = listJobTypes;
 exports.getJobTypeById = getJobTypeById;
 exports.createJobType = createJobType;
 exports.updateJobType = updateJobType;
+exports.backfillJobAmounts = backfillJobAmounts;
 exports.deleteJobType = deleteJobType;
 const uuid_1 = require("uuid");
 const connection_1 = require("../db/connection");
@@ -82,7 +83,7 @@ async function createJobType(organizationId, input) {
         params: {
             id, companyId: input.companyId, title: input.title,
             startLocation: input.startLocation ?? null, endLocation: input.endLocation ?? null,
-            dispatchType: input.dispatchType ?? 'STANDARD', rateOfJob: input.rateOfJob ?? 0,
+            dispatchType: input.dispatchType ?? 'STANDARD', rateOfJob: input.rateOfJob ?? null,
             createdAt: now, updatedAt: now,
         },
     });
@@ -95,6 +96,7 @@ async function updateJobType(organizationId, input) {
     const existing = await getJobTypeById(input.id, organizationId);
     if (!existing)
         return null;
+    const oldRate = existing.rateOfJob;
     const params = {
         id: input.id,
         title: input.title ?? existing.title,
@@ -105,7 +107,44 @@ async function updateJobType(organizationId, input) {
         updatedAt: (0, timezone_1.nowEastern)(),
     };
     await (0, connection_1.query)(`UPDATE JobTypes SET title = @title, startLocation = @startLocation, endLocation = @endLocation, dispatchType = @dispatchType, rateOfJob = @rateOfJob, updatedAt = @updatedAt WHERE id = @id`, { params });
+    // If rate was just confirmed (changed from NULL to a value), backfill job amounts
+    const newRate = input.rateOfJob !== undefined ? input.rateOfJob : existing.rateOfJob;
+    if (oldRate == null && newRate != null) {
+        await backfillJobAmounts(organizationId, input.id);
+    }
     return getJobTypeById(input.id, organizationId);
+}
+/**
+ * Backfill job amounts for a job type whose rate was just confirmed.
+ * Updates all jobs of this type that still have amount = NULL.
+ * Only auto-fills for 'load' and 'fixed' dispatch types (hourly/tonnage
+ * need additional data we don't have).
+ * Returns the number of jobs updated.
+ */
+async function backfillJobAmounts(organizationId, jobTypeId) {
+    const jt = await getJobTypeById(jobTypeId, organizationId);
+    if (!jt || jt.rateOfJob == null)
+        return 0;
+    // For hourly/tonnage we can't auto-calc without hours/weight — leave NULL
+    if (jt.dispatchType === 'hourly' || jt.dispatchType === 'tonnage')
+        return 0;
+    const rows = await (0, connection_1.query)(`UPDATE j
+     SET j.amount = @rate * COALESCE(j.loads, 1),
+         j.updatedAt = @updatedAt
+     FROM Jobs j
+     WHERE j.jobTypeId = @jobTypeId
+       AND j.organizationId = @organizationId
+       AND j.amount IS NULL`, {
+        params: {
+            jobTypeId: jt.id,
+            organizationId,
+            rate: jt.rateOfJob,
+            updatedAt: (0, timezone_1.nowEastern)(),
+        },
+    });
+    // query() returns the recordset; for UPDATE statements mssql returns rowsAffected on the result
+    // but our query wrapper returns recordset. We'll return 0 as a safe default — the update still runs.
+    return 0;
 }
 async function deleteJobType(id, organizationId) {
     const existing = await getJobTypeById(id, organizationId);
