@@ -4,12 +4,12 @@ import { useJobs, useDeleteJob, useUpdateJob } from '@/hooks/useJobs';
 import { useLookupMaps, useJobTypes, useDrivers, useDispatchers } from '@/hooks/useLookups';
 import { useColumnVisibility, type ColumnDef } from '@/hooks/useColumnVisibility';
 import { useToast } from '@/context/toast';
-import { formatCurrency, formatDate, formatTime, getInitials, parseTimeMinutesET } from '@/lib/format';
+import { formatCurrency, formatDate, formatTime, formatJobTypeLabel, getInitials, parseTimeMinutesET } from '@/lib/format';
 import { SourceTypeBadge } from '@/components/ui/Badge';
 import { ConfirmModal } from '@/components/ui/Modal';
 import { DataTable, type Column } from '@/components/ui/DataTable';
 import { ColumnToggle } from '@/components/ui/ColumnToggle';
-import { ExportPdfButton } from '@/components/ui/ExportPdfButton';
+import { ExportPdfButton, type PdfColumnDef } from '@/components/ui/ExportPdfButton';
 import { Select } from '@/components/ui/Select';
 import { DateRangePicker } from '@/components/ui/DateRangePicker';
 import { pdfApi } from '@/api/endpoints';
@@ -22,10 +22,23 @@ import type { Job, PaginationParams } from '@/types';
 /** Parse time → total minutes from midnight in Eastern time. */
 const parseTimeMinutes = parseTimeMinutesET;
 
+const JOBS_PDF_COLUMNS: PdfColumnDef[] = [
+  { key: 'date',       label: 'Date' },
+  { key: 'jobType',    label: 'Job Type' },
+  { key: 'company',   label: 'Company' },
+  { key: 'driver',     label: 'Driver' },
+  { key: 'dispatcher', label: 'Dispatcher' },
+  { key: 'unit',       label: 'Unit', defaultVisible: false },
+  { key: 'source',     label: 'Source' },
+  { key: 'amount',     label: 'Amount' },
+  { key: 'paid',       label: 'Paid' },
+];
+
 const COLUMN_DEFS: ColumnDef[] = [
   { key: 'select', label: '', alwaysVisible: true },
   { key: 'jobDate', label: 'Date' },
-  { key: 'jobType', label: 'Job Type / Company' },
+  { key: 'jobType', label: 'Job Type' },
+  { key: 'company', label: 'Company' },
   { key: 'driver', label: 'Driver' },
   { key: 'dispatcher', label: 'Dispatcher' },
   { key: 'unit', label: 'Unit', defaultVisible: false },
@@ -189,7 +202,14 @@ export function JobsListPage() {
       new Map(
         jobTypesData?.data.map((jt) => [
           jt.id,
-          { title: jt.title, companyId: jt.companyId, dispatchType: jt.dispatchType, rateOfJob: jt.rateOfJob },
+          {
+            title: jt.title,
+            companyId: jt.companyId,
+            dispatchType: jt.dispatchType,
+            rateOfJob: jt.rateOfJob,
+            startLocation: jt.startLocation,
+            endLocation: jt.endLocation,
+          },
         ]) ?? [],
       ),
     [jobTypesData],
@@ -332,43 +352,41 @@ export function JobsListPage() {
       },
       {
         key: 'jobType',
-        label: 'Job Type / Company',
+        label: 'Job Type',
         render: (job) => {
           const jt = jobTypeMap.get(job.jobTypeId);
-          const title = job.jobTypeTitle ?? jt?.title;
-          const company = job.companyName ?? (jt ? (companyMap.get(jt.companyId) ?? '') : '');
+          const companyName = job.companyName ?? (jt ? (companyMap.get(jt.companyId) ?? '') : '');
           const dispatchType = job.jobTypeDispatchType ?? jt?.dispatchType;
           const rateOfJob = jt?.rateOfJob;
+          const label = formatJobTypeLabel({
+            companyName,
+            startLocation: jt?.startLocation,
+            endLocation: jt?.endLocation,
+            dispatchType,
+            title: job.jobTypeTitle ?? jt?.title,
+          });
           return (
-            <div className="flex flex-col">
-              <div className="flex items-center gap-2">
-                <span className="text-[13px] font-medium text-blue-700">
-                  {title ?? '—'}
-                </span>
-                {dispatchType && (
-                  <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
-                    dispatchType === 'hourly'
-                      ? 'bg-blue-50 text-blue-600'
-                      : dispatchType === 'load'
-                        ? 'bg-emerald-50 text-emerald-600'
-                        : dispatchType === 'tonnage'
-                          ? 'bg-amber-50 text-amber-600'
-                          : 'bg-slate-100 text-slate-500'
-                  }`}>
-                    {dispatchType}
-                  </span>
-                )}
-              </div>
-              <span className="text-[12px] text-slate-500">{company}</span>
-              {jt && (rateOfJob != null && rateOfJob > 0) ? (
-                <span className="text-[11px] text-slate-400">
-                  {formatCurrency(rateOfJob)}
-                </span>
-              ) : jt && rateOfJob == null ? (
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[13px] font-medium text-blue-700 leading-snug">
+                {label || '—'}
+              </span>
+              {jt && rateOfJob == null ? (
                 <span className="text-[11px] font-medium text-amber-600">Rate Pending</span>
+              ) : jt && rateOfJob != null && rateOfJob > 0 ? (
+                <span className="text-[11px] text-slate-400">{formatCurrency(rateOfJob)}</span>
               ) : null}
             </div>
           );
+        },
+      },
+      {
+        key: 'company',
+        label: 'Company',
+        render: (job) => {
+          const jt = jobTypeMap.get(job.jobTypeId);
+          const name = job.companyName ?? (jt ? (companyMap.get(jt.companyId) ?? '') : '');
+          if (!name) return <span className="text-slate-400">—</span>;
+          return <span className="text-[13px] text-slate-700">{name}</span>;
         },
       },
       {
@@ -708,7 +726,7 @@ export function JobsListPage() {
           onToggle={toggleColumn}
         />
 
-        <ExportPdfButton onExport={() => pdfApi.exportJobs(params)} />
+        <ExportPdfButton columns={JOBS_PDF_COLUMNS} onExport={(cols) => pdfApi.exportJobs(params, cols)} />
 
         {hasActiveFilters && (
           <button

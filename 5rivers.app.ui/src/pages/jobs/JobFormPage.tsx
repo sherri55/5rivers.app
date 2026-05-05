@@ -11,7 +11,7 @@ import {
   useCarriers,
 } from '@/hooks/useLookups';
 import { useToast } from '@/context/toast';
-import { formatCurrency, extractTimeForInput } from '@/lib/format';
+import { formatCurrency, extractTimeForInput, formatJobTypeLabel } from '@/lib/format';
 import { PageSpinner, ButtonSpinner } from '@/components/ui/Spinner';
 import { ConfirmModal } from '@/components/ui/Modal';
 import { Select } from '@/components/ui/Select';
@@ -414,14 +414,20 @@ export function JobFormPage() {
                 <option value="">
                   {selectedCompanyId ? 'Select Job Type' : 'Select company first'}
                 </option>
-                {jobTypesData?.data.map((jt) => (
-                  <option key={jt.id} value={jt.id}>
-                    {jt.title}
-                    {jt.startLocation ? ` (${jt.startLocation} → ${jt.endLocation})` : ''}
-                    {' — '}
-                    {jt.dispatchType}
-                  </option>
-                ))}
+                {jobTypesData?.data.map((jt) => {
+                  const company = companiesData?.data.find((c) => c.id === jt.companyId);
+                  return (
+                    <option key={jt.id} value={jt.id}>
+                      {formatJobTypeLabel({
+                        companyName: company?.name,
+                        startLocation: jt.startLocation,
+                        endLocation: jt.endLocation,
+                        dispatchType: jt.dispatchType,
+                        title: jt.title,
+                      })}
+                    </option>
+                  );
+                })}
               </Select>
               {selectedJobType && (
                 <p className="text-[11px] mt-1 ml-1">

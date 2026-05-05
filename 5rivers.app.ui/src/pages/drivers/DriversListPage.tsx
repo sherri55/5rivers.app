@@ -9,7 +9,7 @@ import { ConfirmModal, Modal } from '@/components/ui/Modal';
 import { DataTable, type Column } from '@/components/ui/DataTable';
 import { ColumnToggle } from '@/components/ui/ColumnToggle';
 import { useColumnVisibility, type ColumnDef } from '@/hooks/useColumnVisibility';
-import { ExportPdfButton } from '@/components/ui/ExportPdfButton';
+import { ExportPdfButton, type PdfColumnDef } from '@/components/ui/ExportPdfButton';
 import { Select } from '@/components/ui/Select';
 import { pdfApi } from '@/api/endpoints';
 import { cn } from '@/lib/cn';
@@ -18,6 +18,14 @@ import type { Driver, PaginationParams, DriverPaySummary } from '@/types';
 // ============================================
 // Drivers List — with integrated driver pay
 // ============================================
+
+const DRIVERS_PDF_COLUMNS: PdfColumnDef[] = [
+  { key: 'name',        label: 'Name' },
+  { key: 'email',       label: 'Email' },
+  { key: 'phone',       label: 'Phone' },
+  { key: 'payType',     label: 'Pay Type' },
+  { key: 'description', label: 'Description' },
+];
 
 const COLUMN_DEFS: ColumnDef[] = [
   { key: 'name', label: 'Driver' },
@@ -370,7 +378,7 @@ export function DriversListPage() {
               onToggle={toggleColumn}
             />
 
-            <ExportPdfButton onExport={() => pdfApi.exportDrivers(params)} />
+            <ExportPdfButton columns={DRIVERS_PDF_COLUMNS} onExport={(cols) => pdfApi.exportDrivers(params, cols)} />
 
             {(searchFilter || payTypeFilter) && (
               <button

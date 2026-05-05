@@ -41,20 +41,64 @@ const COMPANY = {
 // ============================================
 // Shared helpers
 // ============================================
+const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+/**
+ * Format a SQL DATE value for PDF display.
+ * SQL DATE columns arrive as JavaScript Dates at midnight UTC, so we read
+ * UTC parts directly — no Intl/locale dependency, no timezone shift.
+ * e.g. 2025-07-07T00:00:00.000Z → "Jul 07, 2025"
+ */
 function parseDate(dateStr) {
     if (!dateStr)
         return '';
     try {
-        const d = dateStr instanceof Date ? dateStr : new Date(dateStr);
+        const d = dateStr instanceof Date ? dateStr : new Date(String(dateStr));
         if (isNaN(d.getTime()))
-            return String(dateStr);
-        return d.toLocaleDateString('en-CA', {
-            year: 'numeric', month: 'short', day: '2-digit',
-            timeZone: 'America/Toronto',
-        });
+            return '';
+        return `${MONTHS_SHORT[d.getUTCMonth()]} ${String(d.getUTCDate()).padStart(2, '0')}, ${d.getUTCFullYear()}`;
     }
     catch {
-        return String(dateStr);
+        return '';
+    }
+}
+/**
+ * Format a DATETIME2/time value to Eastern time for PDF display.
+ * Uses utcToEastern() — no Intl/locale dependency.
+ * Returns e.g. "7:00 AM" with no timezone label.
+ */
+function fmtTimePDF(val) {
+    if (!val)
+        return '';
+    try {
+        // Date object (mssql DATETIME2) or UTC ISO string with offset
+        let d = null;
+        if (val instanceof Date) {
+            d = val;
+        }
+        else {
+            const s = String(val);
+            if (s.includes('T') && (s.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(s))) {
+                d = new Date(s);
+            }
+        }
+        if (d && !isNaN(d.getTime())) {
+            const { hour, minute } = (0, timezone_1.utcToEastern)(d);
+            const suffix = hour >= 12 ? 'PM' : 'AM';
+            const h12 = hour % 12 === 0 ? 12 : hour % 12;
+            return `${h12}:${String(minute).padStart(2, '0')} ${suffix}`;
+        }
+        // Legacy bare "HH:MM" or "YYYY-MM-DDTHH:MM" without offset
+        const m = String(val).match(/(\d{1,2}):(\d{2})/);
+        if (!m)
+            return '';
+        const h = parseInt(m[1], 10);
+        const min = m[2];
+        const suffix = h >= 12 ? 'PM' : 'AM';
+        const h12 = h % 12 === 0 ? 12 : h % 12;
+        return `${h12}:${min} ${suffix}`;
+    }
+    catch {
+        return '';
     }
 }
 function formatCurrency(val) {
@@ -181,17 +225,31 @@ async function generateInvoicePDF(invoiceId, organizationId) {
         ]);
         for (const job of monthJobs) {
             const qty = computeQuantity(job);
+            // Date cell: date on first line, start–end time on second line (Eastern, no TZ label)
+            const startFmt = fmtTimePDF(job.startTime);
+            const endFmt = fmtTimePDF(job.endTime);
+            const timeLine = startFmt && endFmt ? `${startFmt} – ${endFmt}`
+                : startFmt ? startFmt
+                    : endFmt ? endFmt
+                        : '';
+            const dateCell = timeLine
+                ? { stack: [{ text: parseDate(job.jobDate), fontSize: 9 }, { text: timeLine, fontSize: 8, color: '#555' }], style: 'td' }
+                : { text: parseDate(job.jobDate), style: 'td' };
+            // Job Description cell: compose from fields (Company - Start to End (type))
+            const descLabel = fmtJobTypeLabel({
+                companyName: job.companyName,
+                startLocation: job.startLocation,
+                endLocation: job.endLocation,
+                dispatchType: job.dispatchType,
+                title: job.jobTypeTitle,
+            });
+            const descCell = { text: descLabel, style: 'td' };
             tableBody.push([
-                { text: parseDate(job.jobDate), style: 'td' },
+                dateCell,
                 { text: job.unitName ?? '', style: 'td' },
                 { text: job.driverName ?? '', style: 'td' },
                 { text: job.companyName ?? '', style: 'td' },
-                {
-                    text: job.startLocation && job.endLocation
-                        ? `${job.startLocation} → ${job.endLocation}`
-                        : job.jobTypeTitle ?? '',
-                    style: 'td',
-                },
+                descCell,
                 { text: parseTicketIds(job.ticketIds), style: 'td' },
                 { text: qty, style: 'td', alignment: 'center' },
                 { text: job.rateOfJob ? formatCurrency(job.rateOfJob) : '', style: 'td', alignment: 'right' },
@@ -288,9 +346,13 @@ async function generateInvoicePDF(invoiceId, organizationId) {
                 allImages.push({
                     dataUri,
                     jobDate: parseDate(job.jobDate),
-                    description: job.startLocation && job.endLocation
-                        ? `${job.startLocation} → ${job.endLocation}`
-                        : job.jobTypeTitle ?? '',
+                    description: fmtJobTypeLabel({
+                        companyName: job.companyName,
+                        startLocation: job.startLocation,
+                        endLocation: job.endLocation,
+                        dispatchType: job.dispatchType,
+                        title: job.jobTypeTitle,
+                    }),
                 });
             }
         }
@@ -391,6 +453,23 @@ async function generateListPDF(title, subtitle, columns, rows, orientation = 'la
 // ============================================
 // Helpers
 // ============================================
+/**
+ * Format a job-type label from its constituent fields.
+ * Produces: "{Company} - {Start} to {End} ({dispatchType})"
+ */
+function fmtJobTypeLabel(opts) {
+    let label = '';
+    if (opts.companyName)
+        label = opts.companyName;
+    if (opts.startLocation && opts.endLocation) {
+        const route = `${opts.startLocation} to ${opts.endLocation}`;
+        label = label ? `${label} - ${route}` : route;
+    }
+    if (opts.dispatchType) {
+        label = label ? `${label} (${opts.dispatchType})` : `(${opts.dispatchType})`;
+    }
+    return label || opts.title || '';
+}
 function parseTicketIds(ticketIds) {
     if (!ticketIds)
         return '';

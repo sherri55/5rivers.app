@@ -7,7 +7,7 @@ import { ConfirmModal } from '@/components/ui/Modal';
 import { DataTable, type Column } from '@/components/ui/DataTable';
 import { ColumnToggle } from '@/components/ui/ColumnToggle';
 import { useColumnVisibility, type ColumnDef } from '@/hooks/useColumnVisibility';
-import { ExportPdfButton } from '@/components/ui/ExportPdfButton';
+import { ExportPdfButton, type PdfColumnDef } from '@/components/ui/ExportPdfButton';
 import { Select } from '@/components/ui/Select';
 import { pdfApi } from '@/api/endpoints';
 import type { Carrier, PaginationParams } from '@/types';
@@ -16,6 +16,13 @@ import type { Carrier, PaginationParams } from '@/types';
 // Carriers List — DataTable layout with rate
 // type badges and contextual rate display
 // ============================================
+
+const CARRIERS_PDF_COLUMNS: PdfColumnDef[] = [
+  { key: 'name',          label: 'Name' },
+  { key: 'contactPerson', label: 'Contact Person' },
+  { key: 'email',         label: 'Email' },
+  { key: 'phone',         label: 'Phone' },
+];
 
 const COLUMN_DEFS: ColumnDef[] = [
   { key: 'name', label: 'Carrier' },
@@ -264,7 +271,7 @@ export function CarriersListPage() {
           onToggle={toggleColumn}
         />
 
-        <ExportPdfButton onExport={() => pdfApi.exportCarriers(params)} />
+        <ExportPdfButton columns={CARRIERS_PDF_COLUMNS} onExport={(cols) => pdfApi.exportCarriers(params, cols)} />
 
         {hasFilters && (
           <button

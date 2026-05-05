@@ -9,7 +9,7 @@ import { ConfirmModal } from '@/components/ui/Modal';
 import { DataTable, type Column } from '@/components/ui/DataTable';
 import { ColumnToggle } from '@/components/ui/ColumnToggle';
 import { useColumnVisibility, type ColumnDef } from '@/hooks/useColumnVisibility';
-import { ExportPdfButton } from '@/components/ui/ExportPdfButton';
+import { ExportPdfButton, type PdfColumnDef } from '@/components/ui/ExportPdfButton';
 import { pdfApi } from '@/api/endpoints';
 import { cn } from '@/lib/cn';
 import type { Dispatcher, Invoice, PaginationParams } from '@/types';
@@ -18,6 +18,14 @@ import type { Dispatcher, Invoice, PaginationParams } from '@/types';
 // Dispatchers List — with integrated receivables
 // showing outstanding invoice counts per dispatcher
 // ============================================
+
+const DISPATCHERS_PDF_COLUMNS: PdfColumnDef[] = [
+  { key: 'name',        label: 'Name' },
+  { key: 'email',       label: 'Email' },
+  { key: 'phone',       label: 'Phone' },
+  { key: 'commission',  label: 'Commission %' },
+  { key: 'description', label: 'Description' },
+];
 
 const COLUMN_DEFS: ColumnDef[] = [
   { key: 'name', label: 'Name' },
@@ -302,7 +310,7 @@ export function DispatchersListPage() {
               onToggle={toggleColumn}
             />
 
-            <ExportPdfButton onExport={() => pdfApi.exportDispatchers(params)} />
+            <ExportPdfButton columns={DISPATCHERS_PDF_COLUMNS} onExport={(cols) => pdfApi.exportDispatchers(params, cols)} />
 
             {searchFilter && (
               <button

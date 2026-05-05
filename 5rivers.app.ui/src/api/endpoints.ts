@@ -220,23 +220,30 @@ async function downloadFile(path: string, fallbackFilename: string) {
   URL.revokeObjectURL(url);
 }
 
+/** Append an optional columns array to an already-built query string. */
+function withColumns(qs: string, columns?: string[]): string {
+  if (!columns?.length) return qs;
+  const sep = qs.includes('?') ? '&' : '?';
+  return `${qs}${sep}columns=${columns.join(',')}`;
+}
+
 export const pdfApi = {
   downloadInvoice: (invoiceId: string) =>
     downloadFile(`/invoices/${invoiceId}/pdf`, 'invoice.pdf'),
-  exportJobs: (params?: PaginationParams) =>
-    downloadFile(`/export/jobs${buildQuery(params)}`, 'jobs-report.pdf'),
-  exportInvoices: (params?: PaginationParams) =>
-    downloadFile(`/export/invoices${buildQuery(params)}`, 'invoices-report.pdf'),
-  exportDrivers: (params?: PaginationParams) =>
-    downloadFile(`/export/drivers${buildQuery(params)}`, 'drivers-report.pdf'),
-  exportDispatchers: (params?: PaginationParams) =>
-    downloadFile(`/export/dispatchers${buildQuery(params)}`, 'dispatchers-report.pdf'),
-  exportCompanies: (params?: PaginationParams) =>
-    downloadFile(`/export/companies${buildQuery(params)}`, 'companies-report.pdf'),
-  exportUnits: (params?: PaginationParams) =>
-    downloadFile(`/export/units${buildQuery(params)}`, 'units-report.pdf'),
-  exportCarriers: (params?: PaginationParams) =>
-    downloadFile(`/export/carriers${buildQuery(params)}`, 'carriers-report.pdf'),
+  exportJobs: (params?: PaginationParams, columns?: string[]) =>
+    downloadFile(withColumns(`/export/jobs${buildQuery(params)}`, columns), 'jobs-report.pdf'),
+  exportInvoices: (params?: PaginationParams, columns?: string[]) =>
+    downloadFile(withColumns(`/export/invoices${buildQuery(params)}`, columns), 'invoices-report.pdf'),
+  exportDrivers: (params?: PaginationParams, columns?: string[]) =>
+    downloadFile(withColumns(`/export/drivers${buildQuery(params)}`, columns), 'drivers-report.pdf'),
+  exportDispatchers: (params?: PaginationParams, columns?: string[]) =>
+    downloadFile(withColumns(`/export/dispatchers${buildQuery(params)}`, columns), 'dispatchers-report.pdf'),
+  exportCompanies: (params?: PaginationParams, columns?: string[]) =>
+    downloadFile(withColumns(`/export/companies${buildQuery(params)}`, columns), 'companies-report.pdf'),
+  exportUnits: (params?: PaginationParams, columns?: string[]) =>
+    downloadFile(withColumns(`/export/units${buildQuery(params)}`, columns), 'units-report.pdf'),
+  exportCarriers: (params?: PaginationParams, columns?: string[]) =>
+    downloadFile(withColumns(`/export/carriers${buildQuery(params)}`, columns), 'carriers-report.pdf'),
 };
 
 // --- Expense Categories ---

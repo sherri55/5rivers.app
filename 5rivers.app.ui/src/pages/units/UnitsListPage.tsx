@@ -10,7 +10,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { ColumnToggle } from '@/components/ui/ColumnToggle';
 import { Select } from '@/components/ui/Select';
 import { useColumnVisibility, type ColumnDef } from '@/hooks/useColumnVisibility';
-import { ExportPdfButton } from '@/components/ui/ExportPdfButton';
+import { ExportPdfButton, type PdfColumnDef } from '@/components/ui/ExportPdfButton';
 import { pdfApi } from '@/api/endpoints';
 import type { Unit, PaginationParams, UnitStatus } from '@/types';
 
@@ -18,6 +18,17 @@ import type { Unit, PaginationParams, UnitStatus } from '@/types';
 // Units List — card grid layout with status
 // badges, vehicle info, and maintenance dates
 // ============================================
+
+const UNITS_PDF_COLUMNS: PdfColumnDef[] = [
+  { key: 'name',   label: 'Name' },
+  { key: 'plate',  label: 'Plate #' },
+  { key: 'status', label: 'Status' },
+  { key: 'year',   label: 'Year' },
+  { key: 'make',   label: 'Make' },
+  { key: 'model',  label: 'Model' },
+  { key: 'vin',    label: 'VIN', defaultVisible: false },
+  { key: 'color',  label: 'Color' },
+];
 
 const COLUMN_DEFS: ColumnDef[] = [
   { key: 'name', label: 'Name' },
@@ -143,7 +154,7 @@ export function UnitsListPage() {
           onToggle={toggleColumn}
         />
 
-        <ExportPdfButton onExport={() => pdfApi.exportUnits(params)} />
+        <ExportPdfButton columns={UNITS_PDF_COLUMNS} onExport={(cols) => pdfApi.exportUnits(params, cols)} />
 
         {(searchFilter || statusFilter) && (
           <button

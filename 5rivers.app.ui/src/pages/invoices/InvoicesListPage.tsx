@@ -9,7 +9,7 @@ import { InvoiceStatusBadge, Badge } from '@/components/ui/Badge';
 import { ConfirmModal } from '@/components/ui/Modal';
 import { DataTable, type Column } from '@/components/ui/DataTable';
 import { ColumnToggle } from '@/components/ui/ColumnToggle';
-import { ExportPdfButton } from '@/components/ui/ExportPdfButton';
+import { ExportPdfButton, type PdfColumnDef } from '@/components/ui/ExportPdfButton';
 import { Select } from '@/components/ui/Select';
 import { pdfApi } from '@/api/endpoints';
 import { cn } from '@/lib/cn';
@@ -19,6 +19,15 @@ import type { Invoice, PaginationParams } from '@/types';
 // Invoices List — with integrated receivables
 // summary cards and aging indicators
 // ============================================
+
+const INVOICES_PDF_COLUMNS: PdfColumnDef[] = [
+  { key: 'invoiceNumber', label: 'Invoice #' },
+  { key: 'date',          label: 'Date' },
+  { key: 'status',        label: 'Status' },
+  { key: 'dispatcher',    label: 'Dispatcher' },
+  { key: 'billedTo',      label: 'Billed To' },
+  { key: 'billedEmail',   label: 'Billed Email' },
+];
 
 const COLUMN_DEFS: ColumnDef[] = [
   { key: 'invoiceNumber', label: 'Invoice #' },
@@ -313,7 +322,7 @@ export function InvoicesListPage() {
           onToggle={toggleColumn}
         />
 
-        <ExportPdfButton onExport={() => pdfApi.exportInvoices(params)} />
+        <ExportPdfButton columns={INVOICES_PDF_COLUMNS} onExport={(cols) => pdfApi.exportInvoices(params, cols)} />
 
         {(searchFilter || statusFilter || dispatcherFilter) && (
           <button

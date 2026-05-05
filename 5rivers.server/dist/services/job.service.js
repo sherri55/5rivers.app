@@ -110,7 +110,7 @@ async function listJobs(organizationId, pagination, options) {
     LEFT JOIN Companies c ON jt.companyId = c.id
     LEFT JOIN Units u ON j.unitId = u.id`;
     const jobColumns = ALL_COLUMNS.split(', ').map(c => `j.${c}`).join(', ')
-        + ', jt.title AS jobTypeTitle, jt.dispatchType AS jobTypeDispatchType, c.id AS companyId, c.name AS companyName, d.name AS driverName, dp.name AS dispatcherName, u.name AS unitName';
+        + ', jt.title AS jobTypeTitle, jt.dispatchType AS jobTypeDispatchType, jt.startLocation AS jobTypeStartLocation, jt.endLocation AS jobTypeEndLocation, c.id AS companyId, c.name AS companyName, d.name AS driverName, dp.name AS dispatcherName, u.name AS unitName';
     const [rows, countRows] = await Promise.all([
         (0, connection_1.query)(needsJoins
             ? `SELECT ${jobColumns} FROM Jobs j${joins} WHERE j.organizationId = @organizationId${whereExtra}

@@ -8,13 +8,21 @@ import { PageSpinner } from '@/components/ui/Spinner';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ColumnToggle } from '@/components/ui/ColumnToggle';
 import { useColumnVisibility, type ColumnDef } from '@/hooks/useColumnVisibility';
-import { ExportPdfButton } from '@/components/ui/ExportPdfButton';
+import { ExportPdfButton, type PdfColumnDef } from '@/components/ui/ExportPdfButton';
 import { pdfApi } from '@/api/endpoints';
 import type { Company, PaginationParams } from '@/types';
 
 // ============================================
 // Companies List — card grid layout
 // ============================================
+
+const COMPANIES_PDF_COLUMNS: PdfColumnDef[] = [
+  { key: 'name',     label: 'Name' },
+  { key: 'industry', label: 'Industry' },
+  { key: 'email',    label: 'Email' },
+  { key: 'phone',    label: 'Phone' },
+  { key: 'location', label: 'Location' },
+];
 
 const COLUMN_DEFS: ColumnDef[] = [
   { key: 'name', label: 'Name' },
@@ -120,7 +128,7 @@ export function CompaniesListPage() {
           onToggle={toggleColumn}
         />
 
-        <ExportPdfButton onExport={() => pdfApi.exportCompanies(params)} />
+        <ExportPdfButton columns={COMPANIES_PDF_COLUMNS} onExport={(cols) => pdfApi.exportCompanies(params, cols)} />
 
         {searchFilter && (
           <button

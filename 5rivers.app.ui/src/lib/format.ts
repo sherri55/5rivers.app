@@ -123,6 +123,32 @@ export function parseTimeMinutesET(timeStr: string | null | undefined): number |
 }
 
 /**
+ * Format a job-type label from its constituent fields.
+ * Produces: "{Company} - {Start} to {End} ({dispatchType})"
+ * Gracefully omits any part that is null/empty.
+ * Falls back to `title` if no other data is available.
+ */
+export function formatJobTypeLabel(opts: {
+  companyName?: string | null;
+  startLocation?: string | null;
+  endLocation?: string | null;
+  dispatchType?: string | null;
+  title?: string | null;
+}): string {
+  const { companyName, startLocation, endLocation, dispatchType, title } = opts;
+  let label = '';
+  if (companyName) label = companyName;
+  if (startLocation && endLocation) {
+    const route = `${startLocation} to ${endLocation}`;
+    label = label ? `${label} - ${route}` : route;
+  }
+  if (dispatchType) {
+    label = label ? `${label} (${dispatchType})` : `(${dispatchType})`;
+  }
+  return label || title || '';
+}
+
+/**
  * Get initials from a name (e.g. "James Sullivan" → "JS").
  */
 export function getInitials(name: string | null | undefined): string {

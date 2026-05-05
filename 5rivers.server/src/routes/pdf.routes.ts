@@ -9,7 +9,6 @@ import * as driverService from '../services/driver.service';
 import * as dispatcherService from '../services/dispatcher.service';
 import * as companyService from '../services/company.service';
 import * as unitService from '../services/unit.service';
-import * as jobTypeService from '../services/jobType.service';
 import { query as dbQuery } from '../db/connection';
 
 const router = Router();
@@ -19,12 +18,21 @@ router.use(requireAuth);
 // Helpers
 // ============================================
 
+const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+/**
+ * Format a SQL DATE value for list-PDF display.
+ * Reads UTC parts directly — no Intl/locale dependency, no timezone shift.
+ */
 function fmtDate(d: string | Date | null | undefined): string {
   if (!d) return '';
-  const s = String(d).slice(0, 10);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return String(d);
-  const [y, m, day] = s.split('-').map(Number);
-  return new Date(y, m - 1, day).toLocaleDateString('en-CA', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'America/Toronto' });
+  try {
+    const dt = d instanceof Date ? d : new Date(String(d));
+    if (isNaN(dt.getTime())) return String(d);
+    return `${MONTHS_SHORT[dt.getUTCMonth()]} ${String(dt.getUTCDate()).padStart(2, '0')}, ${dt.getUTCFullYear()}`;
+  } catch {
+    return String(d);
+  }
 }
 
 function fmtCurrency(v: number | null | undefined): string {
@@ -42,6 +50,52 @@ function sendPdf(res: Response, buffer: Buffer, filename: string) {
 /** Parse list params for export — use large limit to get all filtered data. */
 function exportPagination() {
   return normalizePagination({ page: 1, limit: 500 });
+}
+
+/**
+ * Filter columns + rows to only the keys the client requested.
+ * @param allCols   Full column metadata array
+ * @param allRows   Full data rows (each row aligned with allCols)
+ * @param selected  Comma-separated key string from ?columns=…, or undefined/empty for all
+ * @param colKeys   Parallel array of string keys identifying each column position
+ */
+function filterColumns(
+  allCols: ListColumn[],
+  allRows: string[][],
+  selected: string | undefined,
+  colKeys: string[],
+): { columns: ListColumn[]; rows: string[][] } {
+  if (!selected) return { columns: allCols, rows: allRows };
+  const keep = new Set(selected.split(',').map(s => s.trim()).filter(Boolean));
+  if (keep.size === 0) return { columns: allCols, rows: allRows };
+  const idx = colKeys.reduce<number[]>((acc, k, i) => { if (keep.has(k)) acc.push(i); return acc; }, []);
+  return {
+    columns: idx.map(i => allCols[i]),
+    rows: allRows.map(row => idx.map(i => row[i] ?? '')),
+  };
+}
+
+/**
+ * Format a job-type label from its constituent fields (server-side mirror of UI formatJobTypeLabel).
+ * Produces: "{Company} - {Start} to {End} ({dispatchType})"
+ */
+function fmtJobType(opts: {
+  companyName?: string | null;
+  startLocation?: string | null;
+  endLocation?: string | null;
+  dispatchType?: string | null;
+  title?: string | null;
+}): string {
+  let label = '';
+  if (opts.companyName) label = opts.companyName;
+  if (opts.startLocation && opts.endLocation) {
+    const route = `${opts.startLocation} to ${opts.endLocation}`;
+    label = label ? `${label} - ${route}` : route;
+  }
+  if (opts.dispatchType) {
+    label = label ? `${label} (${opts.dispatchType})` : `(${opts.dispatchType})`;
+  }
+  return label || opts.title || '';
 }
 
 function buildSubtitle(filters: Record<string, string>): string {
@@ -78,22 +132,11 @@ router.get(
   asyncHandler(async (req: Request, res: Response) => {
     const orgId = req.user!.organizationId;
     const { sortBy, order, filters } = parseListOptions(req.query as Record<string, unknown>);
+    // listJobs already JOINs jobTypeTitle, companyName, driverName, dispatcherName, unitName —
+    // no need to fetch separate lookup maps.
     const result = await jobService.listJobs(orgId, exportPagination(), { sortBy, order, filters });
 
-    // We need lookup maps for driver/dispatcher/jobType names
-    const driverResult = await driverService.listDrivers(orgId, normalizePagination({ limit: 500 }));
-    const dispatcherResult = await dispatcherService.listDispatchers(orgId, normalizePagination({ limit: 500 }));
-    const jobTypeResult = await jobTypeService.listJobTypes(orgId, normalizePagination({ limit: 500 }));
-    const companyResult = await companyService.listCompanies(orgId, normalizePagination({ limit: 500 }));
-    const unitResult = await unitService.listUnits(orgId, normalizePagination({ limit: 500 }));
-
-    const driverMap = new Map(driverResult.data.map((d: any) => [d.id, d.name]));
-    const dispatcherMap = new Map(dispatcherResult.data.map((d: any) => [d.id, d.name]));
-    const jobTypeMap = new Map(jobTypeResult.data.map((jt: any) => [jt.id, jt]));
-    const companyMap = new Map(companyResult.data.map((c: any) => [c.id, c.name]));
-    const unitMap = new Map(unitResult.data.map((u: any) => [u.id, u.name]));
-
-    const columns: ListColumn[] = [
+    const allColumns: ListColumn[] = [
       { label: 'Date' },
       { label: 'Job Type' },
       { label: 'Company' },
@@ -104,22 +147,27 @@ router.get(
       { label: 'Amount', align: 'right' },
       { label: 'Paid', align: 'center' },
     ];
+    const allColumnKeys = ['date', 'jobType', 'company', 'driver', 'dispatcher', 'unit', 'source', 'amount', 'paid'];
 
-    const rows = result.data.map((j: any) => {
-      const jt = jobTypeMap.get(j.jobTypeId) as any;
-      return [
-        fmtDate(j.jobDate),
-        jt?.title ?? '',
-        jt?.companyId ? companyMap.get(jt.companyId) ?? '' : '',
-        driverMap.get(j.driverId) ?? '',
-        dispatcherMap.get(j.dispatcherId) ?? '',
-        unitMap.get(j.unitId) ?? '',
-        j.sourceType ?? '',
-        fmtCurrency(j.amount),
-        j.driverPaid ? 'Yes' : 'No',
-      ];
-    });
+    const allRows = result.data.map((j: any) => [
+      fmtDate(j.jobDate),
+      fmtJobType({
+        companyName: j.companyName,
+        startLocation: j.jobTypeStartLocation,
+        endLocation: j.jobTypeEndLocation,
+        dispatchType: j.jobTypeDispatchType,
+        title: j.jobTypeTitle,
+      }),
+      j.companyName ?? '',
+      j.driverName ?? '',
+      j.dispatcherName ?? '',
+      j.unitName ?? '',
+      j.sourceType ?? '',
+      fmtCurrency(j.amount),
+      j.driverPaid ? 'Yes' : 'No',
+    ]);
 
+    const { columns, rows } = filterColumns(allColumns, allRows, req.query.columns as string | undefined, allColumnKeys);
     const buffer = await generateListPDF('Jobs Report', buildSubtitle(filters), columns, rows);
     sendPdf(res, buffer, 'jobs-report.pdf');
   }),
@@ -136,7 +184,7 @@ router.get(
     const dispatcherResult = await dispatcherService.listDispatchers(orgId, normalizePagination({ limit: 500 }));
     const dispatcherMap = new Map(dispatcherResult.data.map((d: any) => [d.id, d.name]));
 
-    const columns: ListColumn[] = [
+    const allColumns: ListColumn[] = [
       { label: 'Invoice #' },
       { label: 'Date' },
       { label: 'Status' },
@@ -144,8 +192,9 @@ router.get(
       { label: 'Billed To' },
       { label: 'Billed Email' },
     ];
+    const allColumnKeys = ['invoiceNumber', 'date', 'status', 'dispatcher', 'billedTo', 'billedEmail'];
 
-    const rows = result.data.map((inv: any) => [
+    const allRows = result.data.map((inv: any) => [
       inv.invoiceNumber ?? '',
       fmtDate(inv.invoiceDate),
       inv.status ?? '',
@@ -154,6 +203,7 @@ router.get(
       inv.billedEmail ?? '',
     ]);
 
+    const { columns, rows } = filterColumns(allColumns, allRows, req.query.columns as string | undefined, allColumnKeys);
     const buffer = await generateListPDF('Invoices Report', buildSubtitle(filters), columns, rows);
     sendPdf(res, buffer, 'invoices-report.pdf');
   }),
@@ -167,15 +217,16 @@ router.get(
     const { sortBy, order, filters } = parseListOptions(req.query as Record<string, unknown>);
     const result = await driverService.listDrivers(orgId, exportPagination(), { sortBy, order, filters });
 
-    const columns: ListColumn[] = [
+    const allColumns: ListColumn[] = [
       { label: 'Name' },
       { label: 'Email' },
       { label: 'Phone' },
       { label: 'Pay Type' },
       { label: 'Description', width: '*' },
     ];
+    const allColumnKeys = ['name', 'email', 'phone', 'payType', 'description'];
 
-    const rows = result.data.map((d: any) => [
+    const allRows = result.data.map((d: any) => [
       d.name ?? '',
       d.email ?? '',
       d.phone ?? '',
@@ -183,6 +234,7 @@ router.get(
       d.description ?? '',
     ]);
 
+    const { columns, rows } = filterColumns(allColumns, allRows, req.query.columns as string | undefined, allColumnKeys);
     const buffer = await generateListPDF('Drivers Report', buildSubtitle(filters), columns, rows, 'landscape');
     sendPdf(res, buffer, 'drivers-report.pdf');
   }),
@@ -196,15 +248,16 @@ router.get(
     const { sortBy, order, filters } = parseListOptions(req.query as Record<string, unknown>);
     const result = await dispatcherService.listDispatchers(orgId, exportPagination(), { sortBy, order, filters });
 
-    const columns: ListColumn[] = [
+    const allColumns: ListColumn[] = [
       { label: 'Name' },
       { label: 'Email' },
       { label: 'Phone' },
       { label: 'Commission %', align: 'right' },
       { label: 'Description', width: '*' },
     ];
+    const allColumnKeys = ['name', 'email', 'phone', 'commission', 'description'];
 
-    const rows = result.data.map((d: any) => [
+    const allRows = result.data.map((d: any) => [
       d.name ?? '',
       d.email ?? '',
       d.phone ?? '',
@@ -212,6 +265,7 @@ router.get(
       d.description ?? '',
     ]);
 
+    const { columns, rows } = filterColumns(allColumns, allRows, req.query.columns as string | undefined, allColumnKeys);
     const buffer = await generateListPDF('Dispatchers Report', buildSubtitle(filters), columns, rows, 'landscape');
     sendPdf(res, buffer, 'dispatchers-report.pdf');
   }),
@@ -225,15 +279,16 @@ router.get(
     const { sortBy, order, filters } = parseListOptions(req.query as Record<string, unknown>);
     const result = await companyService.listCompanies(orgId, exportPagination(), { sortBy, order, filters });
 
-    const columns: ListColumn[] = [
+    const allColumns: ListColumn[] = [
       { label: 'Name' },
       { label: 'Industry' },
       { label: 'Email' },
       { label: 'Phone' },
       { label: 'Location' },
     ];
+    const allColumnKeys = ['name', 'industry', 'email', 'phone', 'location'];
 
-    const rows = result.data.map((c: any) => [
+    const allRows = result.data.map((c: any) => [
       c.name ?? '',
       c.industry ?? '',
       c.email ?? '',
@@ -241,6 +296,7 @@ router.get(
       c.location ?? '',
     ]);
 
+    const { columns, rows } = filterColumns(allColumns, allRows, req.query.columns as string | undefined, allColumnKeys);
     const buffer = await generateListPDF('Companies Report', buildSubtitle(filters), columns, rows, 'landscape');
     sendPdf(res, buffer, 'companies-report.pdf');
   }),
@@ -254,7 +310,7 @@ router.get(
     const { sortBy, order, filters } = parseListOptions(req.query as Record<string, unknown>);
     const result = await unitService.listUnits(orgId, exportPagination(), { sortBy, order, filters });
 
-    const columns: ListColumn[] = [
+    const allColumns: ListColumn[] = [
       { label: 'Name' },
       { label: 'Plate #' },
       { label: 'Status' },
@@ -264,8 +320,9 @@ router.get(
       { label: 'VIN' },
       { label: 'Color' },
     ];
+    const allColumnKeys = ['name', 'plate', 'status', 'year', 'make', 'model', 'vin', 'color'];
 
-    const rows = result.data.map((u: any) => [
+    const allRows = result.data.map((u: any) => [
       u.name ?? '',
       u.plateNumber ?? '',
       u.status ?? '',
@@ -276,6 +333,7 @@ router.get(
       u.color ?? '',
     ]);
 
+    const { columns, rows } = filterColumns(allColumns, allRows, req.query.columns as string | undefined, allColumnKeys);
     const buffer = await generateListPDF('Units Report', buildSubtitle(filters), columns, rows);
     sendPdf(res, buffer, 'units-report.pdf');
   }),
@@ -291,21 +349,23 @@ router.get(
       { params: { orgId } },
     );
 
-    const columns: ListColumn[] = [
+    const allColumns: ListColumn[] = [
       { label: 'Name' },
       { label: 'Contact Person' },
       { label: 'Email' },
       { label: 'Phone' },
     ];
+    const allColumnKeys = ['name', 'contactPerson', 'email', 'phone'];
 
-    const data = (Array.isArray(rows) ? rows : []).map((c: any) => [
+    const allRows = (Array.isArray(rows) ? rows : []).map((c: any) => [
       c.name ?? '',
       c.contactPerson ?? '',
       c.email ?? '',
       c.phone ?? '',
     ]);
 
-    const buffer = await generateListPDF('Carriers Report', `All records · ${new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' })}`, columns, data, 'portrait');
+    const { columns: filteredCols, rows: filteredRows } = filterColumns(allColumns, allRows, req.query.columns as string | undefined, allColumnKeys);
+    const buffer = await generateListPDF('Carriers Report', `All records · ${new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' })}`, filteredCols, filteredRows, 'portrait');
     sendPdf(res, buffer, 'carriers-report.pdf');
   }),
 );
