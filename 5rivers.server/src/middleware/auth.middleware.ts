@@ -1,8 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
 import { verifyToken } from '../services/auth.service';
 import { unauthorized, forbidden } from './errorHandler';
-import type { Role } from '../types/auth';
+import type { Role, AuthUser } from '../types/auth';
 import { query } from '../db/connection';
+import { config } from '../config';
 
 function getBearerToken(req: Request): string | null {
   const auth = req.headers.authorization;
@@ -10,13 +11,31 @@ function getBearerToken(req: Request): string | null {
   return auth.slice(7).trim() || null;
 }
 
-/** Require valid JWT; set req.user. Super-admin may send X-Organization-Id to act as that org. */
+/** Check if the token matches the static agent API key. Returns AuthUser or null. */
+function checkAgentApiKey(token: string): AuthUser | null {
+  const { apiKey, userId, organizationId, email, role } = config.agent;
+  if (!apiKey || token !== apiKey) return null;
+  if (!userId || !organizationId) return null;
+  return { userId, organizationId, email, role, isSuperAdmin: false };
+}
+
+/** Require valid JWT or static API key; set req.user. Super-admin may send X-Organization-Id to act as that org. */
 export async function requireAuth(req: Request, _res: Response, next: NextFunction): Promise<void> {
   const token = getBearerToken(req);
   if (!token) {
     next(unauthorized('Missing or invalid authorization'));
     return;
   }
+
+  // Try static agent API key first (no expiry)
+  const agentUser = checkAgentApiKey(token);
+  if (agentUser) {
+    req.user = agentUser;
+    next();
+    return;
+  }
+
+  // Fall back to JWT verification
   const user = verifyToken(token);
   if (!user) {
     next(unauthorized('Invalid or expired token'));

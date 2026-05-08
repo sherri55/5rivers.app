@@ -15,6 +15,9 @@
 import { setGlobalDispatcher, Agent } from 'undici';
 import { Ollama } from 'ollama';
 import Groq from 'groq-sdk';
+import { GoogleGenerativeAI, type Content, type Part, type FunctionDeclaration, type GenerativeModel, type CachedContent, SchemaType } from '@google/generative-ai';
+import { GoogleAICacheManager } from '@google/generative-ai/server';
+import { createHash } from 'node:crypto';
 
 // Increase undici's default headersTimeout (30s) so remote Ollama calls don't abort
 // before the model starts generating tokens.
@@ -27,11 +30,23 @@ import {
   addMessage,
   setSystemPrompt,
   stripImageUrls,
+  clearHistory,
   type Message,
 } from './conversation.js';
 import { getAutoToken, clearAutoToken } from './auth.js';
 import { parseOCROutputMulti } from './ocr-parser.js';
 import { processDocuments, formatWriteResults, type PendingDocAction } from './document-processor.js';
+import {
+  routePipelineTurn,
+  getPhase as getPipelinePhase,
+  clearState as clearPipelineState,
+  describePhase,
+  getImages as getPipelineImages,
+  setState as setPipelineState,
+  getState as getPipelineState,
+  type PipelineImage,
+} from './pipeline.js';
+import type { RestClient } from '../../5rivers.app.mcp/dist/rest-client.js';
 
 const API_URL = process.env.FIVE_RIVERS_API_URL ?? 'http://localhost:4000/api';
 
@@ -41,6 +56,8 @@ interface NormalizedToolCall {
   id: string;
   name: string;
   arguments: Record<string, unknown>;
+  /** Gemini 3.x thought-signature; only populated by GeminiProvider. */
+  thoughtSignature?: string;
 }
 
 interface NormalizedResponse {
@@ -51,7 +68,13 @@ interface NormalizedResponse {
 // ─── Provider interface ───────────────────────────────────────────────────────
 
 interface LLMProvider {
-  chat(messages: Message[]): Promise<NormalizedResponse>;
+  /**
+   * Send conversation history to the LLM.
+   * `toolFilter` (optional) restricts which tools the model is given access to
+   * — used by the pipeline to scope phases (Validator = read-only, Creator =
+   * write-enabled).
+   */
+  chat(messages: Message[], toolFilter?: ReadonlySet<string>): Promise<NormalizedResponse>;
 }
 
 // ─── Tool definitions (same format for both providers) ───────────────────────
@@ -59,9 +82,10 @@ interface LLMProvider {
 // Tools the agent should never call — auth is handled internally
 const AGENT_EXCLUDED_TOOLS = new Set(['login']);
 
-function getToolDefs() {
+function getToolDefs(toolFilter?: ReadonlySet<string>) {
   return ALL_TOOLS
     .filter((t) => !AGENT_EXCLUDED_TOOLS.has(t.name))
+    .filter((t) => !toolFilter || toolFilter.has(t.name))
     .map((t) => ({
       type: 'function' as const,
       function: {
@@ -92,7 +116,7 @@ class OllamaProvider implements LLMProvider {
     return _ollama;
   }
 
-  async chat(messages: Message[]): Promise<NormalizedResponse> {
+  async chat(messages: Message[], toolFilter?: ReadonlySet<string>): Promise<NormalizedResponse> {
     const model = process.env.OLLAMA_MODEL ?? 'llama3.1';
     const response = await this.getClient().chat({
       model,
@@ -103,7 +127,7 @@ class OllamaProvider implements LLMProvider {
           function: { name: tc.function.name, arguments: tc.function.arguments },
         })),
       })),
-      tools: getToolDefs(),
+      tools: getToolDefs(toolFilter),
       options: {
         temperature: 0.1,
         num_ctx: parseInt(process.env.OLLAMA_NUM_CTX ?? '16384'),
@@ -133,7 +157,7 @@ class GroqProvider implements LLMProvider {
     return _groq;
   }
 
-  async chat(messages: Message[]): Promise<NormalizedResponse> {
+  async chat(messages: Message[], toolFilter?: ReadonlySet<string>): Promise<NormalizedResponse> {
     const model = process.env.GROQ_MODEL ?? 'llama-3.3-70b-versatile';
 
     // Convert to Groq message format (OpenAI-compatible)
@@ -165,7 +189,7 @@ class GroqProvider implements LLMProvider {
     const response = await this.getClient().chat.completions.create({
       model,
       messages: groqMessages,
-      tools: getToolDefs(),
+      tools: getToolDefs(toolFilter),
       tool_choice: 'auto',
     });
 
@@ -243,7 +267,7 @@ function parseLMStudioResponse(data: LMStudioResponse, label: string): Normalize
 }
 
 class LMStudioProvider implements LLMProvider {
-  async chat(messages: Message[]): Promise<NormalizedResponse> {
+  async chat(messages: Message[], toolFilter?: ReadonlySet<string>): Promise<NormalizedResponse> {
     const host  = process.env.LMSTUDIO_HOST ?? 'http://localhost:1234';
     const url   = `${host}/v1/chat/completions`;
     const model = process.env.LMSTUDIO_TOOL_MODEL;
@@ -273,7 +297,7 @@ class LMStudioProvider implements LLMProvider {
           }
           return { role: m.role, content: m.content };
         }),
-      tools:       getToolDefs(),
+      tools:       getToolDefs(toolFilter),
       tool_choice: 'auto',
       stream:      false,
     };
@@ -288,6 +312,335 @@ class LMStudioProvider implements LLMProvider {
   }
 }
 
+// ─── Gemini provider ─────────────────────────────────────────────────────────
+
+let _gemini: GoogleGenerativeAI | null = null;
+
+/**
+ * Convert a JSON Schema `type` string to Gemini's SchemaType enum.
+ * Gemini requires an enum, not a raw string.
+ */
+function toGeminiSchemaType(jsonType?: string): SchemaType {
+  switch (jsonType) {
+    case 'string':  return SchemaType.STRING;
+    case 'number':  return SchemaType.NUMBER;
+    case 'integer': return SchemaType.INTEGER;
+    case 'boolean': return SchemaType.BOOLEAN;
+    case 'array':   return SchemaType.ARRAY;
+    case 'object':  return SchemaType.OBJECT;
+    default:        return SchemaType.STRING;
+  }
+}
+
+/**
+ * Recursively convert a JSON Schema object to Gemini's schema format.
+ * Gemini uses SchemaType enums and doesn't support $schema / additionalProperties.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function convertSchema(schema: any): any {
+  if (!schema || typeof schema !== 'object') return schema;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const result: any = {};
+
+  if (schema.type) result.type = toGeminiSchemaType(schema.type);
+  if (schema.description) result.description = schema.description;
+  if (schema.enum) result.enum = schema.enum;
+
+  if (schema.properties) {
+    result.properties = {};
+    for (const [key, val] of Object.entries(schema.properties)) {
+      result.properties[key] = convertSchema(val);
+    }
+  }
+  if (schema.required) result.required = schema.required;
+  if (schema.items) result.items = convertSchema(schema.items);
+
+  return result;
+}
+
+/** Build Gemini function declarations from the shared tool definitions. */
+function getGeminiFunctionDeclarations(toolFilter?: ReadonlySet<string>): FunctionDeclaration[] {
+  return ALL_TOOLS
+    .filter((t) => !AGENT_EXCLUDED_TOOLS.has(t.name))
+    .filter((t) => !toolFilter || toolFilter.has(t.name))
+    .map((t) => ({
+      name: t.name,
+      description: t.description,
+      parameters: convertSchema(t.inputSchema),
+    }));
+}
+
+// ─── Gemini context cache (explicit) ─────────────────────────────────────────
+//
+// We cache the (system instruction + tool declarations) per phase so the
+// fixed prefix isn't re-uploaded and re-billed on every turn. Cached prefix
+// tokens are billed at ~25 % of the normal rate. We also rely on Gemini's
+// implicit prefix caching as a free fallback when explicit caching can't be
+// allocated (e.g., content below the model's explicit-cache minimum).
+//
+// Lifecycle:
+//   • Cache key  = sha1(modelName + systemInstruction + tool-declarations)
+//   • Created lazily on first chat() for a (phase, model) combo.
+//   • TTL        = GEMINI_CACHE_TTL_S env (default 600s = 10min).
+//   • Invalidated client-side when within 30s of expiry → recreate.
+//   • Server-side expiry races → catch + drop entry + fall back to no-cache.
+//   • Failed creates are remembered for 60s so we don't hammer the API.
+
+interface CacheEntry {
+  /** When create succeeds: the full CachedContent. When it permanently fails: null. */
+  cached: CachedContent | null;
+  expiresAt: number;
+}
+
+const _phaseCaches = new Map<string, CacheEntry>();
+let _cacheManager: GoogleAICacheManager | null = null;
+
+function getCacheManager(): GoogleAICacheManager | null {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return null;
+  if (!_cacheManager) _cacheManager = new GoogleAICacheManager(apiKey);
+  return _cacheManager;
+}
+
+function isCachingEnabled(): boolean {
+  const v = (process.env.GEMINI_CACHE ?? 'true').toLowerCase();
+  return v !== 'false' && v !== '0' && v !== 'off';
+}
+
+function cacheKey(modelName: string, sys: string, decls: FunctionDeclaration[]): string {
+  const payload = `${modelName}::${sys}::${JSON.stringify(decls)}`;
+  return createHash('sha1').update(payload).digest('hex').slice(0, 16);
+}
+
+/**
+ * Get or create an explicit-context cache for this (model, system prompt,
+ * tool set) combination. Returns null when caching is disabled, the inputs
+ * don't qualify (no system prompt or no tools), or the API rejects the
+ * create (e.g., content below the explicit-cache minimum). Callers fall
+ * back to non-cached calls — implicit prefix caching still applies.
+ */
+async function getOrCreatePhaseCache(
+  modelName: string,
+  systemInstruction: string | undefined,
+  declarations: FunctionDeclaration[],
+): Promise<CachedContent | null> {
+  if (!isCachingEnabled()) return null;
+  if (!systemInstruction || declarations.length === 0) return null;
+
+  const cm = getCacheManager();
+  if (!cm) return null;
+
+  const key = cacheKey(modelName, systemInstruction, declarations);
+  const now = Date.now();
+  const existing = _phaseCaches.get(key);
+  if (existing && existing.expiresAt > now + 30_000) {
+    return existing.cached; // may be null (poison entry) — caller falls back
+  }
+
+  const ttlSeconds = parseInt(process.env.GEMINI_CACHE_TTL_S ?? '600', 10);
+  try {
+    const cached = await cm.create({
+      // The cache API requires the fully-qualified model name.
+      model:             `models/${modelName}`,
+      contents:          [],
+      systemInstruction: { role: 'user', parts: [{ text: systemInstruction }] },
+      tools:             [{ functionDeclarations: declarations }],
+      ttlSeconds,
+    });
+    _phaseCaches.set(key, { cached, expiresAt: now + ttlSeconds * 1000 });
+    console.log(`[gemini-cache] created ${cached.name} for ${modelName} (TTL ${ttlSeconds}s, ${declarations.length} tool(s))`);
+    return cached;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    // Poison the slot for 60s so we don't retry every turn.
+    _phaseCaches.set(key, { cached: null, expiresAt: now + 60_000 });
+    console.warn(`[gemini-cache] create failed (${msg}) — using implicit caching only`);
+    return null;
+  }
+}
+
+/** Drop a cache entry (e.g. on server-side expiry race) so the next call
+ *  triggers re-creation. */
+function dropPhaseCache(modelName: string, sys: string, decls: FunctionDeclaration[]): void {
+  _phaseCaches.delete(cacheKey(modelName, sys, decls));
+}
+
+class GeminiProvider implements LLMProvider {
+  private getClient(): GoogleGenerativeAI {
+    if (!_gemini) {
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) throw new Error('GEMINI_API_KEY is not set in .env');
+      _gemini = new GoogleGenerativeAI(apiKey);
+    }
+    return _gemini;
+  }
+
+  async chat(messages: Message[], toolFilter?: ReadonlySet<string>): Promise<NormalizedResponse> {
+    const modelName = process.env.GEMINI_MODEL ?? 'gemini-2.5-flash';
+    const client = this.getClient();
+    const declarations = getGeminiFunctionDeclarations(toolFilter);
+    const systemInstruction = messages.find((m) => m.role === 'system')?.content;
+
+    // Try the explicit cache first; fall back to a normal model when it
+    // isn't available. Either way, implicit prefix caching kicks in.
+    const cached = await getOrCreatePhaseCache(modelName, systemInstruction, declarations);
+
+    let model: GenerativeModel;
+    if (cached) {
+      // When using a cached model, the system instruction + tools come
+      // from the cache — we MUST NOT pass them again on the request.
+      model = client.getGenerativeModelFromCachedContent(cached);
+    } else {
+      model = client.getGenerativeModel({
+        model: modelName,
+        ...(declarations.length > 0
+          ? { tools: [{ functionDeclarations: declarations }] }
+          : {}),
+      });
+    }
+    if (toolFilter) {
+      console.log(`[gemini] tool filter active — ${declarations.length} tool(s) exposed: ${declarations.map((d) => d.name).join(', ')}${cached ? ` [cache:${cached.name}]` : ' [no-cache]'}`);
+    }
+
+    // Convert messages to Gemini format
+    // Gemini uses { role: 'user' | 'model' | 'function', parts: [...] }
+    const contents: Content[] = [];
+
+    for (const m of messages) {
+      if (m.role === 'system') continue; // handled via systemInstruction
+
+      if (m.role === 'user') {
+        const parts: Part[] = [];
+        if (m.content) parts.push({ text: m.content });
+        // Handle image data URIs (base64)
+        if (m.imageUrls?.length) {
+          for (const uri of m.imageUrls) {
+            // Format: "data:image/jpeg;base64,/9j/4AAQ..."
+            const match = uri.match(/^data:([^;]+);base64,(.+)$/);
+            if (match) {
+              parts.push({
+                inlineData: {
+                  mimeType: match[1],
+                  data: match[2],
+                },
+              });
+            }
+          }
+        }
+        contents.push({ role: 'user', parts });
+      } else if (m.role === 'assistant') {
+        const parts: Part[] = [];
+        if (m.content) parts.push({ text: m.content });
+        if (m.tool_calls?.length) {
+          for (const tc of m.tool_calls) {
+            // Gemini 3.x requires the thoughtSignature emitted with the
+            // original functionCall part to be sent back verbatim. The SDK
+            // type doesn't yet declare the field, so we attach it via cast.
+            const fcPart: Part = {
+              functionCall: {
+                name: tc.function.name,
+                args: tc.function.arguments as Record<string, unknown>,
+              },
+            };
+            if (tc.thoughtSignature) {
+              (fcPart as unknown as { thoughtSignature: string }).thoughtSignature = tc.thoughtSignature;
+            }
+            parts.push(fcPart);
+          }
+        }
+        if (parts.length) contents.push({ role: 'model', parts });
+      } else if (m.role === 'tool') {
+        // Gemini expects function responses as 'function' role
+        contents.push({
+          role: 'function' as 'user',
+          parts: [{
+            functionResponse: {
+              name: m.tool_call_name ?? 'unknown',
+              response: { result: m.content },
+            },
+          }],
+        });
+      }
+    }
+
+    // When the model was instantiated from a cached prefix, the cache already
+    // carries systemInstruction + tools. Passing them again is an API error.
+    const generationRequest = cached
+      ? { contents }
+      : {
+          contents,
+          ...(systemInstruction ? { systemInstruction: { role: 'user' as const, parts: [{ text: systemInstruction }] } } : {}),
+        };
+
+    let result;
+    try {
+      result = await model.generateContent(generationRequest);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      // Server-side cache may have expired between our last create and this
+      // call. Drop the cache and retry once with a fresh non-cached model.
+      if (cached && /cached.*content|expired|not found|404/i.test(msg)) {
+        console.warn(`[gemini-cache] server-side cache miss (${msg}) — retrying without cache`);
+        if (systemInstruction) dropPhaseCache(modelName, systemInstruction, declarations);
+        const fallbackModel = client.getGenerativeModel({
+          model: modelName,
+          ...(declarations.length > 0 ? { tools: [{ functionDeclarations: declarations }] } : {}),
+        });
+        result = await fallbackModel.generateContent({
+          contents,
+          ...(systemInstruction ? { systemInstruction: { role: 'user' as const, parts: [{ text: systemInstruction }] } } : {}),
+        });
+      } else {
+        throw err;
+      }
+    }
+
+    const response = result.response;
+    const candidate = response.candidates?.[0];
+
+    // Token-usage telemetry — confirms whether implicit/explicit caching is
+    // hitting. cachedContentTokenCount > 0 means part of the prompt was
+    // billed at the cached rate.
+    const usage = response.usageMetadata as ({ promptTokenCount?: number; cachedContentTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number } | undefined);
+    if (usage) {
+      const cachedTok = usage.cachedContentTokenCount ?? 0;
+      const promptTok = usage.promptTokenCount ?? 0;
+      const cachedPct = promptTok > 0 ? Math.round((cachedTok / promptTok) * 100) : 0;
+      console.log(`[gemini] tokens — prompt:${promptTok} cached:${cachedTok} (${cachedPct}%) out:${usage.candidatesTokenCount ?? 0} total:${usage.totalTokenCount ?? 0}`);
+    }
+
+    if (!candidate?.content?.parts?.length) {
+      console.error('[gemini] Empty response:', JSON.stringify(response).slice(0, 300));
+      return { content: '', toolCalls: [] };
+    }
+
+    let content = '';
+    const toolCalls: NormalizedToolCall[] = [];
+
+    for (const part of candidate.content.parts) {
+      if (part.text) content += part.text;
+      if (part.functionCall) {
+        // Gemini 3.x: the API requires us to round-trip the thoughtSignature
+        // attached to this part on subsequent turns. The SDK type doesn't
+        // expose it yet, so we read it via cast.
+        const sig = (part as unknown as { thoughtSignature?: string }).thoughtSignature;
+        toolCalls.push({
+          id: `gemini-${Date.now()}-${toolCalls.length}`,
+          name: part.functionCall.name,
+          arguments: (part.functionCall.args ?? {}) as Record<string, unknown>,
+          ...(sig ? { thoughtSignature: sig } : {}),
+        });
+      }
+    }
+
+    const snippet = content.slice(0, 120);
+    const tcCount = toolCalls.length;
+    console.log(`[gemini] content="${snippet}${snippet.length === 120 ? '…' : ''}" tool_calls=${tcCount}`);
+
+    return { content, toolCalls: toolCalls.length ? toolCalls : undefined };
+  }
+}
+
 // ─── Provider factory ─────────────────────────────────────────────────────────
 
 let _provider: LLMProvider | null = null;
@@ -295,7 +648,11 @@ let _provider: LLMProvider | null = null;
 function getProvider(): LLMProvider {
   if (!_provider) {
     const name = (process.env.LLM_PROVIDER ?? 'ollama').toLowerCase();
-    if (name === 'groq') {
+    if (name === 'gemini') {
+      const model = process.env.GEMINI_MODEL ?? 'gemini-2.5-flash';
+      console.log(`[llm] Provider: Gemini (${model})`);
+      _provider = new GeminiProvider();
+    } else if (name === 'groq') {
       console.log(`[llm] Provider: Groq (${process.env.GROQ_MODEL ?? 'llama-3.1-70b-versatile'})`);
       _provider = new GroqProvider();
     } else if (name === 'lmstudio') {
@@ -503,11 +860,107 @@ function buildConfirmationText(writeCalls: NormalizedToolCall[]): string {
     return `${i + 1}. **${tc.name}**\n${argLines || '  *(no arguments)*'}`;
   }).join('\n\n');
   const plural = writeCalls.length > 1 ? 's' : '';
-  return `⚠️ **Supervision mode** — I want to make the following change${plural}:\n\n${items}\n\nReply **yes** to confirm or **no** to cancel.`;
+  return `⚠️ **Supervision mode** — I want to make the following change${plural}:\n\n${items}\n\nReply **yes** to confirm, **no** to cancel, or **change \`field\` to \`value\`** to edit a field first.`;
+}
+
+/** Rebuild a confirmation text block from doc-processor pending writes. */
+function buildDocConfirmationText(writes: Array<{ tool: string; args: Record<string, unknown> }>): string {
+  const items = writes.map((w, i) => {
+    const argLines = Object.entries(w.args)
+      .map(([k, v]) => `  - **${k}**: \`${JSON.stringify(v)}\``)
+      .join('\n');
+    return `${i + 1}. **${w.tool}**\n${argLines || '  *(no arguments)*'}`;
+  }).join('\n\n');
+  const plural = writes.length > 1 ? 's' : '';
+  return `⚠️ **Supervision mode** — I want to make the following change${plural}:\n\n${items}\n\nReply **yes** to confirm, **no** to cancel, or **change \`field\` to \`value\`** to edit a field first.`;
 }
 
 const CONFIRM_RE = /^\s*(yes|confirm|go\s*ahead|proceed|do\s*it|ok(?:ay)?|sure|yep|yeah|👍|y)\s*[.!]?\s*$/i;
 const CANCEL_RE  = /^\s*(no|cancel|stop|abort|nope|nah|👎|n)\s*[.!]?\s*$/i;
+
+/**
+ * Regex that matches modification requests like:
+ *   "change rate to 105"
+ *   "set rateOfJob to 105.50"
+ *   "update dispatchType to hourly"
+ *   "make the startLocation 123 Main St"
+ *   "rate should be 110"
+ *   "rate = 110"
+ */
+const MODIFY_RE = /(?:(?:change|set|update|make(?:\s+the)?|use)\s+(?:the\s+)?(\S+)\s+(?:to|=|as)\s+(.+)|(\S+)\s+(?:should\s+be|=|:)\s+(.+))/i;
+
+interface FieldModification {
+  rawField: string;    // as the user typed (e.g. "rate")
+  rawValue: string;    // as the user typed (e.g. "105")
+}
+
+/**
+ * Try to parse a field-modification request out of a free-form message.
+ * Returns null when the message doesn't look like a modification.
+ */
+function tryParseModification(msg: string): FieldModification | null {
+  const m = MODIFY_RE.exec(msg.trim());
+  if (!m) return null;
+  // Group 1+2 → "change X to Y" / "set X to Y"
+  // Group 3+4 → "X should be Y" / "X = Y"
+  const rawField = (m[1] ?? m[3] ?? '').trim();
+  const rawValue = (m[2] ?? m[4] ?? '').trim();
+  if (!rawField || !rawValue) return null;
+  return { rawField, rawValue };
+}
+
+/**
+ * Fuzzy-match a user-supplied field alias (e.g. "rate") against the actual
+ * argument keys of the pending write calls (e.g. "rateOfJob", "rateOfCarrier").
+ *
+ * Matching strategy (first hit wins):
+ *   1. Exact match (case-insensitive)
+ *   2. Argument key contains the alias as a substring (case-insensitive)
+ *   3. Alias contains the argument key as a substring (case-insensitive)
+ *
+ * Returns { toolIndex, argKey } of the best match, or null if nothing fits.
+ */
+function findFieldMatch(
+  alias: string,
+  toolCalls: NormalizedToolCall[],
+): { toolIndex: number; argKey: string } | null {
+  const lower = alias.toLowerCase();
+  // Pass 1 — exact
+  for (let i = 0; i < toolCalls.length; i++) {
+    for (const key of Object.keys(toolCalls[i].arguments)) {
+      if (key.toLowerCase() === lower) return { toolIndex: i, argKey: key };
+    }
+  }
+  // Pass 2 — key contains alias
+  for (let i = 0; i < toolCalls.length; i++) {
+    for (const key of Object.keys(toolCalls[i].arguments)) {
+      if (key.toLowerCase().includes(lower)) return { toolIndex: i, argKey: key };
+    }
+  }
+  // Pass 3 — alias contains key
+  for (let i = 0; i < toolCalls.length; i++) {
+    for (const key of Object.keys(toolCalls[i].arguments)) {
+      if (lower.includes(key.toLowerCase())) return { toolIndex: i, argKey: key };
+    }
+  }
+  return null;
+}
+
+/**
+ * Coerce a raw string value to the most appropriate JS type:
+ *   - "true"/"false" → boolean
+ *   - numeric string (with optional $, commas) → number
+ *   - otherwise → string (with surrounding quotes stripped)
+ */
+function coerceValue(raw: string): unknown {
+  const trimmed = raw.trim().replace(/^["']|["']$/g, ''); // strip surrounding quotes
+  if (trimmed.toLowerCase() === 'true')  return true;
+  if (trimmed.toLowerCase() === 'false') return false;
+  if (trimmed.toLowerCase() === 'null')  return null;
+  const numeric = parseFloat(trimmed.replace(/[$,]/g, ''));
+  if (!isNaN(numeric) && /^[$\d,]*\.?\d+$/.test(trimmed.replace(/[$,]/g, ''))) return numeric;
+  return trimmed;
+}
 
 // ─── System prompt ────────────────────────────────────────────────────────────
 
@@ -638,7 +1091,85 @@ create_job: jobDate (required), jobTypeId (required).
 create_job_type: companyId (required), title format "Company - Route - Rate" (required).`;
 }
 
+// ─── Pipeline image-attachment helper ────────────────────────────────────────
+
+/**
+ * After a `create_job` tool call returns successfully during the pipeline's
+ * creating phase, attach every buffered ticket image to the new job by POSTing
+ * to `/api/jobs/:id/images`.
+ *
+ * Best-effort: any upload failure is logged but does not throw — the job has
+ * already been created and we don't want to roll that back.
+ *
+ * Returns `true` iff at least one image was attached, so the caller can
+ * arrange to clear the buffered images at the end of the turn.
+ */
+async function maybeAttachImagesToJob(
+  client: RestClient,
+  platform: string,
+  userId: string,
+  toolName: string,
+  toolResult: string,
+): Promise<boolean> {
+  if (toolName !== 'create_job') return false;
+  if (!toolResult || toolResult.startsWith('Error')) return false;
+  if (getPipelinePhase(platform, userId) !== 'creating') return false;
+
+  const images = getPipelineImages(platform, userId);
+  if (images.length === 0) return false;
+
+  // create_job's handler returns: "Job created successfully:\n<JSON>"
+  // Pull the new job id out of that payload.
+  let jobId: string | undefined;
+  try {
+    const jsonStart = toolResult.indexOf('{');
+    if (jsonStart === -1) return false;
+    const parsed = JSON.parse(toolResult.slice(jsonStart));
+    jobId = typeof parsed?.id === 'string' ? parsed.id : undefined;
+  } catch {
+    return false;
+  }
+  if (!jobId) return false;
+
+  let attached = 0;
+  for (let i = 0; i < images.length; i++) {
+    const img = images[i];
+    const ext = (img.mimeType.split('/')[1] || 'bin').toLowerCase();
+    const fileName = `ticket-${jobId}-${i + 1}.${ext}`;
+    try {
+      const buffer = Buffer.from(img.data, 'base64');
+      await client.jobImages.upload(jobId, buffer, img.mimeType, fileName);
+      attached++;
+      console.log(`[image-attach] uploaded ${fileName} (${buffer.length} bytes) to job ${jobId}`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[image-attach] failed to attach ${fileName} to job ${jobId}: ${msg}`);
+    }
+  }
+  return attached > 0;
+}
+
 // ─── Public API ───────────────────────────────────────────────────────────────
+
+/**
+ * Wipe everything we hold for a (platform, userId) conversation:
+ *   • the chat history (system prompt + all turns)
+ *   • the three-phase pipeline state (current phase, parsed data)
+ *   • any pending supervision confirmation (regular tool calls)
+ *   • any pending document-processor confirmation
+ *
+ * Use this from /clear commands, the chat widget's clear button, etc.
+ * It is safe to call when nothing is set — every clear is a no-op miss.
+ */
+export function resetConversation(platform: string, userId: string): void {
+  const sKey = supervisionKey(platform, userId);
+  clearHistory(platform, userId);
+  clearPipelineState(platform, userId);
+  pendingConfirmations.delete(sKey);
+  pendingDocConfirmations.delete(sKey);
+  console.log(`[reset] cleared all state for ${sKey}`);
+}
+
 
 export interface AgentResponse {
   text: string;
@@ -674,6 +1205,10 @@ export async function processMessage(
   const client = createRestClient({ baseUrl: API_URL, authToken: resolvedToken });
   const toolCalls: AgentResponse['toolCalls'] = [];
   const provider = getProvider();
+  /** True once any ticket image has been attached to a created job in this
+   *  turn. Used at the end of processMessage to clear the buffered images so
+   *  they can't leak onto a later, unrelated create_job. */
+  let imagesAttachedThisTurn = false;
 
   // ── Supervision mode: handle a pending confirmation ───────────────────────
   let resumingFromConfirmation = false;
@@ -697,6 +1232,7 @@ export async function processMessage(
           tool_calls: pending.toolCalls.map((tc) => ({
             id: tc.id,
             function: { name: tc.name, arguments: tc.arguments },
+            ...(tc.thoughtSignature ? { thoughtSignature: tc.thoughtSignature } : {}),
           })),
         });
 
@@ -722,8 +1258,12 @@ export async function processMessage(
             }
           }
           console.log(`[tool] ${tc.name} → ${result.slice(0, 200)}${result.length > 200 ? '...' : ''}`);
+          // Pipeline: attach the original ticket image to the newly-created job.
+          if (await maybeAttachImagesToJob(client, platform, userId, tc.name, result)) {
+            imagesAttachedThisTurn = true;
+          }
           toolCalls.push({ name: tc.name, args: tc.arguments, result });
-          addMessage(platform, userId, { role: 'tool', content: result, tool_call_id: tc.id });
+          addMessage(platform, userId, { role: 'tool', content: result, tool_call_id: tc.id, tool_call_name: tc.name });
         }
         // Fall through to the agent loop — it will see the tool results in
         // history and generate a final summary (no new user message needed).
@@ -737,9 +1277,38 @@ export async function processMessage(
         return { text: cancelText };
 
       } else {
+        // ── Check for an inline field modification (e.g. "change rate to 105") ──
+        const mod = tryParseModification(trimmed);
+        if (mod) {
+          const writeCalls = pending.toolCalls.filter((tc) => isWriteTool(tc.name));
+          const match = findFieldMatch(mod.rawField, writeCalls);
+          if (match) {
+            const coerced = coerceValue(mod.rawValue);
+            writeCalls[match.toolIndex].arguments[match.argKey] = coerced;
+            // Also update the same key in the full toolCalls array (reads + writes mixed)
+            const fullIndex = pending.toolCalls.findIndex((tc) => tc === writeCalls[match.toolIndex]);
+            if (fullIndex !== -1) {
+              pending.toolCalls[fullIndex].arguments[match.argKey] = coerced;
+            }
+            // Rebuild the confirmation text with the updated value
+            const updatedText = buildConfirmationText(writeCalls);
+            pending.confirmationText = updatedText;
+            pendingConfirmations.set(sKey, pending);
+            return {
+              text: `✏️ Updated **${match.argKey}** → \`${JSON.stringify(coerced)}\`\n\n${updatedText}`,
+            };
+          }
+          // Field not found — list available fields
+          const allFields = pending.toolCalls
+            .filter((tc) => isWriteTool(tc.name))
+            .flatMap((tc) => Object.keys(tc.arguments));
+          return {
+            text: `⚠️ Could not find a field matching "**${mod.rawField}**". Available fields: ${allFields.map((f) => `\`${f}\``).join(', ')}\n\n${pending.confirmationText}`,
+          };
+        }
         // ── User said something else — remind them of the pending action ──
         return {
-          text: `⚠️ There's a pending action waiting for your confirmation:\n\n${pending.confirmationText}\n\nReply **yes** to confirm or **no** to cancel it first.`,
+          text: `⚠️ There's a pending action waiting for your confirmation:\n\n${pending.confirmationText}\n\nReply **yes** to confirm, **no** to cancel, or **change \`field\` to \`value\`** to edit a field first.`,
         };
       }
     }
@@ -787,21 +1356,82 @@ export async function processMessage(
         return { text: cancelText };
 
       } else {
+        // ── Check for an inline field modification ──────────────────────────
+        const mod = tryParseModification(trimmed);
+        if (mod) {
+          // pendingDoc.writes is Array<{ tool: string; args: Record<string, unknown> }>
+          // Wrap them temporarily as NormalizedToolCall for findFieldMatch
+          const wrapsForMatch: NormalizedToolCall[] = pendingDoc.writes.map((w, i) => ({
+            id: `doc-${i}`,
+            name: w.tool,
+            arguments: w.args,
+          }));
+          const match = findFieldMatch(mod.rawField, wrapsForMatch);
+          if (match) {
+            const coerced = coerceValue(mod.rawValue);
+            pendingDoc.writes[match.toolIndex].args[match.argKey] = coerced;
+            // Rebuild confirmation text
+            const updatedConfirmText = buildDocConfirmationText(pendingDoc.writes);
+            pendingDoc.confirmationText = updatedConfirmText;
+            pendingDocConfirmations.set(sKey, pendingDoc);
+            return {
+              text: `✏️ Updated **${match.argKey}** → \`${JSON.stringify(coerced)}\`\n\n${updatedConfirmText}`,
+            };
+          }
+          const allFields = pendingDoc.writes.flatMap((w) => Object.keys(w.args));
+          return {
+            text: `⚠️ Could not find a field matching "**${mod.rawField}**". Available fields: ${allFields.map((f) => `\`${f}\``).join(', ')}\n\n${pendingDoc.confirmationText}`,
+          };
+        }
         return {
-          text: `⚠️ Pending action:\n\n${pendingDoc.confirmationText}\n\nReply **yes** to confirm or **no** to cancel.`,
+          text: `⚠️ Pending action:\n\n${pendingDoc.confirmationText}\n\nReply **yes** to confirm, **no** to cancel, or **change \`field\` to \`value\`** to edit a field first.`,
         };
       }
+    }
+  }
+
+  // ── Three-phase Gemini pipeline routing ───────────────────────────────────
+  // For Gemini only: when an image arrives, or when the user is mid-pipeline,
+  // route through the Parser → Validator → Creator state machine. The router
+  // sets the system prompt + user message itself, so we skip the normal flow
+  // below when it took ownership.
+  const providerName = (process.env.LLM_PROVIDER ?? 'ollama').toLowerCase();
+  let activeToolFilter: ReadonlySet<string> | undefined;
+  let pipelineHandled = false;
+
+  if (providerName === 'gemini') {
+    const easternDate = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' });
+    const pipelineImages: PipelineImage[] | undefined = images?.map((img) => ({
+      data: img.data,
+      mimeType: img.mimeType,
+    }));
+
+    const routing = await routePipelineTurn({
+      platform,
+      userId,
+      userMessage,
+      images: pipelineImages,
+      resumingFromConfirmation,
+      easternDate,
+    });
+
+    if (routing.handled) {
+      pipelineHandled = true;
+      activeToolFilter = routing.toolFilter;
+      console.log(`[pipeline] active phase: ${describePhase(routing.phase)}`);
     }
   }
 
   // ── Normal flow: add user message ─────────────────────────────────────────
   // System prompt is injected for Groq/Ollama; for LM Studio it lives in the
   // model preset and is intentionally not sent via the API.
-  if ((process.env.LLM_PROVIDER ?? 'ollama').toLowerCase() !== 'lmstudio') {
-    setSystemPrompt(platform, userId, buildSystemPrompt());
+  if (!pipelineHandled) {
+    if ((process.env.LLM_PROVIDER ?? 'ollama').toLowerCase() !== 'lmstudio') {
+      setSystemPrompt(platform, userId, buildSystemPrompt());
+    }
   }
 
-  if (!resumingFromConfirmation) {
+  if (!pipelineHandled && !resumingFromConfirmation) {
     if (images && images.length > 0 && process.env.LLM_PROVIDER === 'lmstudio') {
       // ── Code-driven document pipeline ──────────────────────────────────────
       // OCR → parse ALL entries → validate → present summary → confirm → execute.
@@ -877,7 +1507,7 @@ export async function processMessage(
 
     let response: NormalizedResponse;
     try {
-      response = await provider.chat(history);
+      response = await provider.chat(history, activeToolFilter);
       // Free image data from history after the first LLM call.
       // Only relevant for single-model mode where images were attached directly.
       if (iterations === 1 && !resumingFromConfirmation) stripImageUrls(platform, userId);
@@ -924,6 +1554,7 @@ export async function processMessage(
         tool_calls: response.toolCalls.map((tc) => ({
           id: tc.id,
           function: { name: tc.name, arguments: tc.arguments },
+          ...(tc.thoughtSignature ? { thoughtSignature: tc.thoughtSignature } : {}),
         })),
       });
 
@@ -936,6 +1567,13 @@ export async function processMessage(
 
         if (!toolDef) {
           result = `Error: Unknown tool "${tc.name}"`;
+        } else if (activeToolFilter && !activeToolFilter.has(tc.name)) {
+          // Pipeline-phase guard: model tried to call a tool outside its phase.
+          // (Should be rare since the filter restricts what we send the model,
+          // but defends against hallucinated tool names.)
+          const phaseName = describePhase(getPipelinePhase(platform, userId));
+          result = `Error: Tool "${tc.name}" is not available in the current phase (${phaseName}). Available tools: ${[...activeToolFilter].join(', ')}`;
+          console.warn(`[pipeline] blocked out-of-phase tool call: ${tc.name}`);
         } else {
           try {
             result = await toolDef.handler(client, tc.arguments);
@@ -955,13 +1593,18 @@ export async function processMessage(
         }
 
         console.log(`[tool] ${tc.name} → ${result.slice(0, 200)}${result.length > 200 ? '...' : ''}`);
+        // Pipeline: attach the original ticket image to the newly-created job.
+        if (await maybeAttachImagesToJob(client, platform, userId, tc.name, result)) {
+          imagesAttachedThisTurn = true;
+        }
         toolCalls.push({ name: tc.name, args: tc.arguments, result });
 
-        // Store tool result — include tool_call_id for Groq/OpenAI compatibility
+        // Store tool result — include tool_call_id for Groq/OpenAI, tool_call_name for Gemini
         addMessage(platform, userId, {
           role: 'tool',
           content: result,
           tool_call_id: tc.id,
+          tool_call_name: tc.name,
         });
       }
 
@@ -998,11 +1641,28 @@ export async function processMessage(
 
     // Final response
     addMessage(platform, userId, { role: 'assistant', content: response.content });
+    clearBufferedImagesIfAttached();
     return { text: response.content, toolCalls: toolCalls.length > 0 ? toolCalls : undefined };
   }
 
   const fallback = 'I ran into too many steps processing your request. Could you try simplifying it?';
   addMessage(platform, userId, { role: 'assistant', content: fallback });
+  clearBufferedImagesIfAttached();
   return { text: fallback, toolCalls: toolCalls.length > 0 ? toolCalls : undefined };
+
+  /** Drop the ticket images from pipeline state once they've been attached to
+   *  at least one created job in this turn. Keeps the rest of the pipeline
+   *  state (phase, parsedData) so the conversation can continue normally. */
+  function clearBufferedImagesIfAttached(): void {
+    if (!imagesAttachedThisTurn) return;
+    const state = getPipelineState(platform, userId);
+    if (!state || state.images.length === 0) return;
+    setPipelineState(platform, userId, {
+      phase: state.phase,
+      parsedData: state.parsedData,
+      images: [],
+    });
+    console.log(`[image-attach] cleared buffered images from state for ${platform}:${userId}`);
+  }
 }
 

@@ -32,6 +32,15 @@ export const config = {
   /** When set, this email can log in to any org by slug (no membership required) and gets isSuperAdmin in JWT. */
   superAdminEmail: process.env.SUPER_ADMIN_EMAIL?.trim().toLowerCase() || null,
 
+  /** Static API key for agent/service access (no expiry). Set AGENT_API_KEY to enable. */
+  agent: {
+    apiKey: process.env.AGENT_API_KEY?.trim() || null,
+    userId: process.env.AGENT_USER_ID?.trim() || null,
+    organizationId: process.env.AGENT_ORG_ID?.trim() || null,
+    email: process.env.AGENT_EMAIL?.trim() || 'agent@5rivers.local',
+    role: process.env.AGENT_ROLE?.trim() || 'OWNER',
+  },
+
   /** Normalized connection string from DATABASE_URL (required). */
   get databaseUrl(): string {
     let url = env('DATABASE_URL').trim();

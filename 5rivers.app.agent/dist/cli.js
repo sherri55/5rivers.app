@@ -15,7 +15,19 @@ dotenv.config({ path: resolve(__dirname, '../.env'), override: true });
 import * as readline from 'node:readline';
 import { processMessage } from './llm.js';
 import { loadAuthMap } from './auth.js';
+import { createTelegramBot } from './transports/telegram.js';
 loadAuthMap();
+// Start Telegram bot if a token is configured
+const telegramToken = process.env.TELEGRAM_BOT_TOKEN;
+if (telegramToken) {
+    const bot = createTelegramBot(telegramToken);
+    bot.launch().then(() => console.log('  Telegram: bot running'));
+    process.once('SIGINT', () => bot.stop('SIGINT'));
+    process.once('SIGTERM', () => bot.stop('SIGTERM'));
+}
+else {
+    console.log('  Telegram: not configured (set TELEGRAM_BOT_TOKEN to enable)');
+}
 const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
@@ -50,9 +62,9 @@ rl.on('line', async (line) => {
         process.exit(0);
     }
     if (input === '/clear') {
-        const { clearHistory } = await import('./conversation.js');
-        clearHistory('cli', 'local');
-        console.log('Conversation history cleared.');
+        const { resetConversation } = await import('./llm.js');
+        resetConversation('cli', 'local');
+        console.log('Conversation cleared (history, pipeline state, and any pending confirmations).');
         rl.prompt();
         return;
     }

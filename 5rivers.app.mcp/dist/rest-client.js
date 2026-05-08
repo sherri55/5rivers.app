@@ -72,7 +72,41 @@ export function createRestClient(config) {
             delete: (id) => request('DELETE', `/${resource}/${id}`),
         };
     }
+    /**
+     * Multipart upload helper. The server's image route is `upload.single('file')`,
+     * so the form field name MUST be "file". Uses Node's built-in FormData/Blob
+     * (Node 18+).
+     */
+    async function uploadFile(path, content, mimeType, fileName) {
+        const url = `${baseUrl}${path}`;
+        const blob = new Blob([new Uint8Array(content)], { type: mimeType || 'application/octet-stream' });
+        const form = new FormData();
+        form.append('file', blob, fileName);
+        const headers = {};
+        if (authToken)
+            headers['Authorization'] = `Bearer ${authToken}`;
+        // NOTE: do NOT set Content-Type — fetch+FormData sets the proper
+        // multipart/form-data; boundary=... header automatically.
+        const res = await fetch(url, { method: 'POST', headers, body: form });
+        if (res.status === 204)
+            return undefined;
+        const json = await res.json();
+        if (!res.ok) {
+            const msg = json?.error?.message || json?.error?.code || json?.message ||
+                (typeof json?.error === 'string' ? json.error : null) ||
+                `HTTP ${res.status}`;
+            throw new Error(msg);
+        }
+        return json;
+    }
     const jobs = crudFor('jobs');
+    /** Job-image attachment helpers — wraps POST/GET/DELETE on /jobs/:id/images. */
+    const jobImages = {
+        /** Upload an image and attach it to a job. Returns the created Image meta. */
+        upload: (jobId, content, mimeType, fileName) => uploadFile(`/jobs/${jobId}/images`, content, mimeType, fileName),
+        list: (jobId) => request('GET', `/jobs/${jobId}/images`),
+        delete: (jobId, imageId) => request('DELETE', `/jobs/${jobId}/images/${imageId}`),
+    };
     const jobTypes = crudFor('job-types');
     const drivers = crudFor('drivers');
     const companies = crudFor('companies');
@@ -114,6 +148,7 @@ export function createRestClient(config) {
     };
     return {
         jobs,
+        jobImages,
         jobTypes,
         drivers,
         companies,

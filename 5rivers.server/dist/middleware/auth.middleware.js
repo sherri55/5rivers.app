@@ -5,19 +5,37 @@ exports.requireRole = requireRole;
 const auth_service_1 = require("../services/auth.service");
 const errorHandler_1 = require("./errorHandler");
 const connection_1 = require("../db/connection");
+const config_1 = require("../config");
 function getBearerToken(req) {
     const auth = req.headers.authorization;
     if (!auth || !auth.startsWith('Bearer '))
         return null;
     return auth.slice(7).trim() || null;
 }
-/** Require valid JWT; set req.user. Super-admin may send X-Organization-Id to act as that org. */
+/** Check if the token matches the static agent API key. Returns AuthUser or null. */
+function checkAgentApiKey(token) {
+    const { apiKey, userId, organizationId, email, role } = config_1.config.agent;
+    if (!apiKey || token !== apiKey)
+        return null;
+    if (!userId || !organizationId)
+        return null;
+    return { userId, organizationId, email, role, isSuperAdmin: false };
+}
+/** Require valid JWT or static API key; set req.user. Super-admin may send X-Organization-Id to act as that org. */
 async function requireAuth(req, _res, next) {
     const token = getBearerToken(req);
     if (!token) {
         next((0, errorHandler_1.unauthorized)('Missing or invalid authorization'));
         return;
     }
+    // Try static agent API key first (no expiry)
+    const agentUser = checkAgentApiKey(token);
+    if (agentUser) {
+        req.user = agentUser;
+        next();
+        return;
+    }
+    // Fall back to JWT verification
     const user = (0, auth_service_1.verifyToken)(token);
     if (!user) {
         next((0, errorHandler_1.unauthorized)('Invalid or expired token'));

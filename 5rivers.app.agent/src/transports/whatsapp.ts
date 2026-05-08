@@ -11,9 +11,8 @@
 import pkg from 'whatsapp-web.js';
 const { Client, LocalAuth } = pkg;
 type WAMessage = pkg.Message;
-import { processMessage } from '../llm.js';
+import { processMessage, resetConversation } from '../llm.js';
 import { getToken, setToken, hasToken } from '../auth.js';
-import { clearHistory } from '../conversation.js';
 
 const PLATFORM = 'whatsapp';
 
@@ -57,8 +56,8 @@ export function createWhatsAppBot(): InstanceType<typeof Client> {
     }
 
     if (text === '!clear') {
-      clearHistory(PLATFORM, userId);
-      await message.reply('Conversation history cleared.');
+      resetConversation(PLATFORM, userId);
+      await message.reply('Conversation cleared (history, pipeline state, and any pending confirmations).');
       return;
     }
 

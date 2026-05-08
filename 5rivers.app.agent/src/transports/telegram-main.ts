@@ -19,10 +19,15 @@ loadAuthMap();
 const bot = createTelegramBot(BOT_TOKEN);
 
 bot.launch().then(() => {
-  console.log('Telegram bot is running!');
-  console.log(`  Ollama: ${process.env.OLLAMA_HOST ?? 'http://localhost:11434'}`);
-  console.log(`  Model:  ${process.env.OLLAMA_MODEL ?? 'llama3.1'}`);
-  console.log(`  API:    ${process.env.FIVE_RIVERS_API_URL ?? 'http://localhost:4000/api'}`);
+  const provider = process.env.LLM_PROVIDER ?? 'ollama';
+  const model =
+    provider === 'gemini'   ? (process.env.GEMINI_MODEL   ?? 'gemini-2.5-flash') :
+    provider === 'groq'     ? (process.env.GROQ_MODEL     ?? 'llama-3.3-70b-versatile') :
+    provider === 'lmstudio' ? (process.env.LMSTUDIO_TOOL_MODEL ?? '(unset)') :
+                              (process.env.OLLAMA_MODEL   ?? 'llama3.1');
+  console.log('✅ Telegram bot is running!');
+  console.log(`   Provider: ${provider} (${model})`);
+  console.log(`   API:      ${process.env.FIVE_RIVERS_API_URL ?? 'http://localhost:4000/api'}`);
 });
 
 // Graceful shutdown

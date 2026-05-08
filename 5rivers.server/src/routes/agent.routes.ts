@@ -42,8 +42,8 @@ router.post(
 router.post(
   '/agent/clear',
   asyncHandler(async (req: Request, res: Response) => {
-    const { clearHistory } = await import('../../../5rivers.app.agent/dist/index.js');
-    clearHistory('web', req.user!.userId);
+    const { resetConversation } = await import('../../../5rivers.app.agent/dist/index.js');
+    resetConversation('web', req.user!.userId);
     res.json({ ok: true });
   }),
 );

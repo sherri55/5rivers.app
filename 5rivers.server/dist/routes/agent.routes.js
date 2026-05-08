@@ -64,8 +64,8 @@ router.post('/agent/chat', (0, asyncHandler_1.asyncHandler)(async (req, res) => 
     });
 }));
 router.post('/agent/clear', (0, asyncHandler_1.asyncHandler)(async (req, res) => {
-    const { clearHistory } = await Promise.resolve().then(() => __importStar(require('../../../5rivers.app.agent/dist/index.js')));
-    clearHistory('web', req.user.userId);
+    const { resetConversation } = await Promise.resolve().then(() => __importStar(require('../../../5rivers.app.agent/dist/index.js')));
+    resetConversation('web', req.user.userId);
     res.json({ ok: true });
 }));
 exports.default = router;

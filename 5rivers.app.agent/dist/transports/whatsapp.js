@@ -10,9 +10,8 @@
  */
 import pkg from 'whatsapp-web.js';
 const { Client, LocalAuth } = pkg;
-import { processMessage } from '../llm.js';
+import { processMessage, resetConversation } from '../llm.js';
 import { getToken, setToken } from '../auth.js';
-import { clearHistory } from '../conversation.js';
 const PLATFORM = 'whatsapp';
 export function createWhatsAppBot() {
     const client = new Client({
@@ -50,8 +49,8 @@ export function createWhatsAppBot() {
             return;
         }
         if (text === '!clear') {
-            clearHistory(PLATFORM, userId);
-            await message.reply('Conversation history cleared.');
+            resetConversation(PLATFORM, userId);
+            await message.reply('Conversation cleared (history, pipeline state, and any pending confirmations).');
             return;
         }
         if (text === '!help') {

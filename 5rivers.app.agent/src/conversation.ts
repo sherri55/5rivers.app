@@ -8,6 +8,7 @@ export interface Message {
   content: string;
   tool_calls?: ToolCall[];
   tool_call_id?: string; // required by OpenAI/Groq for tool result messages
+  tool_call_name?: string; // function name for tool results (used by Gemini)
   imageUrls?: string[];  // base64 data URIs for vision messages (current turn only)
 }
 
@@ -17,6 +18,10 @@ export interface ToolCall {
     name: string;
     arguments: Record<string, unknown>;
   };
+  /** Gemini 3.x: opaque signature the API attaches to functionCall parts.
+   *  We must round-trip it back unchanged or the next turn fails with
+   *  "Function call is missing a thought_signature". */
+  thoughtSignature?: string;
 }
 
 const MAX_HISTORY = 40; // max messages per conversation before trimming

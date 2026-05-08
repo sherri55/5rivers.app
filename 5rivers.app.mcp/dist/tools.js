@@ -124,12 +124,29 @@ function formatJobTable(jobs, meta) {
     }
     return lines.join('\n');
 }
-/** Parse a date string and return YYYY-MM-DD in Eastern Time. */
+/**
+ * Parse a date string and return YYYY-MM-DD as a calendar date.
+ *
+ * IMPORTANT: a bare "YYYY-MM-DD" is a *calendar date* with no timezone — we
+ * MUST NOT round-trip it through `new Date()`. Doing so parses it as UTC
+ * midnight (per the ECMAScript spec), and reformatting that timestamp in
+ * Eastern time lands on the previous day during DST (e.g. "2026-05-07"
+ * becomes "2026-05-06"). The server stores `jobDate` in a SQL DATE column
+ * which has no timezone, so the calendar day must round-trip exactly.
+ *
+ * For non-bare inputs (natural-language dates like "May 7, 2026", or ISO
+ * strings with a time/timezone like "2026-05-07T14:30:00-04:00") we parse
+ * and reformat in Eastern, which is the app's canonical zone.
+ */
 function parseDateArg(dateStr) {
-    const d = new Date(dateStr);
+    const trimmed = dateStr.trim();
+    // Bare YYYY-MM-DD: pass through unchanged.
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed))
+        return trimmed;
+    const d = new Date(trimmed);
     if (isNaN(d.getTime()))
-        return dateStr;
-    // Use en-CA locale which gives YYYY-MM-DD format, in Eastern timezone
+        return trimmed;
+    // en-CA gives YYYY-MM-DD, in Eastern timezone.
     return d.toLocaleDateString('en-CA', { timeZone: 'America/Toronto' });
 }
 // ─── Fuzzy name matching ─────────────────────────────────────────────────────
@@ -152,11 +169,13 @@ const BUSINESS_SUFFIXES = [
     'group', 'and', '&',
 ];
 const SUFFIX_RE = new RegExp(`\\b(${BUSINESS_SUFFIXES.join('|')})\\b`, 'gi');
-/** Normalise a name for fuzzy comparison: lowercase, no punctuation, no business suffixes. */
+/** Normalise a name for fuzzy comparison: lowercase, no punctuation, no business suffixes.
+ *  Also strips the possessive "'s" so that "Lucy's" and "Lucy" produce the same form. */
 function normaliseName(name) {
     return name
         .toLowerCase()
-        .replace(/[''`]/g, '') // smart quotes / apostrophes
+        .replace(/[''`]\s*s\b/gi, '') // strip possessive 's: "lucy's" → "lucy"
+        .replace(/[''`]/g, '') // smart quotes / apostrophes (any survivors)
         .replace(/[^a-z0-9\s]/g, ' ') // punctuation → space
         .replace(SUFFIX_RE, ' ') // strip business suffixes
         .replace(/\s+/g, ' ')
@@ -726,16 +745,22 @@ const update_job = {
 };
 const create_job_type = {
     name: 'create_job_type',
-    description: 'Create a new job type for a company. Use for "add job type hourly $85/hr for company X".',
+    description: 'Create a new job type for a company. A job type encodes a recurring haul: route (start → end), how it bills (hourly / per-load / per-ton / fixed), and the rate. The agent should ask the user for any of these that are missing before calling this tool.',
     inputSchema: {
         type: 'object',
         properties: {
             companyId: { type: 'string', description: 'Company ID this job type belongs to.' },
-            title: { type: 'string', description: 'Job type title (e.g. "Hourly", "Flat Rate", "Tonnage").' },
-            rateOfJob: { type: 'number', description: 'Rate for the job type (e.g. 85 for $85/hr). Omit or set to null if rate is not yet known (rate pending).' },
-            dispatchType: { type: 'string', description: 'How dispatch works for this type.' },
+            title: { type: 'string', description: 'Job type title. Convention: "Company - Start → End - Rate" (e.g. "Van-Bree - Richmond ⇄ Talbot - $85/hr").' },
+            startLocation: { type: 'string', description: 'Default haul-from / origin for jobs of this type (e.g. "2300 Richmond Street").' },
+            endLocation: { type: 'string', description: 'Default haul-to / destination for jobs of this type (e.g. "Talbot Village").' },
+            dispatchType: {
+                type: 'string',
+                enum: ['hourly', 'load', 'tonnage', 'fixed'],
+                description: 'How this job type bills. "hourly" = $/hour (ticket has Total Hours); "load" = $/load (ticket has Loads count); "tonnage" = $/ton (ticket has Weight/Tons); "fixed" = flat amount per job.',
+            },
+            rateOfJob: { type: 'number', description: 'Rate per unit implied by dispatchType (e.g. 85 for $85/hr when hourly). Omit or set to null only if the user explicitly says the rate is not yet known (rate pending).' },
         },
-        required: ['companyId', 'title'],
+        required: ['companyId', 'title', 'startLocation', 'endLocation', 'dispatchType', 'rateOfJob'],
     },
     handler: async (client, args) => {
         const data = {};
@@ -782,14 +807,17 @@ const update_job_type = {
 };
 const create_driver = {
     name: 'create_driver',
-    description: 'Create a new driver. Use for "add driver Mike Johnson hourly rate $25".',
+    description: 'Create a new driver. The agent should ask the user for every field below, one focused question at a time, before calling this tool. Only "name" is hard-required by the server, but a complete record needs payType + rate.',
     inputSchema: {
         type: 'object',
         properties: {
-            name: { type: 'string', description: 'Driver full name.' },
-            hourlyRate: { type: 'number', description: 'Hourly rate in dollars.' },
-            phone: { type: 'string', description: 'Phone number.' },
-            email: { type: 'string', description: 'Email address.' },
+            name: { type: 'string', description: 'Driver full name. ASK the user.' },
+            description: { type: 'string', description: 'Free-form notes about the driver. ASK the user; OK to skip if they have no notes.' },
+            email: { type: 'string', description: 'Email address. ASK the user.' },
+            phone: { type: 'string', description: 'Phone number. ASK the user.' },
+            payType: { type: 'string', enum: ['HOURLY', 'PERCENTAGE', 'CUSTOM'], description: 'How this driver is paid. ASK the user. "HOURLY" = paid an hourly rate; "PERCENTAGE" = paid a % of job revenue; "CUSTOM" = per-job custom amounts.' },
+            hourlyRate: { type: 'number', description: 'Dollars per hour. ASK only when payType = HOURLY.' },
+            percentageRate: { type: 'number', description: 'Percent of job revenue (e.g. 30 for 30%). ASK only when payType = PERCENTAGE.' },
         },
         required: ['name'],
     },
@@ -805,14 +833,19 @@ const create_driver = {
 };
 const create_company = {
     name: 'create_company',
-    description: 'Create a new company. Use for "add company Metro Hauling".',
+    description: 'Create a new company (a customer / bill-to / client). The agent should ask the user for every field below, one focused question at a time, before calling this tool.',
     inputSchema: {
         type: 'object',
         properties: {
-            name: { type: 'string', description: 'Company name.' },
-            email: { type: 'string', description: 'Contact email.' },
-            phone: { type: 'string', description: 'Contact phone.' },
-            address: { type: 'string', description: 'Company address.' },
+            name: { type: 'string', description: 'Company name. ASK the user.' },
+            description: { type: 'string', description: 'Free-form notes about the company. ASK; OK to skip.' },
+            website: { type: 'string', description: 'Company website URL. ASK.' },
+            industry: { type: 'string', description: 'Industry (e.g. "Construction", "Aggregates"). ASK.' },
+            location: { type: 'string', description: 'Primary address or city/region the company operates from. ASK.' },
+            size: { type: 'string', description: 'Company size descriptor (e.g. "Small", "10-50 employees"). ASK.' },
+            founded: { type: 'number', description: 'Year founded (e.g. 1998). ASK.' },
+            email: { type: 'string', description: 'Primary contact email. ASK.' },
+            phone: { type: 'string', description: 'Primary contact phone. ASK.' },
         },
         required: ['name'],
     },
@@ -828,13 +861,15 @@ const create_company = {
 };
 const create_dispatcher = {
     name: 'create_dispatcher',
-    description: 'Create a new dispatcher. Use for "add dispatcher Sarah Williams".',
+    description: 'Create a new dispatcher (a trucking company / hauler that 5Rivers works with). The agent should ask the user for every field below, one focused question at a time, before calling this tool.',
     inputSchema: {
         type: 'object',
         properties: {
-            name: { type: 'string', description: 'Dispatcher full name.' },
-            phone: { type: 'string', description: 'Phone number.' },
-            email: { type: 'string', description: 'Email address.' },
+            name: { type: 'string', description: 'Dispatcher / trucking company name. ASK the user.' },
+            description: { type: 'string', description: 'Free-form notes about the dispatcher. ASK; OK to skip.' },
+            email: { type: 'string', description: 'Primary contact email. ASK.' },
+            phone: { type: 'string', description: 'Primary contact phone. ASK.' },
+            commissionPercent: { type: 'number', description: 'Commission % this dispatcher takes from each dispatched job (e.g. 10 for 10%). ASK.' },
         },
         required: ['name'],
     },
@@ -850,11 +885,23 @@ const create_dispatcher = {
 };
 const create_unit = {
     name: 'create_unit',
-    description: 'Create a new unit (truck/vehicle). Use for "add unit T-105".',
+    description: 'Create a new unit (truck/vehicle). The agent should ask the user for every field below, one focused question at a time, before calling this tool.',
     inputSchema: {
         type: 'object',
         properties: {
-            name: { type: 'string', description: 'Unit name/number (e.g. T-105).' },
+            name: { type: 'string', description: 'Unit name / truck number (e.g. "T-105", "52"). ASK the user.' },
+            description: { type: 'string', description: 'Free-form notes about the unit. ASK; OK to skip.' },
+            color: { type: 'string', description: 'Color of the truck. ASK.' },
+            plateNumber: { type: 'string', description: 'License plate number. ASK.' },
+            vin: { type: 'string', description: 'Vehicle Identification Number (17 chars). ASK.' },
+            status: { type: 'string', enum: ['ACTIVE', 'INACTIVE', 'MAINTENANCE', 'RETIRED'], description: 'Operational status. ASK; default to ACTIVE for new units in service.' },
+            year: { type: 'number', description: 'Model year (e.g. 2022). ASK.' },
+            make: { type: 'string', description: 'Manufacturer (e.g. "Peterbilt", "Kenworth"). ASK.' },
+            model: { type: 'string', description: 'Model designation (e.g. "579", "T880"). ASK.' },
+            mileage: { type: 'number', description: 'Current odometer reading. ASK.' },
+            insuranceExpiry: { type: 'string', description: 'Insurance expiry date (YYYY-MM-DD). ASK.' },
+            lastMaintenanceDate: { type: 'string', description: 'Last maintenance date (YYYY-MM-DD). ASK.' },
+            nextMaintenanceDate: { type: 'string', description: 'Next scheduled maintenance date (YYYY-MM-DD). ASK.' },
         },
         required: ['name'],
     },
@@ -870,13 +917,18 @@ const create_unit = {
 };
 const create_carrier = {
     name: 'create_carrier',
-    description: 'Create a new carrier. Use for "add carrier FastFreight Inc".',
+    description: 'Create a new carrier (a third-party trucking provider 5Rivers brokers loads to). The agent should ask the user for every field below, one focused question at a time, before calling this tool.',
     inputSchema: {
         type: 'object',
         properties: {
-            name: { type: 'string', description: 'Carrier name.' },
-            phone: { type: 'string', description: 'Phone number.' },
-            email: { type: 'string', description: 'Email address.' },
+            name: { type: 'string', description: 'Carrier name. ASK the user.' },
+            description: { type: 'string', description: 'Free-form notes about the carrier. ASK; OK to skip.' },
+            contactPerson: { type: 'string', description: 'Primary contact at the carrier. ASK.' },
+            email: { type: 'string', description: 'Primary contact email. ASK.' },
+            phone: { type: 'string', description: 'Primary contact phone. ASK.' },
+            rateType: { type: 'string', enum: ['PERCENTAGE', 'FLAT_PER_JOB', 'FLAT_PER_LOAD', 'FLAT_PER_TON', 'HOURLY'], description: 'How this carrier bills 5Rivers. ASK.' },
+            rate: { type: 'number', description: 'Rate per the unit implied by rateType (e.g. 15 = 15% if PERCENTAGE; 250 = $250/job if FLAT_PER_JOB). ASK.' },
+            status: { type: 'string', enum: ['ACTIVE', 'INACTIVE'], description: 'Carrier status. ASK; default ACTIVE for a carrier currently being onboarded.' },
         },
         required: ['name'],
     },

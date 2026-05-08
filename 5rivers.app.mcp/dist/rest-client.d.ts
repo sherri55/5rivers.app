@@ -29,6 +29,18 @@ export declare function createRestClient(config: RestClientConfig): {
         update: (id: string, data: Record<string, unknown>) => Promise<Record<string, unknown>>;
         delete: (id: string) => Promise<void>;
     };
+    jobImages: {
+        /** Upload an image and attach it to a job. Returns the created Image meta. */
+        upload: (jobId: string, content: Buffer, mimeType: string, fileName: string) => Promise<{
+            id: string;
+            jobId: string;
+            contentType: string;
+            fileName: string | null;
+            createdAt: string;
+        }>;
+        list: (jobId: string) => Promise<unknown[]>;
+        delete: (jobId: string, imageId: string) => Promise<void>;
+    };
     jobTypes: {
         list: (params?: ListParams) => Promise<ListResult<Record<string, unknown>>>;
         get: (id: string) => Promise<Record<string, unknown>>;
@@ -133,6 +145,18 @@ export declare function createRestClient(config: RestClientConfig): {
             create: (data: Record<string, unknown>) => Promise<Record<string, unknown>>;
             update: (id: string, data: Record<string, unknown>) => Promise<Record<string, unknown>>;
             delete: (id: string) => Promise<void>;
+        };
+        jobImages: {
+            /** Upload an image and attach it to a job. Returns the created Image meta. */
+            upload: (jobId: string, content: Buffer, mimeType: string, fileName: string) => Promise<{
+                id: string;
+                jobId: string;
+                contentType: string;
+                fileName: string | null;
+                createdAt: string;
+            }>;
+            list: (jobId: string) => Promise<unknown[]>;
+            delete: (jobId: string, imageId: string) => Promise<void>;
         };
         jobTypes: {
             list: (params?: ListParams) => Promise<ListResult<Record<string, unknown>>>;

@@ -111,12 +111,26 @@ async function listJobs(organizationId, pagination, options) {
     LEFT JOIN Units u ON j.unitId = u.id`;
     const jobColumns = ALL_COLUMNS.split(', ').map(c => `j.${c}`).join(', ')
         + ', jt.title AS jobTypeTitle, jt.dispatchType AS jobTypeDispatchType, jt.startLocation AS jobTypeStartLocation, jt.endLocation AS jobTypeEndLocation, c.id AS companyId, c.name AS companyName, d.name AS driverName, dp.name AS dispatcherName, u.name AS unitName';
+    // ORDER BY composition.
+    //   Primary   — whatever the caller asked for (defaults to jobDate).
+    //   Secondary — for jobDate sorts, chronological-within-the-day (startTime
+    //               ASC, nulls last) so a long list of jobs on the same date
+    //               reads top-to-bottom from morning shift to evening shift,
+    //               instead of "most recently created first" which made the
+    //               whole list look like it was sorted by modified date.
+    //   Tertiary  — id ASC as a stable tiebreaker so pagination is deterministic.
+    const orderClause = sortBy === 'jobDate'
+        ? `ORDER BY j.jobDate ${order},
+                  CASE WHEN j.startTime IS NULL THEN 1 ELSE 0 END,
+                  j.startTime ASC,
+                  j.id ASC`
+        : `ORDER BY j.${sortBy} ${order}, j.jobDate DESC, j.id ASC`;
     const [rows, countRows] = await Promise.all([
         (0, connection_1.query)(needsJoins
             ? `SELECT ${jobColumns} FROM Jobs j${joins} WHERE j.organizationId = @organizationId${whereExtra}
-           ORDER BY j.${sortBy} ${order}, j.createdAt DESC OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY`
+           ${orderClause} OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY`
             : `SELECT ${jobColumns} FROM Jobs j WHERE j.organizationId = @organizationId${whereExtra}
-           ORDER BY j.${sortBy} ${order}, j.createdAt DESC OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY`, { params }),
+           ${orderClause} OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY`, { params }),
         (0, connection_1.query)(needsJoins
             ? `SELECT COUNT(*) AS total FROM Jobs j${joins} WHERE j.organizationId = @organizationId${whereExtra}`
             : `SELECT COUNT(*) AS total FROM Jobs j WHERE j.organizationId = @organizationId${whereExtra}`, { params: countParams }),

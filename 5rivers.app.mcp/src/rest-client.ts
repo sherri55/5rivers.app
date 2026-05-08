@@ -108,7 +108,54 @@ export function createRestClient(config: RestClientConfig) {
     };
   }
 
+  /**
+   * Multipart upload helper. The server's image route is `upload.single('file')`,
+   * so the form field name MUST be "file". Uses Node's built-in FormData/Blob
+   * (Node 18+).
+   */
+  async function uploadFile<T>(
+    path: string,
+    content: Buffer,
+    mimeType: string,
+    fileName: string,
+  ): Promise<T> {
+    const url = `${baseUrl}${path}`;
+    const blob = new Blob([new Uint8Array(content)], { type: mimeType || 'application/octet-stream' });
+    const form = new FormData();
+    form.append('file', blob, fileName);
+
+    const headers: Record<string, string> = {};
+    if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+    // NOTE: do NOT set Content-Type — fetch+FormData sets the proper
+    // multipart/form-data; boundary=... header automatically.
+
+    const res = await fetch(url, { method: 'POST', headers, body: form });
+    if (res.status === 204) return undefined as T;
+    const json = await res.json();
+    if (!res.ok) {
+      const msg =
+        json?.error?.message || json?.error?.code || json?.message ||
+        (typeof json?.error === 'string' ? json.error : null) ||
+        `HTTP ${res.status}`;
+      throw new Error(msg);
+    }
+    return json as T;
+  }
+
   const jobs = crudFor<Record<string, unknown>>('jobs');
+
+  /** Job-image attachment helpers — wraps POST/GET/DELETE on /jobs/:id/images. */
+  const jobImages = {
+    /** Upload an image and attach it to a job. Returns the created Image meta. */
+    upload: (jobId: string, content: Buffer, mimeType: string, fileName: string) =>
+      uploadFile<{ id: string; jobId: string; contentType: string; fileName: string | null; createdAt: string }>(
+        `/jobs/${jobId}/images`, content, mimeType, fileName,
+      ),
+    list: (jobId: string) =>
+      request<unknown[]>('GET', `/jobs/${jobId}/images`),
+    delete: (jobId: string, imageId: string) =>
+      request<void>('DELETE', `/jobs/${jobId}/images/${imageId}`),
+  };
   const jobTypes = crudFor<Record<string, unknown>>('job-types');
   const drivers = crudFor<Record<string, unknown>>('drivers');
   const companies = crudFor<Record<string, unknown>>('companies');
@@ -174,6 +221,7 @@ export function createRestClient(config: RestClientConfig) {
 
   return {
     jobs,
+    jobImages,
     jobTypes,
     drivers,
     companies,

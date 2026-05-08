@@ -15,6 +15,12 @@ async function callTool(client, toolName, args) {
         return { result: `Error: ${msg}`, status: 'error' };
     }
 }
+// ─── Default driver fallback ─────────────────────────────────────────────────
+/**
+ * When the ticket has no driver field (or the name could not be matched),
+ * fall back to this driver instead of leaving driverId blank.
+ */
+const DEFAULT_DRIVER_NAME = 'Amrit';
 /**
  * Parse the text output of formatFuzzyResult() into a usable id+name,
  * or null if nothing matched.
@@ -306,6 +312,39 @@ function markEntity(entity, ocrName) {
         return `${entity.name} ✓`;
     return `${ocrName} ❌ (not matched)`;
 }
+/**
+ * Resolve a driver by name.  If the OCR name is absent or fuzzy-matching
+ * returns NO_MATCH, look up DEFAULT_DRIVER_NAME ("Amrit") as a fallback.
+ *
+ * Returns `{ entity, isDefault }` so callers can label it accordingly in the
+ * confirmation summary.
+ */
+async function resolveDriverWithFallback(ocrName, client, actions) {
+    // Try the name from the ticket first (if present)
+    if (ocrName) {
+        const res = await callTool(client, 'list_drivers', { search: ocrName });
+        actions.push({ tool: 'list_drivers', args: { search: ocrName }, ...res });
+        const entity = parseUseIdFromResult(res.result);
+        if (entity)
+            return { entity, isDefault: false };
+    }
+    // Fall back to DEFAULT_DRIVER_NAME
+    console.log(`[doc-proc] driver "${ocrName ?? '(none)'}" not resolved — falling back to default driver "${DEFAULT_DRIVER_NAME}"`);
+    const fallbackRes = await callTool(client, 'list_drivers', { search: DEFAULT_DRIVER_NAME });
+    actions.push({ tool: 'list_drivers', args: { search: DEFAULT_DRIVER_NAME }, ...fallbackRes });
+    const fallbackEntity = parseUseIdFromResult(fallbackRes.result);
+    return { entity: fallbackEntity, isDefault: true };
+}
+/** Format a driver entity for display, noting when it is the default. */
+function markDriver(entity, ocrName, isDefault) {
+    if (entity && isDefault)
+        return `${entity.name} ✓ *(default)*`;
+    if (entity)
+        return `${entity.name} ✓`;
+    if (ocrName)
+        return `${ocrName} ❌ (not matched)`;
+    return `${DEFAULT_DRIVER_NAME} ❌ (default not found)`;
+}
 /** Resolve a job type for a given company + extraction locations */
 async function resolveJobType(company, extraction, client, actions) {
     const jtRes = await callTool(client, 'list_job_types', { companyId: company.id });
@@ -334,6 +373,7 @@ async function resolveJobType(company, extraction, client, actions) {
 class EntityResolver {
     client;
     cache = new Map();
+    driverCache = new Map();
     actions = [];
     constructor(client) {
         this.client = client;
@@ -349,6 +389,18 @@ class EntityResolver {
         const entity = parseUseIdFromResult(res.result);
         this.cache.set(key, entity);
         return entity;
+    }
+    /**
+     * Resolve a driver with fallback to DEFAULT_DRIVER_NAME.
+     * Results are cached per OCR name.
+     */
+    async resolveDriver(ocrName) {
+        const cacheKey = ocrName ?? '__null__';
+        if (this.driverCache.has(cacheKey))
+            return this.driverCache.get(cacheKey);
+        const result = await resolveDriverWithFallback(ocrName, this.client, this.actions);
+        this.driverCache.set(cacheKey, result);
+        return result;
     }
     /** Drain recorded actions (transfers ownership to caller) */
     drainActions() {
@@ -385,12 +437,11 @@ function buildCreateJobArgs(extraction, jobTypeId, dispatcher, driver, unit) {
 // ─── Ticket processor (single) ──────────────────────────────────────────────
 async function processTicket(extraction, client, supervised) {
     const actions = [];
-    // ── Resolve entities in parallel ───────────────────────────────────────────
-    const [companyRes, dispatcherRes, unitRes, driverRes] = await Promise.all([
+    // ── Resolve entities (company/dispatcher/unit in parallel; driver uses fallback helper) ──
+    const [companyRes, dispatcherRes, unitRes] = await Promise.all([
         extraction.company ? callTool(client, 'list_companies', { search: extraction.company }) : null,
         extraction.dispatcher ? callTool(client, 'list_dispatchers', { search: extraction.dispatcher }) : null,
         extraction.unit ? callTool(client, 'list_units', { search: extraction.unit }) : null,
-        extraction.driver ? callTool(client, 'list_drivers', { search: extraction.driver }) : null,
     ]);
     if (companyRes)
         actions.push({ tool: 'list_companies', args: { search: extraction.company }, ...companyRes });
@@ -398,12 +449,11 @@ async function processTicket(extraction, client, supervised) {
         actions.push({ tool: 'list_dispatchers', args: { search: extraction.dispatcher }, ...dispatcherRes });
     if (unitRes)
         actions.push({ tool: 'list_units', args: { search: extraction.unit }, ...unitRes });
-    if (driverRes)
-        actions.push({ tool: 'list_drivers', args: { search: extraction.driver }, ...driverRes });
     const company = companyRes ? parseUseIdFromResult(companyRes.result) : null;
     const dispatcher = dispatcherRes ? parseUseIdFromResult(dispatcherRes.result) : null;
     const unit = unitRes ? parseUseIdFromResult(unitRes.result) : null;
-    const driver = driverRes ? parseUseIdFromResult(driverRes.result) : null;
+    // Driver: fall back to DEFAULT_DRIVER_NAME when absent or unrecognised
+    const { entity: driver, isDefault: driverIsDefault } = await resolveDriverWithFallback(extraction.driver, client, actions);
     // ── Resolve job type ───────────────────────────────────────────────────────
     const jobType = company
         ? await resolveJobType(company, extraction, client, actions)
@@ -415,7 +465,7 @@ async function processTicket(extraction, client, supervised) {
     else
         lines.push(`**Ticket** — ${extraction.date ?? 'date not readable'}`);
     lines.push(`Company: ${markEntity(company, extraction.company)}  |  Dispatcher: ${markEntity(dispatcher, extraction.dispatcher)}`);
-    lines.push(`Unit: ${markEntity(unit, extraction.unit)}  |  Driver: ${markEntity(driver, extraction.driver)}`);
+    lines.push(`Unit: ${markEntity(unit, extraction.unit)}  |  Driver: ${markDriver(driver, extraction.driver, driverIsDefault)}`);
     if (extraction.startTime || extraction.endTime) {
         lines.push(`Time: ${extraction.startTime ?? '—'} → ${extraction.endTime ?? '—'}`);
     }
@@ -483,7 +533,7 @@ async function processMultipleTickets(tickets, client, supervised) {
         const company = await resolver.resolve('list_companies', t.company);
         const dispatcher = await resolver.resolve('list_dispatchers', t.dispatcher);
         const unit = await resolver.resolve('list_units', t.unit);
-        const driver = await resolver.resolve('list_drivers', t.driver);
+        const { entity: driver, isDefault: driverIsDefault } = await resolver.resolveDriver(t.driver);
         // Resolve job type
         const jobType = company
             ? await resolveJobType(company, t, client, actions)
@@ -494,7 +544,7 @@ async function processMultipleTickets(tickets, client, supervised) {
             : `**${num}. Ticket** — ${t.date ?? 'no date'}`;
         summaryLines.push(header);
         summaryLines.push(`Company: ${markEntity(company, t.company)}  |  Dispatcher: ${markEntity(dispatcher, t.dispatcher)}`);
-        summaryLines.push(`Unit: ${markEntity(unit, t.unit)}  |  Driver: ${markEntity(driver, t.driver)}`);
+        summaryLines.push(`Unit: ${markEntity(unit, t.unit)}  |  Driver: ${markDriver(driver, t.driver, driverIsDefault)}`);
         if (t.startTime || t.endTime)
             summaryLines.push(`Time: ${t.startTime ?? '—'} → ${t.endTime ?? '—'}`);
         if (t.startLocation || t.endLocation)

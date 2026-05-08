@@ -1,3 +1,14 @@
+/**
+ * Wipe everything we hold for a (platform, userId) conversation:
+ *   • the chat history (system prompt + all turns)
+ *   • the three-phase pipeline state (current phase, parsed data)
+ *   • any pending supervision confirmation (regular tool calls)
+ *   • any pending document-processor confirmation
+ *
+ * Use this from /clear commands, the chat widget's clear button, etc.
+ * It is safe to call when nothing is set — every clear is a no-op miss.
+ */
+export declare function resetConversation(platform: string, userId: string): void;
 export interface AgentResponse {
     text: string;
     toolCalls?: Array<{

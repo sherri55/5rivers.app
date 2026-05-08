@@ -31,11 +31,19 @@ const TOKEN_SCHEMA = {
   token: { type: 'string', description: 'Authentication token from the login tool.' },
 };
 
-// Register all tools — inject "token" param into every non-login tool
+// When FIVE_RIVERS_TOKEN is set, tools don't need a per-call token param.
+// This makes the MCP server usable by small models that can't manage auth.
+const hasEnvToken = Boolean(AUTH_TOKEN?.trim());
+
+// Register all tools — inject "token" param only when no env token is set
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: ALL_TOOLS.map((t) => {
     if (t.name === 'login') return { name: t.name, description: t.description, inputSchema: t.inputSchema };
     const schema = t.inputSchema as Record<string, unknown>;
+    if (hasEnvToken) {
+      // Token auto-provided via env — don't expose token param to the model
+      return { name: t.name, description: t.description, inputSchema: schema };
+    }
     return {
       name: t.name,
       description: t.description,
@@ -61,17 +69,20 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     };
   }
 
-  // Extract token and build a per-request client for all non-login tools
+  // Resolve token: per-call param > env var
   if (name !== 'login') {
-    const token = safeArgs.token;
-    if (!token || typeof token !== 'string' || !token.trim()) {
+    const token = (typeof safeArgs.token === 'string' && safeArgs.token.trim())
+      ? safeArgs.token.trim()
+      : AUTH_TOKEN?.trim() ?? '';
+
+    if (!token) {
       return {
-        content: [{ type: 'text', text: 'Missing token. Call the login tool first to get a token, then pass it as the "token" parameter.' }],
+        content: [{ type: 'text', text: 'Missing token. Set FIVE_RIVERS_TOKEN env var or pass token parameter.' }],
         isError: true,
       };
     }
     const { token: _t, ...toolArgs } = safeArgs;
-    const requestClient = client.withToken(token.trim());
+    const requestClient = client.withToken(token);
     try {
       const result = await tool.handler(requestClient, toolArgs);
       return { content: [{ type: 'text', text: result }] };

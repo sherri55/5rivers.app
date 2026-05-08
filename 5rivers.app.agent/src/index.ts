@@ -11,7 +11,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // override: false — don't overwrite vars already set by the host process
 dotenv.config({ path: resolve(__dirname, '../.env'), override: false });
 
-export { processMessage, type AgentResponse } from './llm.js';
+export { processMessage, resetConversation, type AgentResponse } from './llm.js';
 export { getToken, setToken, removeToken, hasToken, loadAuthMap, getAutoToken, clearAutoToken } from './auth.js';
 export {
   getHistory,
