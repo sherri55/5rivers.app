@@ -8,7 +8,7 @@ import { SourceTypeBadge } from '@/components/ui/Badge';
 import { PageSpinner } from '@/components/ui/Spinner';
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
 
 // ============================================
@@ -20,7 +20,6 @@ const CHART_COLORS = ['#465fff', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#e
 export function DashboardPage() {
   const stats = useQuery({ queryKey: ['dashboard', 'stats'], queryFn: analyticsApi.dashboard });
   const dailyRevenue = useQuery({ queryKey: ['dashboard', 'dailyRevenue'], queryFn: () => analyticsApi.revenueDaily(60) });
-  const monthlyRevenue = useQuery({ queryKey: ['dashboard', 'monthlyRevenue'], queryFn: () => analyticsApi.revenueMonthly(24) });
   const companyRevenue = useQuery({ queryKey: ['dashboard', 'companyRevenue'], queryFn: () => analyticsApi.revenueByCompany() });
   const sourceBreakdown = useQuery({ queryKey: ['dashboard', 'source'], queryFn: () => analyticsApi.sourceBreakdown() });
   const driverRevenue = useQuery({ queryKey: ['dashboard', 'drivers'], queryFn: () => analyticsApi.revenueByDriver() });
@@ -76,14 +75,14 @@ export function DashboardPage() {
         </div>
         <div className="flex gap-3">
           <Link
-            to="/reports"
+            to="/dashboard/reports"
             className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 transition-colors"
           >
             <span className="material-symbols-outlined text-[18px]">analytics</span>
             Reports
           </Link>
           <Link
-            to="/jobs/new"
+            to="/dashboard/jobs/new"
             className="inline-flex items-center gap-2 rounded-lg bg-[#465fff] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#3b4fe0] transition-colors shadow-sm"
           >
             <span className="material-symbols-outlined text-[18px]">add</span>
@@ -294,7 +293,7 @@ export function DashboardPage() {
           <div className="rounded-2xl border border-gray-200 bg-white p-5 sm:p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-semibold text-gray-800">Top Companies</h3>
-              <Link to="/reports?tab=companies" className="text-xs font-medium text-[#465fff] hover:underline">View All</Link>
+              <Link to="/dashboard/reports?tab=companies" className="text-xs font-medium text-[#465fff] hover:underline">View All</Link>
             </div>
             <div className="space-y-3">
               {(companyRevenue.data ?? []).slice(0, 5).map((c, i) => {
@@ -407,7 +406,7 @@ export function DashboardPage() {
               <h3 className="text-lg font-semibold text-gray-800">Top Drivers</h3>
               <p className="text-xs text-gray-500 mt-0.5">By revenue</p>
             </div>
-            <Link to="/reports?tab=drivers" className="text-xs font-medium text-[#465fff] hover:underline">View All</Link>
+            <Link to="/dashboard/reports?tab=drivers" className="text-xs font-medium text-[#465fff] hover:underline">View All</Link>
           </div>
           <div className="space-y-3">
             {(driverRevenue.data ?? []).slice(0, 5).map((d, i) => (
@@ -426,7 +425,7 @@ export function DashboardPage() {
               <h3 className="text-lg font-semibold text-gray-800">Top Job Types</h3>
               <p className="text-xs text-gray-500 mt-0.5">By revenue</p>
             </div>
-            <Link to="/reports?tab=job-types" className="text-xs font-medium text-[#465fff] hover:underline">View All</Link>
+            <Link to="/dashboard/reports?tab=job-types" className="text-xs font-medium text-[#465fff] hover:underline">View All</Link>
           </div>
           <div className="space-y-3">
             {(topJobTypes.data ?? []).slice(0, 5).map((jt, i) => {
@@ -458,7 +457,7 @@ export function DashboardPage() {
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between px-5 py-4 sm:px-6 border-b border-gray-100">
           <h3 className="text-lg font-semibold text-gray-800">Recent Jobs</h3>
           <div className="flex items-center gap-3">
-            <Link to="/jobs" className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3.5 py-2 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 transition-colors">
+            <Link to="/dashboard/jobs" className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3.5 py-2 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 transition-colors">
               View All
             </Link>
           </div>
@@ -508,7 +507,7 @@ export function DashboardPage() {
               {(recentJobs.data?.data ?? []).length === 0 && (
                 <tr>
                   <td colSpan={7} className="px-5 py-8 text-center text-sm text-gray-400">
-                    No jobs yet. <Link to="/jobs/new" className="text-[#465fff] hover:underline">Create your first job</Link>
+                    No jobs yet. <Link to="/dashboard/jobs/new" className="text-[#465fff] hover:underline">Create your first job</Link>
                   </td>
                 </tr>
               )}
@@ -581,7 +580,7 @@ function QuickStat({ label, value, sub, color }: { label: string; value: string;
   );
 }
 
-function DriverRow({ driver, rank, maxRevenue }: { driver: DriverRevenue; rank: number; maxRevenue: number }) {
+function DriverRow({ driver, maxRevenue }: { driver: DriverRevenue; rank: number; maxRevenue: number }) {
   const pct = maxRevenue > 0 ? (driver.revenue / maxRevenue * 100) : 0;
   return (
     <div className="flex items-center gap-3">

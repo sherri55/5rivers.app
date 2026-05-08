@@ -14,19 +14,20 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { label: 'Dashboard', icon: 'dashboard', path: '/dashboard' },
-  { label: 'Jobs', icon: 'local_shipping', path: '/jobs' },
-  { label: 'Drivers', icon: 'person', path: '/drivers' },
-  { label: 'Units', icon: 'precision_manufacturing', path: '/units' },
-  { label: 'Companies', icon: 'business', path: '/companies' },
-  { label: 'Dispatchers', icon: 'support_agent', path: '/dispatchers' },
-  { label: 'Carriers', icon: 'conveyor_belt', path: '/carriers' },
-  { label: 'Invoices', icon: 'receipt_long', path: '/invoices' },
-  { label: 'Expenses', icon: 'account_balance', path: '/expenses' },
-  { label: 'Reports', icon: 'analytics', path: '/reports' },
+  { label: 'Jobs', icon: 'local_shipping', path: '/dashboard/jobs' },
+  { label: 'Drivers', icon: 'person', path: '/dashboard/drivers' },
+  { label: 'Units', icon: 'precision_manufacturing', path: '/dashboard/units' },
+  { label: 'Companies', icon: 'business', path: '/dashboard/companies' },
+  { label: 'Dispatchers', icon: 'support_agent', path: '/dashboard/dispatchers' },
+  { label: 'Carriers', icon: 'conveyor_belt', path: '/dashboard/carriers' },
+  { label: 'Invoices', icon: 'receipt_long', path: '/dashboard/invoices' },
+  { label: 'Expenses', icon: 'account_balance', path: '/dashboard/expenses' },
+  { label: 'Inquiries', icon: 'forward_to_inbox', path: '/dashboard/inquiries' },
+  { label: 'Reports', icon: 'analytics', path: '/dashboard/reports' },
 ];
 
 const bottomItems: NavItem[] = [
-  { label: 'Settings', icon: 'settings', path: '/settings' },
+  { label: 'Settings', icon: 'settings', path: '/dashboard/settings' },
 ];
 
 interface SidebarProps {

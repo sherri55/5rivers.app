@@ -7,9 +7,9 @@ import { cn } from '@/lib/cn';
 
 const tabs = [
   { label: 'Dashboard', icon: 'dashboard', path: '/dashboard' },
-  { label: 'Jobs', icon: 'local_shipping', path: '/jobs' },
-  { label: 'Units', icon: 'precision_manufacturing', path: '/units' },
-  { label: 'More', icon: 'more_horiz', path: '/settings' },
+  { label: 'Jobs', icon: 'local_shipping', path: '/dashboard/jobs' },
+  { label: 'Units', icon: 'precision_manufacturing', path: '/dashboard/units' },
+  { label: 'More', icon: 'more_horiz', path: '/dashboard/settings' },
 ];
 
 export function MobileNav() {

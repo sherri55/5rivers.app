@@ -74,7 +74,7 @@ export function DriverFormPage() {
         await createDriver.mutateAsync(payload);
         addToast('Driver created successfully', 'success');
       }
-      navigate('/drivers');
+      navigate('/dashboard/drivers');
     } catch (err) {
       addToast(
         err instanceof Error ? err.message : 'Failed to save driver',
@@ -88,7 +88,7 @@ export function DriverFormPage() {
     deleteDriver.mutate(id, {
       onSuccess: () => {
         addToast('Driver deleted', 'success');
-        navigate('/drivers');
+        navigate('/dashboard/drivers');
       },
       onError: (err) => addToast(err.message, 'error'),
     });
@@ -325,7 +325,7 @@ export function DriverFormPage() {
           <div className="flex items-center gap-4">
             <button
               type="button"
-              onClick={() => navigate('/drivers')}
+              onClick={() => navigate('/dashboard/drivers')}
               className="bg-surface-container-low text-on-surface-variant px-5 py-2.5 rounded-lg font-medium text-sm border border-outline-variant/20 hover:bg-surface-container transition-colors"
             >
               Cancel

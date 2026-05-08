@@ -18,6 +18,7 @@ import analyticsRoutes from './analytics.routes';
 import expenseCategoriesRoutes from './expenseCategories.routes';
 import expensesRoutes from './expenses.routes';
 import agentRoutes from './agent.routes';
+import inquiriesRoutes from './inquiries.routes';
 
 const router = Router();
 
@@ -40,5 +41,6 @@ router.use('/api', analyticsRoutes);
 router.use('/api', expenseCategoriesRoutes);
 router.use('/api', expensesRoutes);
 router.use('/api', agentRoutes);
+router.use('/api', inquiriesRoutes);
 
 export default router;

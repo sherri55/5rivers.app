@@ -20,7 +20,7 @@ import { PageSpinner, ButtonSpinner } from '@/components/ui/Spinner';
 import { ExportPdfButton } from '@/components/ui/ExportPdfButton';
 import { Select } from '@/components/ui/Select';
 import { ConfirmModal, Modal } from '@/components/ui/Modal';
-import type { InvoiceStatus, Job, JobInvoiceLine } from '@/types';
+import type { InvoiceStatus, JobInvoiceLine } from '@/types';
 
 // ============================================
 // Invoice Form — Create & Edit with sections:
@@ -114,10 +114,8 @@ export function InvoiceFormPage() {
     () => new Map(driversData?.data.map((d) => [d.id, d.name]) ?? []),
     [driversData],
   );
-  const jobTypeMap = useMemo(
-    () => new Map(jobTypesData?.data.map((jt) => [jt.id, jt.title]) ?? []),
-    [jobTypesData],
-  );
+  // jobTypeMap was unused — removed. Re-add with `void jobTypeMap` if needed.
+  void jobTypesData;
   const dispatcherMap = useMemo(
     () => new Map(dispatchersData?.data.map((d) => [d.id, d]) ?? []),
     [dispatchersData],
@@ -259,12 +257,12 @@ export function InvoiceFormPage() {
     e.preventDefault();
 
     const payload = {
-      invoiceDate: invoiceDate || null,
+      invoiceDate: invoiceDate || undefined,
       status,
-      dispatcherId: billingType === 'dispatcher' && dispatcherId ? dispatcherId : null,
-      companyId: billingType === 'company' && companyId ? companyId : null,
-      billedTo: billedTo || null,
-      billedEmail: billedEmail || null,
+      dispatcherId: billingType === 'dispatcher' && dispatcherId ? dispatcherId : undefined,
+      companyId: billingType === 'company' && companyId ? companyId : undefined,
+      billedTo: billedTo || undefined,
+      billedEmail: billedEmail || undefined,
     };
 
     try {
@@ -275,7 +273,7 @@ export function InvoiceFormPage() {
         await createInvoice.mutateAsync(payload);
         addToast('Invoice created successfully', 'success');
       }
-      navigate('/invoices');
+      navigate('/dashboard/invoices');
     } catch (err) {
       addToast(
         err instanceof Error ? err.message : 'Failed to save invoice',
@@ -289,7 +287,7 @@ export function InvoiceFormPage() {
     deleteInvoice.mutate(id, {
       onSuccess: () => {
         addToast('Invoice deleted', 'success');
-        navigate('/invoices');
+        navigate('/dashboard/invoices');
       },
       onError: (err) => addToast(err.message, 'error'),
     });
@@ -666,7 +664,7 @@ export function InvoiceFormPage() {
           <div className="flex items-center gap-4">
             <button
               type="button"
-              onClick={() => navigate('/invoices')}
+              onClick={() => navigate('/dashboard/invoices')}
               className="bg-surface-container-low text-on-surface-variant px-5 py-2.5 rounded-lg font-medium text-sm border border-outline-variant/20 hover:bg-surface-container transition-colors"
             >
               Cancel

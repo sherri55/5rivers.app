@@ -27,6 +27,8 @@ import { ReportsPage } from '@/pages/reports/ReportsPage';
 import { ExpensesListPage } from '@/pages/expenses/ExpensesListPage';
 import { ExpenseFormPage } from '@/pages/expenses/ExpenseFormPage';
 import { ExpenseCategoriesPage } from '@/pages/expenses/ExpenseCategoriesPage';
+import { HomePage } from '@/pages/public/HomePage';
+import { InquiriesListPage } from '@/pages/inquiries/InquiriesListPage';
 
 // ============================================
 // App Root — routing, providers, query client
@@ -74,70 +76,76 @@ export default function App() {
         <ToastProvider>
           <BrowserRouter>
             <Routes>
-              {/* Public routes */}
+              {/* Public marketing homepage — always visible, even when authenticated */}
+              <Route path="/" element={<HomePage />} />
+
+              {/* Public auth */}
               <Route path="/login" element={<LoginPage />} />
 
-              {/* Protected routes */}
+              {/* Protected dashboard — every internal app route is nested under /dashboard */}
               <Route
+                path="/dashboard"
                 element={
                   <ProtectedRoute>
                     <AppLayout />
                   </ProtectedRoute>
                 }
               >
-                <Route index element={<Navigate to="/dashboard" replace />} />
-                <Route path="/dashboard" element={<DashboardPage />} />
+                <Route index element={<DashboardPage />} />
 
                 {/* Jobs */}
-                <Route path="/jobs" element={<JobsListPage />} />
-                <Route path="/jobs/new" element={<JobFormPage />} />
-                <Route path="/jobs/:id/edit" element={<JobFormPage />} />
+                <Route path="jobs" element={<JobsListPage />} />
+                <Route path="jobs/new" element={<JobFormPage />} />
+                <Route path="jobs/:id/edit" element={<JobFormPage />} />
 
                 {/* Drivers */}
-                <Route path="/drivers" element={<DriversListPage />} />
-                <Route path="/drivers/new" element={<DriverFormPage />} />
-                <Route path="/drivers/:id/edit" element={<DriverFormPage />} />
+                <Route path="drivers" element={<DriversListPage />} />
+                <Route path="drivers/new" element={<DriverFormPage />} />
+                <Route path="drivers/:id/edit" element={<DriverFormPage />} />
 
                 {/* Companies */}
-                <Route path="/companies" element={<CompaniesListPage />} />
-                <Route path="/companies/new" element={<CompanyFormPage />} />
-                <Route path="/companies/:id/edit" element={<CompanyFormPage />} />
+                <Route path="companies" element={<CompaniesListPage />} />
+                <Route path="companies/new" element={<CompanyFormPage />} />
+                <Route path="companies/:id/edit" element={<CompanyFormPage />} />
 
                 {/* Dispatchers */}
-                <Route path="/dispatchers" element={<DispatchersListPage />} />
-                <Route path="/dispatchers/new" element={<DispatcherFormPage />} />
-                <Route path="/dispatchers/:id/edit" element={<DispatcherFormPage />} />
+                <Route path="dispatchers" element={<DispatchersListPage />} />
+                <Route path="dispatchers/new" element={<DispatcherFormPage />} />
+                <Route path="dispatchers/:id/edit" element={<DispatcherFormPage />} />
 
                 {/* Units */}
-                <Route path="/units" element={<UnitsListPage />} />
-                <Route path="/units/new" element={<UnitFormPage />} />
-                <Route path="/units/:id/edit" element={<UnitFormPage />} />
+                <Route path="units" element={<UnitsListPage />} />
+                <Route path="units/new" element={<UnitFormPage />} />
+                <Route path="units/:id/edit" element={<UnitFormPage />} />
 
                 {/* Carriers */}
-                <Route path="/carriers" element={<CarriersListPage />} />
-                <Route path="/carriers/new" element={<CarrierFormPage />} />
-                <Route path="/carriers/:id/edit" element={<CarrierFormPage />} />
+                <Route path="carriers" element={<CarriersListPage />} />
+                <Route path="carriers/new" element={<CarrierFormPage />} />
+                <Route path="carriers/:id/edit" element={<CarrierFormPage />} />
 
                 {/* Invoices */}
-                <Route path="/invoices" element={<InvoicesListPage />} />
-                <Route path="/invoices/new" element={<InvoiceFormPage />} />
-                <Route path="/invoices/:id/edit" element={<InvoiceFormPage />} />
+                <Route path="invoices" element={<InvoicesListPage />} />
+                <Route path="invoices/new" element={<InvoiceFormPage />} />
+                <Route path="invoices/:id/edit" element={<InvoiceFormPage />} />
 
                 {/* Expenses */}
-                <Route path="/expenses" element={<ExpensesListPage />} />
-                <Route path="/expenses/new" element={<ExpenseFormPage />} />
-                <Route path="/expenses/:id/edit" element={<ExpenseFormPage />} />
-                <Route path="/expenses/categories" element={<ExpenseCategoriesPage />} />
+                <Route path="expenses" element={<ExpensesListPage />} />
+                <Route path="expenses/new" element={<ExpenseFormPage />} />
+                <Route path="expenses/:id/edit" element={<ExpenseFormPage />} />
+                <Route path="expenses/categories" element={<ExpenseCategoriesPage />} />
+
+                {/* Inquiries (public-form leads) */}
+                <Route path="inquiries" element={<InquiriesListPage />} />
 
                 {/* Reports */}
-                <Route path="/reports" element={<ReportsPage />} />
+                <Route path="reports" element={<ReportsPage />} />
 
                 {/* Settings */}
-                <Route path="/settings" element={<SettingsPage />} />
+                <Route path="settings" element={<SettingsPage />} />
               </Route>
 
-              {/* Catch-all */}
-              <Route path="*" element={<Navigate to="/dashboard" replace />} />
+              {/* Catch-all → public homepage */}
+              <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </BrowserRouter>
         </ToastProvider>

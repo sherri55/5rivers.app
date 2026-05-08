@@ -205,7 +205,7 @@ export function JobFormPage() {
         await createJob.mutateAsync(payload);
         addToast('Job created successfully', 'success');
       }
-      navigate('/jobs');
+      navigate('/dashboard/jobs');
     } catch (err) {
       addToast(
         err instanceof Error ? err.message : 'Failed to save job',
@@ -300,7 +300,7 @@ export function JobFormPage() {
     deleteJob.mutate(id, {
       onSuccess: () => {
         addToast('Job deleted', 'success');
-        navigate('/jobs');
+        navigate('/dashboard/jobs');
       },
       onError: (err) => addToast(err.message, 'error'),
     });
@@ -876,7 +876,7 @@ export function JobFormPage() {
           <div className="flex items-center gap-4">
             <button
               type="button"
-              onClick={() => navigate('/jobs')}
+              onClick={() => navigate('/dashboard/jobs')}
               className="bg-surface-container-low text-on-surface-variant px-5 py-2.5 rounded-lg font-medium text-sm border border-outline-variant/20 hover:bg-surface-container transition-colors"
             >
               Cancel

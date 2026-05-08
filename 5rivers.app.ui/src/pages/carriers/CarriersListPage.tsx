@@ -210,7 +210,7 @@ export function CarriersListPage() {
           </h1>
         </div>
         <Link
-          to="/carriers/new"
+          to="/dashboard/carriers/new"
           className="gradient-primary text-white px-6 py-2.5 rounded-lg font-semibold text-sm shadow-md active:scale-[0.98] transition-all flex items-center gap-2"
         >
           <span className="material-symbols-outlined text-[18px]">add</span>

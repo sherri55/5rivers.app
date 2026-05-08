@@ -67,7 +67,7 @@ export function DispatcherFormPage() {
         await createDispatcher.mutateAsync(payload);
         addToast('Dispatcher created successfully', 'success');
       }
-      navigate('/dispatchers');
+      navigate('/dashboard/dispatchers');
     } catch (err) {
       addToast(
         err instanceof Error ? err.message : 'Failed to save dispatcher',
@@ -81,7 +81,7 @@ export function DispatcherFormPage() {
     deleteDispatcher.mutate(id, {
       onSuccess: () => {
         addToast('Dispatcher deleted', 'success');
-        navigate('/dispatchers');
+        navigate('/dashboard/dispatchers');
       },
       onError: (err) => addToast(err.message, 'error'),
     });
@@ -206,7 +206,7 @@ export function DispatcherFormPage() {
           <div className="flex items-center gap-4">
             <button
               type="button"
-              onClick={() => navigate('/dispatchers')}
+              onClick={() => navigate('/dashboard/dispatchers')}
               className="bg-surface-container-low text-on-surface-variant px-5 py-2.5 rounded-lg font-medium text-sm border border-outline-variant/20 hover:bg-surface-container transition-colors"
             >
               Cancel

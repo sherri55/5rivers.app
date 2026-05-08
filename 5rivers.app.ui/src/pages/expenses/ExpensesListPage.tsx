@@ -231,14 +231,14 @@ export function ExpensesListPage() {
         </div>
         <div className="flex gap-3">
           <Link
-            to="/expenses/categories"
+            to="/dashboard/expenses/categories"
             className="bg-surface-container-low text-on-surface-variant px-5 py-2.5 rounded-lg font-medium text-sm border border-outline-variant/20 hover:bg-surface-container transition-colors flex items-center gap-2"
           >
             <span className="material-symbols-outlined text-[18px]">category</span>
             Categories
           </Link>
           <Link
-            to="/expenses/new"
+            to="/dashboard/expenses/new"
             className="gradient-primary text-white px-6 py-2.5 rounded-lg font-semibold text-sm shadow-md active:scale-[0.98] transition-all flex items-center gap-2"
           >
             <span className="material-symbols-outlined text-[18px]">add</span>

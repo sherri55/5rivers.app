@@ -83,7 +83,7 @@ export function ExpenseFormPage() {
         await createExpense.mutateAsync(payload);
         addToast('Expense created successfully', 'success');
       }
-      navigate('/expenses');
+      navigate('/dashboard/expenses');
     } catch (err) {
       addToast(
         err instanceof Error ? err.message : 'Failed to save expense',
@@ -97,7 +97,7 @@ export function ExpenseFormPage() {
     deleteExpense.mutate(id, {
       onSuccess: () => {
         addToast('Expense deleted', 'success');
-        navigate('/expenses');
+        navigate('/dashboard/expenses');
       },
       onError: (err) => addToast(err.message, 'error'),
     });
@@ -301,7 +301,7 @@ export function ExpenseFormPage() {
           <div className="flex items-center gap-4">
             <button
               type="button"
-              onClick={() => navigate('/expenses')}
+              onClick={() => navigate('/dashboard/expenses')}
               className="bg-surface-container-low text-on-surface-variant px-5 py-2.5 rounded-lg font-medium text-sm border border-outline-variant/20 hover:bg-surface-container transition-colors"
             >
               Cancel

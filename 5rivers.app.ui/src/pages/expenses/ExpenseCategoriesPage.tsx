@@ -107,7 +107,7 @@ export function ExpenseCategoriesPage() {
       {/* Header */}
       <header className="mb-8">
         <nav className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">
-          <Link to="/expenses" className="hover:text-primary transition-colors">
+          <Link to="/dashboard/expenses" className="hover:text-primary transition-colors">
             Expenses
           </Link>
           <span className="material-symbols-outlined text-[12px]">chevron_right</span>

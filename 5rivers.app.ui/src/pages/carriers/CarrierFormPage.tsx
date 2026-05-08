@@ -114,7 +114,7 @@ export function CarrierFormPage() {
         await createCarrier.mutateAsync(payload);
         addToast('Carrier created successfully', 'success');
       }
-      navigate('/carriers');
+      navigate('/dashboard/carriers');
     } catch (err) {
       addToast(
         err instanceof Error ? err.message : 'Failed to save carrier',
@@ -128,7 +128,7 @@ export function CarrierFormPage() {
     deleteCarrier.mutate(id, {
       onSuccess: () => {
         addToast('Carrier deleted', 'success');
-        navigate('/carriers');
+        navigate('/dashboard/carriers');
       },
       onError: (err) => addToast(err.message, 'error'),
     });
@@ -306,7 +306,7 @@ export function CarrierFormPage() {
           <div className="flex items-center gap-4">
             <button
               type="button"
-              onClick={() => navigate('/carriers')}
+              onClick={() => navigate('/dashboard/carriers')}
               className="bg-surface-container-low text-on-surface-variant px-5 py-2.5 rounded-lg font-medium text-sm border border-outline-variant/20 hover:bg-surface-container transition-colors"
             >
               Cancel

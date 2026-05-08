@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { expensesApi, expenseCategoriesApi } from '@/api/endpoints';
-import type { PaginationParams, Expense, ExpenseCategory, CreateExpenseInput, UpdateExpenseInput } from '@/types';
+import type { PaginationParams, ExpenseCategory, CreateExpenseInput, UpdateExpenseInput } from '@/types';
 
 // --- Expense Category hooks ---
 

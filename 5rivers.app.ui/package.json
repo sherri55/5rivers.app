@@ -12,6 +12,7 @@
   "dependencies": {
     "@tanstack/react-query": "^5.91.3",
     "clsx": "^2.1.1",
+    "gsap": "^3.15.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-markdown": "^10.1.0",

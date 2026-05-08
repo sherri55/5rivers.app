@@ -73,6 +73,20 @@
   /* Font families */
   --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  /* Public marketing site — Space Grotesk (display) + Space Mono (data labels) */
+  --font-display: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  --font-label-mono: 'Space Mono', ui-monospace, monospace;
+
+  /* Public marketing site — maroon palette
+     (intentionally separate from the admin app's blue primary) */
+  --color-public-primary: #570000;
+  --color-public-primary-container: #800000;
+  --color-public-tint: #b22b1d;
+  --color-public-on-surface: #1a1c1c;
+  --color-public-on-surface-variant: #5a413d;
+  --color-public-surface: #ffffff;
+  --color-public-surface-low: #f3f3f3;
 }
 
 /* ============================================
@@ -136,4 +150,89 @@ body {
   .pb-safe {
     padding-bottom: env(safe-area-inset-bottom);
   }
+}
+
+/* ============================================
+   Public marketing homepage utilities
+   Used only by /pages/public/* — kept here so the maroon palette and
+   chapter-scroll classes don't bloat the dashboard CSS bundle.
+   ============================================ */
+
+.public-page {
+  background-color: var(--color-public-surface);
+  color: var(--color-public-on-surface);
+}
+
+.public-chapter {
+  height: 100vh;
+  width: 100%;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.public-chapter-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  will-change: transform;
+}
+
+.public-chapter-bg img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.8;
+  filter: grayscale(20%) contrast(120%);
+}
+
+.public-chapter-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to right, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.7) 40%, transparent 100%);
+  z-index: 1;
+}
+
+.public-chapter-overlay-dark {
+  background: linear-gradient(to right, rgba(87,0,0,0.95) 0%, rgba(87,0,0,0.7) 40%, rgba(0,0,0,0.4) 100%);
+}
+
+.public-chapter-content {
+  position: relative;
+  z-index: 10;
+  width: 100%;
+  max-width: 1600px;
+  padding: 0 5vw;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  height: 100%;
+}
+
+.public-huge-text {
+  font-family: var(--font-display);
+  font-size: clamp(4rem, 10vw, 12rem);
+  line-height: 0.85;
+  letter-spacing: -0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  will-change: transform;
+}
+
+.public-glass-panel {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(178, 43, 29, 0.2);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1);
+}
+
+.public-label-mono {
+  font-family: var(--font-label-mono);
+}
+
+.public-display {
+  font-family: var(--font-display);
 }

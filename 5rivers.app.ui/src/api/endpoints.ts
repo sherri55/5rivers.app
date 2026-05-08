@@ -351,6 +351,33 @@ export const analyticsApi = {
   monthlyProfit: (months?: number) => api.get<MonthlyProfit[]>(`/analytics/profit/monthly${months ? `?months=${months}` : ''}`),
 };
 
+// --- Inquiries (public-form leads) ---
+
+export type InquiryStatus = 'NEW' | 'CONTACTED' | 'QUALIFIED' | 'CLOSED_WON' | 'CLOSED_LOST';
+
+export interface Inquiry {
+  id: string;
+  fullName: string;
+  email: string;
+  phone: string | null;
+  serviceType: string;
+  projectDetails: string | null;
+  status: InquiryStatus;
+  source: string;
+  notes: string | null;
+  userAgent: string | null;
+  ipAddress: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const inquiriesApi = {
+  list: (params?: PaginationParams & { status?: InquiryStatus }) =>
+    api.get<ListResult<Inquiry>>(`/inquiries${buildQuery(params)}`),
+  update: (id: string, data: { status?: InquiryStatus; notes?: string }) =>
+    api.patch<Inquiry>(`/inquiries/${id}`, data),
+};
+
 // --- Invoice Jobs ---
 
 export const invoiceJobsApi = {

@@ -12,7 +12,7 @@ import { Select } from '@/components/ui/Select';
 import { useColumnVisibility, type ColumnDef } from '@/hooks/useColumnVisibility';
 import { ExportPdfButton, type PdfColumnDef } from '@/components/ui/ExportPdfButton';
 import { pdfApi } from '@/api/endpoints';
-import type { Unit, PaginationParams, UnitStatus } from '@/types';
+import type { Unit, PaginationParams } from '@/types';
 
 // ============================================
 // Units List — card grid layout with status
@@ -107,7 +107,7 @@ export function UnitsListPage() {
           </h1>
         </div>
         <Link
-          to="/units/new"
+          to="/dashboard/units/new"
           className="gradient-primary text-white px-6 py-2.5 rounded-lg font-semibold text-sm shadow-md active:scale-[0.98] transition-all flex items-center gap-2"
         >
           <span className="material-symbols-outlined text-[18px]">add</span>

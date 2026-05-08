@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+
+<html class="scroll-smooth" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Space+Mono:wght@400;700&amp;family=Inter:wght@300;400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            background-color: var(--tw-colors-background);
+            color: var(--tw-colors-on-background);
+            overflow-x: hidden;
+        }
+        .hud-line {
+            position: absolute;
+            background: rgba(178, 43, 29, 0.4);
+            z-index: 50;
+        }
+        .hud-dot {
+            width: 4px;
+            height: 4px;
+            background: #b22b1d;
+            position: absolute;
+            z-index: 50;
+        }
+        
+        .chapter-section {
+            height: 100vh;
+            width: 100vw;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .chapter-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            will-change: transform;
+        }
+        
+        .chapter-bg img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            opacity: 0.8;
+            filter: grayscale(20%) contrast(120%);
+        }
+
+        .chapter-overlay {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(to right, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.7) 40%, transparent 100%);
+            z-index: 1;
+        }
+
+        .dark-overlay {
+            background: linear-gradient(to right, rgba(87,0,0,0.95) 0%, rgba(87,0,0,0.7) 40%, rgba(0,0,0,0.4) 100%);
+        }
+
+        .chapter-content {
+            position: relative;
+            z-index: 10;
+            width: 100%;
+            max-width: 1600px;
+            padding: 0 5vw;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            height: 100%;
+        }
+
+        .huge-text {
+            font-size: clamp(4rem, 10vw, 12rem);
+            line-height: 0.85;
+            letter-spacing: -0.04em;
+            text-transform: uppercase;
+            white-space: nowrap;
+            will-change: transform;
+        }
+
+        .micro-data {
+            font-family: 'Space Mono', monospace;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
+            overflow: hidden;
+        }
+
+        .micro-data-inner {
+            display: inline-block;
+            will-change: transform;
+        }
+
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(178, 43, 29, 0.2);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "background": "#ffffff",
+                      "on-background": "#1a1c1c",
+                      "primary": "#570000",
+                      "primary-container": "#800000",
+                      "on-primary": "#ffffff",
+                      "surface": "#ffffff",
+                      "on-surface": "#1a1c1c",
+                      "on-surface-variant": "#5a413d",
+                      "surface-container-low": "#f3f3f3",
+                      "outline": "#8e706c",
+                      "surface-tint": "#b22b1d"
+              },
+              "fontFamily": {
+                      "label-mono": ["Space Mono"],
+                      "display-lg": ["Space Grotesk"],
+                      "headline-md": ["Space Grotesk"],
+                      "body-lg": ["Inter"],
+                      "display-xl": ["Space Grotesk"],
+                      "body-md": ["Inter"]
+              }
+            },
+          },
+        }
+    </script>
+</head>
+<body class="bg-background text-on-background font-body-md overflow-x-hidden relative">
+<!-- Persistent HUD -->
+<!-- TopNavBar -->
+<header class="fixed top-0 left-0 w-full z-[60] px-8 py-6 flex justify-between items-center glass-panel border-b border-primary/20">
+<div class="font-display-lg text-2xl font-bold tracking-tighter text-primary relative">
+        WROOM INC.
+    </div>
+<nav class="hidden md:flex items-center gap-12">
+<a class="text-primary font-bold font-label-mono text-xs hover:tracking-widest transition-all duration-300" href="#ch-services">SERVICES</a>
+<a class="text-on-surface-variant font-bold font-label-mono text-xs hover:text-primary hover:tracking-widest transition-all duration-300" href="#ch-about">ABOUT</a>
+<a class="text-on-surface-variant font-bold font-label-mono text-xs hover:text-primary hover:tracking-widest transition-all duration-300" href="#ch-contact">CONTACT</a>
+</nav>
+<button class="bg-primary text-white px-6 py-3 font-label-mono text-xs tracking-widest hover:bg-primary-container transition-colors">
+        CONTACT US
+    </button>
+</header>
+<main class="relative z-10 bg-black">
+<!-- Chapter 1: Hero -->
+<section class="chapter-section bg-white" id="ch-hero">
+<div class="chapter-bg gs-bg" data-speed="0.5">
+<img alt="Hero Truck" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAgd1cDE9LD38JpZgwSrWRXzbsf1jylA5lb-P4AWGGdnCrqsTCxEbOoIWBFvTtgxSzCYvJCcYC82-GYKmN2dpTn92mlAGuHe_RuNT3VYTtdCrPFsp6nbYrEPJNsIPSxutFD83XRvllSze1q_hxb7Fc2bkA3EFnvTRRrZJct2eIkgt0moXzQ1o5Cx-sWjotQv1TKPJpnQY1PE7LqxfUUgAW0oXYOTJORS29S9owZ0tnw0Tf_Q5QsXkmxTytWvEattolOVKamrFui"/>
+</div>
+<div class="chapter-overlay"></div>
+<div class="chapter-content">
+<h1 class="font-display-xl huge-text text-on-surface gs-title-left font-bold" data-speed="1.2">PROFESSIONAL</h1>
+<h1 class="font-display-xl huge-text text-primary italic gs-title-right font-bold" data-speed="1.5">HAULING.</h1>
+<div class="mt-12 max-w-xl gs-reveal-y" data-speed="1.1">
+<p class="font-body-lg text-on-surface-variant border-l-4 border-primary pl-6">
+                    Professional dump truck hauling, excavating, and grading services. Specializing in efficient and reliable solutions for your construction needs.
+                </p>
+</div>
+</div>
+</section>
+<!-- Chapter 2: Services -->
+<section class="chapter-section bg-surface-container-low" id="ch-services">
+<div class="chapter-bg gs-bg" data-speed="0.6">
+<img alt="Vanguard Heavy" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDCKBSpM3Br3oJIzb3HXgFe-8vT7fpdwp4N4eKMIms9VSfzrF5nk3wNkSqp-iIG9c57JyOhfJaqZU27aQdfXpRGCS03EJf6oPw6ZD48dg9ncOHIQW_oaJGO2MW0z5Rtg4oE5xka8O2KOGX8Hq402oFu3Kx2KJ4QUI2PTZgMLxT3eUsCh7o4OGCve1cFjTYLb79CVImu2B_zJIl-0or9vnPFlph8x3EayJHgXYAiNOOfGSI5-kU0On2ZqtdPkvEU5wI1-uJrBJPI"/>
+</div>
+<div class="chapter-overlay"></div>
+<div class="chapter-content items-end text-right">
+<h2 class="font-display-xl huge-text text-on-surface gs-title-right font-bold" data-speed="1.3">CORE</h2>
+<h2 class="font-display-xl huge-text text-primary gs-title-left font-bold" data-speed="1.6">SERVICES</h2>
+<div class="mt-16 flex flex-col md:flex-row gap-8 gs-reveal-y" data-speed="1.2">
+<div class="glass-panel p-8 text-left w-80">
+<h3 class="font-headline-md text-2xl font-bold mb-4">Excavation &amp; Grading</h3>
+<p class="font-body-md text-on-surface-variant mb-6">Precision earth moving, trenching, and fine grading operations.</p>
+</div>
+<div class="glass-panel p-8 text-left w-80">
+<h3 class="font-headline-md text-2xl font-bold mb-4">Driveways &amp; Patios</h3>
+<p class="font-body-md text-on-surface-variant mb-6">Interlock driveways, patios, and professional site cleanup services.</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Chapter 3: About -->
+<section class="chapter-section bg-primary text-white" id="ch-about">
+<div class="chapter-bg gs-bg" data-speed="0.4">
+<div class="absolute inset-0 bg-primary opacity-90 mix-blend-multiply"></div>
+<img alt="Tech Background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB-eBK05MMBv44uVDwlk2UMg5l3BVtR7YBw3LGntpvX0Cwql6bn3w9z9oPMTzvHgqGOQv04JyXTTXKNzsN9li8-vAWFKJTJtKRRJQcYH0PE8QrFe3TEcqwh1b6m6b9PEYaBXuDCC7lh974K5Rdxwt3iGFuQAv-Dd7DtcjS6hO65X8lTMfgurneYBi3OWwMcm5me_elC57DwYBWQiPcUEymz1L_VdWM6eMwm2bxIeZjSLtc7Dv6twLvQj7cIfGDShuHkRK-wRber"/>
+</div>
+<div class="chapter-overlay dark-overlay"></div>
+<div class="chapter-content">
+<h2 class="font-display-xl huge-text text-white gs-title-left font-bold" data-speed="1.4">PREMIER</h2>
+<h2 class="font-display-xl huge-text text-white/50 gs-title-right font-bold" data-speed="1.7">CONSTRUCTION</h2>
+<div class="mt-16 grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl gs-reveal-y" data-speed="1.1">
+<div class="border border-white/20 p-8 bg-black/20 backdrop-blur-md">
+<span class="material-symbols-outlined text-white text-3xl mb-4" data-icon="location_on">location_on</span>
+<h4 class="font-headline-md text-xl mb-2">London, Ontario</h4>
+<p class="font-body-md text-white/70">Your premier destination for top-notch construction services in London and the surrounding area. Specializing in excavating, earth moving, and grading.</p>
+</div>
+<div class="border border-white/20 p-8 bg-black/20 backdrop-blur-md">
+<span class="material-symbols-outlined text-white text-3xl mb-4" data-icon="handyman">handyman</span>
+<h4 class="font-headline-md text-xl mb-2">Unparalleled Quality</h4>
+<p class="font-body-md text-white/70">Dedicated to delivering professionalism and efficiency. We are committed to exceeding your expectations with our high-quality workmanship and attention to detail.</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Chapter 4: Contact -->
+<section class="chapter-section bg-white" id="ch-contact">
+<div class="chapter-bg gs-bg" data-speed="0.5">
+</div>
+<div class="chapter-overlay" style="background: rgba(255,255,255,0.8);"></div>
+<div class="chapter-content items-center text-center">
+<h2 class="font-display-xl huge-text text-on-surface gs-title-scale font-bold mb-12" data-speed="1.2">GET IN TOUCH</h2>
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start max-w-7xl w-full">
+<div class="flex flex-col gap-12 gs-reveal-y" data-speed="1.1">
+<div>
+<div class="font-label-mono text-sm text-on-surface-variant tracking-[0.15em] uppercase">519-619-1816<br/>wroomlogistics@gmail.com</div>
+</div>
+<div>
+<div class="font-label-mono text-sm text-on-surface-variant tracking-[0.15em] uppercase">942 Guildwood Blvd<br/>London, ON N6H 4G3, Canada</div>
+</div>
+</div>
+<form class="glass-panel p-8 md:p-12 flex flex-col gap-6 gs-reveal-y" data-speed="1.3">
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<div class="flex flex-col gap-2">
+<label class="font-label-mono text-[10px] text-primary font-bold tracking-widest">FULL NAME</label>
+<input class="bg-transparent border-b border-primary/20 py-2 focus:outline-none focus:border-primary transition-colors font-body-md" placeholder="John Doe" required="" type="text"/>
+</div>
+<div class="flex flex-col gap-2">
+<label class="font-label-mono text-[10px] text-primary font-bold tracking-widest">EMAIL</label>
+<input class="bg-transparent border-b border-primary/20 py-2 focus:outline-none focus:border-primary transition-colors font-body-md" placeholder="john@example.com" required="" type="email"/>
+</div>
+</div>
+<div class="flex flex-col gap-2">
+<label class="font-label-mono text-[10px] text-primary font-bold tracking-widest">SERVICE TYPE</label>
+<select class="bg-transparent border-b border-primary/20 py-2 focus:outline-none focus:border-primary transition-colors font-body-md">
+<option value="excavation">Excavation</option>
+<option value="hauling">Hauling</option>
+<option value="grading">Grading</option>
+<option value="interlock">Interlock</option>
+</select>
+</div>
+<div class="flex flex-col gap-2">
+<label class="font-label-mono text-[10px] text-primary font-bold tracking-widest">PROJECT DETAILS</label>
+<textarea class="bg-transparent border-b border-primary/20 py-2 focus:outline-none focus:border-primary transition-colors font-body-md resize-none" placeholder="Tell us about your project..." rows="3"></textarea>
+</div>
+<button class="mt-4 bg-primary text-white py-4 px-8 font-label-mono text-xs tracking-[0.3em] font-bold hover:bg-primary-container transition-all hover:tracking-[0.4em]" type="submit">SEND MESSAGE</button>
+</form>
+</div></div>
+</section>
+</main>
+<script>
+    document.addEventListener("DOMContentLoaded", (event) => {
+        gsap.registerPlugin(ScrollTrigger);
+
+        // Pin each chapter to create a stacked, full-page scroll effect
+        const chapters = gsap.utils.toArray('.chapter-section');
+        
+        chapters.forEach((chapter, i) => {
+            // Parallax Backgrounds
+            const bg = chapter.querySelector('.gs-bg');
+            if(bg) {
+                gsap.to(bg, {
+                    yPercent: 30,
+                    ease: "none",
+                    scrollTrigger: {
+                        trigger: chapter,
+                        start: "top bottom",
+                        end: "bottom top",
+                        scrub: true
+                    }
+                });
+            }
+
+            // Aggressive Typography Parallax
+            const titleLeft = chapter.querySelectorAll('.gs-title-left');
+            titleLeft.forEach(el => {
+                const speed = el.dataset.speed || 1.5;
+                gsap.fromTo(el, 
+                    { x: "-20vw" },
+                    { 
+                        x: "20vw", 
+                        ease: "none",
+                        scrollTrigger: {
+                            trigger: chapter,
+                            start: "top bottom",
+                            end: "bottom top",
+                            scrub: speed
+                        }
+                    }
+                );
+            });
+
+            const titleRight = chapter.querySelectorAll('.gs-title-right');
+            titleRight.forEach(el => {
+                const speed = el.dataset.speed || 1.5;
+                gsap.fromTo(el, 
+                    { x: "20vw" },
+                    { 
+                        x: "-20vw", 
+                        ease: "none",
+                        scrollTrigger: {
+                            trigger: chapter,
+                            start: "top bottom",
+                            end: "bottom top",
+                            scrub: speed
+                        }
+                    }
+                );
+            });
+
+            const titleScale = chapter.querySelectorAll('.gs-title-scale');
+            titleScale.forEach(el => {
+                gsap.fromTo(el, 
+                    { scale: 0.8, opacity: 0 },
+                    { 
+                        scale: 1.2, opacity: 1, 
+                        ease: "none",
+                        scrollTrigger: {
+                            trigger: chapter,
+                            start: "top center",
+                            end: "bottom top",
+                            scrub: true
+                        }
+                    }
+                );
+            });
+
+            // High momentum reveals for micro-data and content blocks
+            const reveals = chapter.querySelectorAll('.gs-reveal-y');
+            if(reveals.length) {
+                gsap.from(reveals, {
+                    y: 150,
+                    opacity: 0,
+                    duration: 1.2,
+                    stagger: 0.2,
+                    ease: "power4.out",
+                    scrollTrigger: {
+                        trigger: chapter,
+                        start: "top 60%",
+                        toggleActions: "play reverse play reverse"
+                    }
+                });
+            }
+        });
+
+        // HUD Parallax
+        gsap.to('.parallax-hud-1', { y: 200, ease: "none", scrollTrigger: { scrub: 0.5 } });
+        gsap.to('.parallax-hud-2', { y: -200, ease: "none", scrollTrigger: { scrub: 0.5 } });
+    });
+</script>
+</body></html>

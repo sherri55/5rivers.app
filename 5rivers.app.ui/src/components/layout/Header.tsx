@@ -70,7 +70,7 @@ export function Header({ onToggleSidebar }: HeaderProps) {
                 </p>
               </div>
               <Link
-                to="/settings"
+                to="/dashboard/settings"
                 onClick={() => setShowUserMenu(false)}
                 className="flex items-center gap-3 px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors"
               >

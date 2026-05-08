@@ -87,7 +87,7 @@ export function UnitFormPage() {
         await createUnit.mutateAsync(payload);
         addToast('Unit created successfully', 'success');
       }
-      navigate('/units');
+      navigate('/dashboard/units');
     } catch (err) {
       addToast(
         err instanceof Error ? err.message : 'Failed to save unit',
@@ -101,7 +101,7 @@ export function UnitFormPage() {
     deleteUnit.mutate(id, {
       onSuccess: () => {
         addToast('Unit deleted', 'success');
-        navigate('/units');
+        navigate('/dashboard/units');
       },
       onError: (err) => addToast(err.message, 'error'),
     });
@@ -319,7 +319,7 @@ export function UnitFormPage() {
           <div className="flex items-center gap-4">
             <button
               type="button"
-              onClick={() => navigate('/units')}
+              onClick={() => navigate('/dashboard/units')}
               className="bg-surface-container-low text-on-surface-variant px-5 py-2.5 rounded-lg font-medium text-sm border border-outline-variant/20 hover:bg-surface-container transition-colors"
             >
               Cancel

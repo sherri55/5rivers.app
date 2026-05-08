@@ -89,7 +89,7 @@ export function CompanyFormPage() {
         await createCompany.mutateAsync(payload);
         addToast('Company created successfully', 'success');
       }
-      navigate('/companies');
+      navigate('/dashboard/companies');
     } catch (err) {
       addToast(
         err instanceof Error ? err.message : 'Failed to save company',
@@ -103,7 +103,7 @@ export function CompanyFormPage() {
     deleteCompany.mutate(id, {
       onSuccess: () => {
         addToast('Company deleted', 'success');
-        navigate('/companies');
+        navigate('/dashboard/companies');
       },
       onError: (err) => addToast(err.message, 'error'),
     });
@@ -263,7 +263,7 @@ export function CompanyFormPage() {
           <div className="flex items-center gap-4">
             <button
               type="button"
-              onClick={() => navigate('/companies')}
+              onClick={() => navigate('/dashboard/companies')}
               className="bg-surface-container-low text-on-surface-variant px-5 py-2.5 rounded-lg font-medium text-sm border border-outline-variant/20 hover:bg-surface-container transition-colors"
             >
               Cancel
