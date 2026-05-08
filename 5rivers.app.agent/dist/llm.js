@@ -29,6 +29,7 @@ import { getAutoToken, clearAutoToken } from './auth.js';
 import { parseOCROutputMulti } from './ocr-parser.js';
 import { processDocuments, formatWriteResults } from './document-processor.js';
 import { routePipelineTurn, getPhase as getPipelinePhase, clearState as clearPipelineState, describePhase, getImages as getPipelineImages, setState as setPipelineState, getState as getPipelineState, } from './pipeline.js';
+import { chatWithFallback, routeTurn, cloudProviderName, hybridEnabled, } from './provider-router.js';
 const API_URL = process.env.FIVE_RIVERS_API_URL ?? 'http://localhost:4000/api';
 // ─── Tool definitions (same format for both providers) ───────────────────────
 // Tools the agent should never call — auth is handled internally
@@ -535,43 +536,61 @@ class GeminiProvider {
         return { content, toolCalls: toolCalls.length ? toolCalls : undefined };
     }
 }
-// ─── Provider factory ─────────────────────────────────────────────────────────
-let _provider = null;
-function getProvider() {
-    if (!_provider) {
-        const name = (process.env.LLM_PROVIDER ?? 'ollama').toLowerCase();
-        if (name === 'gemini') {
-            const model = process.env.GEMINI_MODEL ?? 'gemini-2.5-flash';
-            console.log(`[llm] Provider: Gemini (${model})`);
-            _provider = new GeminiProvider();
-        }
-        else if (name === 'groq') {
-            console.log(`[llm] Provider: Groq (${process.env.GROQ_MODEL ?? 'llama-3.1-70b-versatile'})`);
-            _provider = new GroqProvider();
-        }
-        else if (name === 'lmstudio') {
-            const host = process.env.LMSTUDIO_HOST ?? 'http://localhost:1234';
-            const toolModel = process.env.LMSTUDIO_TOOL_MODEL;
-            const visionModel = process.env.LMSTUDIO_VISION_MODEL;
-            const visionHost = process.env.LMSTUDIO_VISION_HOST ?? host;
-            if (!toolModel) {
-                throw new Error('[lmstudio] LMSTUDIO_TOOL_MODEL is not set in .env — required when multiple models are loaded in LM Studio');
-            }
-            console.log('[llm] Provider: LM Studio');
-            console.log(`[llm]   tool  : ${toolModel} @ ${host}`);
-            console.log(`[llm]   vision: ${visionModel ?? '(unset — images will be skipped)'} @ ${visionHost}`);
-            // Probe /v1/models so the log shows exact IDs LM Studio expects
-            probeLMStudioModels(host).catch(() => { });
-            _provider = new LMStudioProvider();
-        }
-        else {
-            const _rawHost = process.env.OLLAMA_HOST ?? 'http://localhost:11434';
-            const _cleanHost = new URL(_rawHost).origin;
-            console.log(`[llm] Provider: Ollama (${process.env.OLLAMA_MODEL ?? 'llama3.1'} @ ${_cleanHost})`);
-            _provider = new OllamaProvider();
-        }
+// ─── Provider registry ────────────────────────────────────────────────────────
+//
+// Each provider name maps to its own lazy singleton. This replaces the old
+// single-provider singleton so the hybrid router can hand back whichever one
+// the current turn calls for (local LM Studio for simple tasks, cloud Gemini
+// for complex tasks or fallback).
+const _providerRegistry = new Map();
+/**
+ * Resolve a provider by name. When `name` is omitted, falls back to
+ * `LLM_PROVIDER` (back-compat for callers that don't know about the router).
+ *
+ * Each name is constructed at most once — subsequent calls return the same
+ * instance (so Gemini's cache manager and LM Studio's /v1/models probe still
+ * run only once per process).
+ */
+export function getProvider(name) {
+    const resolved = (name ?? process.env.LLM_PROVIDER ?? 'ollama').toLowerCase();
+    const cached = _providerRegistry.get(resolved);
+    if (cached)
+        return cached;
+    const created = createProvider(resolved);
+    _providerRegistry.set(resolved, created);
+    return created;
+}
+function createProvider(name) {
+    if (name === 'gemini') {
+        const model = process.env.GEMINI_MODEL ?? 'gemini-2.5-flash';
+        console.log(`[llm] Provider: Gemini (${model})`);
+        return new GeminiProvider();
     }
-    return _provider;
+    if (name === 'groq') {
+        console.log(`[llm] Provider: Groq (${process.env.GROQ_MODEL ?? 'llama-3.1-70b-versatile'})`);
+        return new GroqProvider();
+    }
+    if (name === 'lmstudio') {
+        const host = process.env.LMSTUDIO_HOST ?? 'http://localhost:1234';
+        const toolModel = process.env.LMSTUDIO_TOOL_MODEL;
+        const visionModel = process.env.LMSTUDIO_VISION_MODEL;
+        const visionHost = process.env.LMSTUDIO_VISION_HOST ?? host;
+        if (!toolModel) {
+            throw new Error('[lmstudio] LMSTUDIO_TOOL_MODEL is not set in .env — required when multiple models are loaded in LM Studio');
+        }
+        console.log('[llm] Provider: LM Studio');
+        console.log(`[llm]   tool  : ${toolModel} @ ${host}`);
+        console.log(`[llm]   vision: ${visionModel ?? '(unset — images will be skipped)'} @ ${visionHost}`);
+        probeLMStudioModels(host).catch(() => { });
+        return new LMStudioProvider();
+    }
+    if (name === 'ollama') {
+        const rawHost = process.env.OLLAMA_HOST ?? 'http://localhost:11434';
+        const cleanHost = new URL(rawHost).origin;
+        console.log(`[llm] Provider: Ollama (${process.env.OLLAMA_MODEL ?? 'llama3.1'} @ ${cleanHost})`);
+        return new OllamaProvider();
+    }
+    throw new Error(`[llm] Unknown provider "${name}" — set LLM_PROVIDER to one of: gemini, groq, lmstudio, ollama`);
 }
 // ─── OCR pre-processing (vision model) ───────────────────────────────────────
 /**
@@ -1041,7 +1060,6 @@ export async function processMessage(platform, userId, userMessage, authToken, i
     }
     const client = createRestClient({ baseUrl: API_URL, authToken: resolvedToken });
     const toolCalls = [];
-    const provider = getProvider();
     /** True once any ticket image has been attached to a created job in this
      *  turn. Used at the end of processMessage to clear the buffered images so
      *  they can't leak onto a later, unrelated create_job. */
@@ -1227,11 +1245,11 @@ export async function processMessage(platform, userId, userMessage, authToken, i
     // For Gemini only: when an image arrives, or when the user is mid-pipeline,
     // route through the Parser → Validator → Creator state machine. The router
     // sets the system prompt + user message itself, so we skip the normal flow
-    // below when it took ownership.
-    const providerName = (process.env.LLM_PROVIDER ?? 'ollama').toLowerCase();
+    // below when it took ownership. Gated on the *cloud* provider name so the
+    // pipeline still runs in hybrid mode (where LLM_PROVIDER may be unset).
     let activeToolFilter;
     let pipelineHandled = false;
-    if (providerName === 'gemini') {
+    if (cloudProviderName() === 'gemini') {
         const easternDate = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' });
         const pipelineImages = images?.map((img) => ({
             data: img.data,
@@ -1252,15 +1270,29 @@ export async function processMessage(platform, userId, userMessage, authToken, i
         }
     }
     // ── Normal flow: add user message ─────────────────────────────────────────
-    // System prompt is injected for Groq/Ollama; for LM Studio it lives in the
-    // model preset and is intentionally not sent via the API.
+    // System prompt is injected for Groq / Ollama / Gemini; for LM Studio it
+    // lives in the model preset and is intentionally not sent via the API.
+    // In hybrid mode the local tier is LM Studio, so we still skip there — but
+    // the cloud tier (Gemini) needs the prompt, so we always set it when the
+    // cloud is in use. Simplest correct rule: skip the prompt only when the
+    // configured single provider is LM Studio.
     if (!pipelineHandled) {
-        if ((process.env.LLM_PROVIDER ?? 'ollama').toLowerCase() !== 'lmstudio') {
+        const single = (process.env.LLM_PROVIDER ?? '').toLowerCase();
+        const skipForLMStudio = single === 'lmstudio'; // back-compat single-provider mode
+        if (!skipForLMStudio) {
             setSystemPrompt(platform, userId, buildSystemPrompt());
         }
     }
     if (!pipelineHandled && !resumingFromConfirmation) {
-        if (images && images.length > 0 && process.env.LLM_PROVIDER === 'lmstudio') {
+        // OCR + code-driven document pipeline:
+        // Runs whenever a vision model is configured (LMSTUDIO_VISION_MODEL) and
+        // the cloud provider isn't Gemini — Gemini has its own pipeline above.
+        // This gives every non-Gemini path (Ollama, Groq, plain LM Studio, hybrid
+        // fall-through) free local OCR + the deterministic doc processor without
+        // requiring LLM_PROVIDER=lmstudio.
+        if (images && images.length > 0
+            && !!process.env.LMSTUDIO_VISION_MODEL
+            && cloudProviderName() !== 'gemini') {
             // ── Code-driven document pipeline ──────────────────────────────────────
             // OCR → parse ALL entries → validate → present summary → confirm → execute.
             // No LLM involved unless every entry is unknown.
@@ -1299,6 +1331,19 @@ export async function processMessage(platform, userId, userMessage, authToken, i
             addMessage(platform, userId, { role: 'user', content: userMessage, imageUrls });
         }
     }
+    // ── Routing decision for this turn ─────────────────────────────────────────
+    // Hybrid mode: 'local' for simple text turns, 'cloud' for images / pipeline /
+    // post-fallback. Single-provider mode: always 'cloud' (which resolves to
+    // LLM_PROVIDER inside chatWithFallback). Once a fallback fires, currentTier
+    // sticks at 'cloud' for the rest of the turn so we don't bounce back to a
+    // model that just gave up.
+    let currentTier = routeTurn({
+        hasImages: !!images?.length,
+        phase: getPipelinePhase(platform, userId),
+    });
+    if (hybridEnabled()) {
+        console.log(`[router] route=${currentTier} (hybrid: local=${process.env.LLM_PROVIDER_LOCAL}, cloud=${process.env.LLM_PROVIDER_CLOUD})`);
+    }
     // ── Agent loop ────────────────────────────────────────────────────────────
     const MAX_ITERATIONS = 10;
     let iterations = 0;
@@ -1327,7 +1372,12 @@ export async function processMessage(platform, userId, userMessage, authToken, i
             .filter(Boolean);
         let response;
         try {
-            response = await provider.chat(history, activeToolFilter);
+            const routed = await chatWithFallback(history, activeToolFilter, currentTier);
+            response = routed.response;
+            // Sticky upgrade: once we've fallen back to cloud, stay on cloud for
+            // the remainder of this turn (don't keep retrying a failing local model).
+            if (routed.fallbackReason)
+                currentTier = routed.tier;
             // Free image data from history after the first LLM call.
             // Only relevant for single-model mode where images were attached directly.
             if (iterations === 1 && !resumingFromConfirmation)

@@ -1,0 +1,76 @@
+/**
+ * provider-router.ts — hybrid local + cloud LLM routing.
+ *
+ * The agent supports four providers (Ollama, Groq, LM Studio, Gemini). For
+ * cost-sensitive deployments we want most turns to go to a local model
+ * (free) and only escalate to a cloud model (paid) when the task is genuinely
+ * complex or when the local model has just failed.
+ *
+ * This module owns three concerns:
+ *
+ *   1. routeTurn(input)        — classify a turn as 'local' or 'cloud'
+ *   2. chatWithFallback(...)   — call the chosen provider, retry on cloud if
+ *                                a local turn returns nothing useful
+ *   3. helpers                 — read env vars (LLM_PROVIDER_LOCAL, etc.) and
+ *                                expose hybridEnabled() / cloudProviderName()
+ *                                so other call sites (pipeline gating, OCR
+ *                                gating) can ask "is the cloud provider X?".
+ *
+ * Hybrid mode auto-activates when BOTH `LLM_PROVIDER_LOCAL` and
+ * `LLM_PROVIDER_CLOUD` are set in .env. Otherwise the module is a thin
+ * pass-through over `getProvider()` and behaviour is identical to the old
+ * single-provider mode (back-compat).
+ */
+import type { Message } from './conversation.js';
+import { type NormalizedResponse } from './llm.js';
+import type { Phase } from './pipeline.js';
+export type Tier = 'local' | 'cloud';
+/** True when both `LLM_PROVIDER_LOCAL` and `LLM_PROVIDER_CLOUD` are set. */
+export declare function hybridEnabled(): boolean;
+/** Name of the local provider in hybrid mode (lowercase). */
+export declare function localProviderName(): string;
+/**
+ * Name of the cloud / "primary heavy-lifter" provider (lowercase).
+ *
+ * In hybrid mode → `LLM_PROVIDER_CLOUD`.
+ * In single-provider mode → `LLM_PROVIDER` (or 'ollama' default), so the
+ *   callers that ask "is the cloud Gemini?" still get a sensible answer.
+ */
+export declare function cloudProviderName(): string;
+/** Whether a failed local turn should be retried on cloud. Defaults true. */
+export declare function hybridFallbackEnabled(): boolean;
+export interface RouteInput {
+    /** Does the current user message attach images? */
+    hasImages: boolean;
+    /** Active pipeline phase (idle / validating / creating). */
+    phase: Phase;
+}
+/**
+ * Decide which tier (local or cloud) handles this turn.
+ *
+ *   single-provider mode  → always 'cloud' (chatWithFallback uses
+ *                           cloudProviderName(), which falls through to
+ *                           LLM_PROVIDER — preserving back-compat).
+ *
+ *   hybrid mode           → 'cloud' for image-bearing turns or any turn
+ *                           inside the multi-phase ticket pipeline,
+ *                           'local' for everything else.
+ */
+export declare function routeTurn(input: RouteInput): Tier;
+export interface ChatResult {
+    response: NormalizedResponse;
+    /** Tier that actually produced the response (may differ from `route` if a fallback fired). */
+    tier: Tier;
+    /** When local→cloud fallback fired, this records why. */
+    fallbackReason?: string;
+}
+/**
+ * Send `messages` to the routed provider, with automatic local→cloud
+ * fallback on:
+ *   • empty content + zero tool calls (the local model "gave up"), or
+ *   • any thrown exception (network / parse / timeout / etc).
+ *
+ * Cloud failures are NOT caught — they propagate to the caller (same as the
+ * pre-router behaviour).
+ */
+export declare function chatWithFallback(messages: Message[], toolFilter: ReadonlySet<string> | undefined, route: Tier): Promise<ChatResult>;

@@ -1,0 +1,20 @@
+{
+  "name": "5rivers-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "5Rivers Trucking — runs server, UI, and agent (with Telegram) from a single command",
+  "scripts": {
+    "start": "concurrently --names \"server,ui,agent\" --prefix-colors \"yellow,cyan,magenta\" --kill-others-on-fail \"npm:start:server\" \"npm:start:ui\" \"npm:start:agent\"",
+    "start:server": "npm --prefix 5rivers.server run dev",
+    "start:ui": "npm --prefix 5rivers.app.ui run dev",
+    "start:agent": "npm --prefix 5rivers.app.agent run cli",
+    "build": "npm --prefix 5rivers.app.mcp run build && npm --prefix 5rivers.app.agent run build",
+    "stop": "node -e \"console.log('Use Ctrl+C in the start window to stop all services.')\"",
+    "backup": "powershell -NoProfile -ExecutionPolicy Bypass -File backup-db.ps1",
+    "backup:schema": "powershell -NoProfile -ExecutionPolicy Bypass -File backup-db.ps1 -SchemaOnly",
+    "backup:commit": "powershell -NoProfile -ExecutionPolicy Bypass -File backup-db.ps1 -Commit"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}

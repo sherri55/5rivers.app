@@ -38,6 +38,32 @@ export function stripImageUrls(platform, userId) {
         delete msg.imageUrls;
     }
 }
+/**
+ * Strip provider-specific metadata from a message history before sending it
+ * to a different provider. Used by the hybrid router when a turn falls back
+ * from local → cloud (or vice versa) so that, e.g., Gemini-only fields like
+ * `thoughtSignature` don't end up in payloads sent to LM Studio / Groq /
+ * Ollama, where they'd be silently ignored at best or cause a parse error
+ * at worst.
+ *
+ * The sanitization is a no-op when handing history to Gemini (it produced
+ * those fields and expects them round-tripped). For every other provider we
+ * drop `thoughtSignature` from each tool_call.
+ *
+ * Returns a new array — the input messages are not mutated.
+ */
+export function sanitizeForProvider(messages, provider) {
+    if (provider === 'gemini')
+        return messages;
+    return messages.map((m) => {
+        if (!m.tool_calls?.length)
+            return m;
+        return {
+            ...m,
+            tool_calls: m.tool_calls.map(({ thoughtSignature: _ts, ...rest }) => rest),
+        };
+    });
+}
 export function setSystemPrompt(platform, userId, systemPrompt) {
     const k = key(platform, userId);
     const history = conversations.get(k) ?? [];

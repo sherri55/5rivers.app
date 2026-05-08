@@ -28,14 +28,24 @@ if (telegramToken) {
 else {
     console.log('  Telegram: not configured (set TELEGRAM_BOT_TOKEN to enable)');
 }
-const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-    prompt: '\n> ',
-});
+// Only start the interactive REPL when stdin is a TTY. When run inside
+// `concurrently` (npm start at the monorepo root), stdin is piped and a
+// readline prompt would garble alongside other services' output. In that
+// case, this process just runs the Telegram bot and waits.
+const interactive = process.stdin.isTTY;
 const provider = process.env.LLM_PROVIDER ?? 'ollama';
-console.log('5Rivers Agent CLI — type a message to interact (Ctrl+C to quit)');
-console.log(`  Provider: ${provider}`);
+const localProvider = process.env.LLM_PROVIDER_LOCAL;
+const cloudProvider = process.env.LLM_PROVIDER_CLOUD;
+const hybridMode = !!(localProvider && cloudProvider);
+console.log(interactive
+    ? '5Rivers Agent CLI — type a message to interact (Ctrl+C to quit)'
+    : '5Rivers Agent — non-interactive mode (Telegram bot only)');
+if (hybridMode) {
+    console.log(`  Mode:     hybrid (local=${localProvider}, cloud=${cloudProvider})`);
+}
+else {
+    console.log(`  Provider: ${provider}`);
+}
 if (provider === 'groq') {
     const key = process.env.GROQ_API_KEY ?? '(not set)';
     console.log(`  Groq key: ${key.slice(0, 8)}...${key.slice(-4)}`);
@@ -50,38 +60,53 @@ else {
     console.log(`  Model:  ${process.env.OLLAMA_MODEL ?? 'llama3.1'}`);
 }
 console.log(`  API:    ${process.env.FIVE_RIVERS_API_URL ?? 'http://localhost:4000/api'}`);
-rl.prompt();
-rl.on('line', async (line) => {
-    const input = line.trim();
-    if (!input) {
-        rl.prompt();
-        return;
-    }
-    if (input === '/quit' || input === '/exit') {
-        console.log('Goodbye!');
-        process.exit(0);
-    }
-    if (input === '/clear') {
-        const { resetConversation } = await import('./llm.js');
-        resetConversation('cli', 'local');
-        console.log('Conversation cleared (history, pipeline state, and any pending confirmations).');
-        rl.prompt();
-        return;
-    }
-    try {
-        console.log('\n⏳ Thinking...');
-        const response = await processMessage('cli', 'local', input);
-        if (response.toolCalls) {
-            console.log(`\n🔧 Tool calls: ${response.toolCalls.map((tc) => tc.name).join(', ')}`);
-        }
-        console.log(`\n${response.text}`);
-    }
-    catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        const cause = err?.cause;
-        console.error(`\nError: ${msg}`);
-        if (cause)
-            console.error(`Cause: ${cause instanceof Error ? cause.message : String(cause)}`);
-    }
+if (!interactive) {
+    // No REPL — just keep the process alive for the Telegram bot.
+    // (Telegraf's bot.launch() already holds the event loop open.)
+    console.log('  CLI:    disabled (stdin is not a TTY) — use Telegram or the UI');
+}
+else {
+    startRepl();
+}
+function startRepl() {
+    const rl = readline.createInterface({
+        input: process.stdin,
+        output: process.stdout,
+        prompt: '\n> ',
+    });
     rl.prompt();
-});
+    rl.on('line', async (line) => {
+        const input = line.trim();
+        if (!input) {
+            rl.prompt();
+            return;
+        }
+        if (input === '/quit' || input === '/exit') {
+            console.log('Goodbye!');
+            process.exit(0);
+        }
+        if (input === '/clear') {
+            const { resetConversation } = await import('./llm.js');
+            resetConversation('cli', 'local');
+            console.log('Conversation cleared (history, pipeline state, and any pending confirmations).');
+            rl.prompt();
+            return;
+        }
+        try {
+            console.log('\n⏳ Thinking...');
+            const response = await processMessage('cli', 'local', input);
+            if (response.toolCalls) {
+                console.log(`\n🔧 Tool calls: ${response.toolCalls.map((tc) => tc.name).join(', ')}`);
+            }
+            console.log(`\n${response.text}`);
+        }
+        catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            const cause = err?.cause;
+            console.error(`\nError: ${msg}`);
+            if (cause)
+                console.error(`Cause: ${cause instanceof Error ? cause.message : String(cause)}`);
+        }
+        rl.prompt();
+    });
+}

@@ -26,4 +26,19 @@ export declare function addMessage(platform: string, userId: string, message: Me
 export declare function clearHistory(platform: string, userId: string): void;
 /** Strip imageUrls from all messages in history — call after LLM has processed them. */
 export declare function stripImageUrls(platform: string, userId: string): void;
+/**
+ * Strip provider-specific metadata from a message history before sending it
+ * to a different provider. Used by the hybrid router when a turn falls back
+ * from local → cloud (or vice versa) so that, e.g., Gemini-only fields like
+ * `thoughtSignature` don't end up in payloads sent to LM Studio / Groq /
+ * Ollama, where they'd be silently ignored at best or cause a parse error
+ * at worst.
+ *
+ * The sanitization is a no-op when handing history to Gemini (it produced
+ * those fields and expects them round-tripped). For every other provider we
+ * drop `thoughtSignature` from each tool_call.
+ *
+ * Returns a new array — the input messages are not mutated.
+ */
+export declare function sanitizeForProvider(messages: Message[], provider: string): Message[];
 export declare function setSystemPrompt(platform: string, userId: string, systemPrompt: string): void;
