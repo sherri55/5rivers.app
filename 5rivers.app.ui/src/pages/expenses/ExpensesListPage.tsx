@@ -197,7 +197,7 @@ export function ExpensesListPage() {
             onClick={(ev) => ev.stopPropagation()}
           >
             <Link
-              to={`/expenses/${e.id}/edit`}
+              to={`/dashboard/expenses/${e.id}/edit`}
               className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-all"
             >
               <span className="material-symbols-outlined text-lg">edit</span>
@@ -350,7 +350,7 @@ export function ExpensesListPage() {
         emptyDescription="Track your business expenses to see profit metrics."
         onSort={handleSort}
         onPageChange={setPage}
-        onRowClick={(expense) => navigate(`/expenses/${expense.id}/edit`)}
+        onRowClick={(expense) => navigate(`/dashboard/expenses/${expense.id}/edit`)}
         rowKey={(expense) => expense.id}
       />
 

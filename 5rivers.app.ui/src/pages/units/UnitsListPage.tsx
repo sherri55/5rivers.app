@@ -189,7 +189,7 @@ export function UnitsListPage() {
                 key={unit.id}
                 unit={unit}
                 visibleKeys={visibleKeys}
-                onClick={() => navigate(`/units/${unit.id}/edit`)}
+                onClick={() => navigate(`/dashboard/units/${unit.id}/edit`)}
                 onDelete={() => setDeleteTarget(unit)}
               />
             ))}
@@ -334,7 +334,7 @@ function UnitCard({
           onClick={(e) => e.stopPropagation()}
         >
           <Link
-            to={`/units/${unit.id}/edit`}
+            to={`/dashboard/units/${unit.id}/edit`}
             className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-all"
           >
             <span className="material-symbols-outlined text-lg">edit</span>

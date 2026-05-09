@@ -6,7 +6,8 @@ import type {
   SourceTypeBreakdown, PaymentStatus, JobTypeRevenue,
   ExpenseByCategoryItem,
 } from '@/api/endpoints';
-import { formatCurrency } from '@/lib/format';
+import { formatCurrency, formatJobTypeLabel } from '@/lib/format';
+import { JobTypeLabel } from '@/components/ui/JobTypeLabel';
 import { Select } from '@/components/ui/Select';
 import { PageSpinner, ButtonSpinner } from '@/components/ui/Spinner';
 import { useToast } from '@/context/toast';
@@ -393,26 +394,48 @@ function DispatchersTab({ data }: { data: DispatcherRevenue[] }) {
 
 function JobTypesTab({ data }: { data: JobTypeRevenue[] }) {
   const totalRev = data.reduce((s, r) => s + r.revenue, 0);
+  // Pre-compute the canonical display label for each row so the chart's
+  // `nameKey` extracts the rich "Company - From to To (dispatch)" string.
+  const chartData = useMemo(
+    () => data.map((d) => ({
+      ...d,
+      displayLabel: formatJobTypeLabel({
+        companyName: d.companyName,
+        startLocation: d.startLocation,
+        endLocation: d.endLocation,
+        dispatchType: d.dispatchType,
+        title: d.jobTypeTitle,
+      }),
+    })),
+    [data],
+  );
   return (
     <div className="space-y-6">
       <ChartCard title="Top Job Types" subtitle="Revenue by job type">
         <div className="h-[400px] overflow-x-auto"><div className="min-w-[400px] h-full">
-          <HBarChart data={data.slice(0, 12)} nameKey="jobTypeTitle" valueKey="revenue" height={400} />
+          <HBarChart data={chartData.slice(0, 12)} nameKey="displayLabel" valueKey="revenue" height={400} />
         </div></div>
       </ChartCard>
       <ReportTable
-        headers={['Job Type', 'Company', 'Type', 'Revenue', 'Jobs', 'Avg/Job']}
+        headers={['Job Type', 'Revenue', 'Jobs', 'Avg/Job']}
         rows={data.map((jt, i) => ({
           cells: [
-            <CellWithDot key="n" color={COLORS[i % COLORS.length]} text={jt.jobTypeTitle} />,
-            <span key="c" className="text-gray-500">{jt.companyName}</span>,
-            <span key="t" className="inline-flex rounded-md bg-gray-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-gray-600">{jt.dispatchType}</span>,
+            <div key="n" className="flex items-start gap-3">
+              <span className="mt-1.5 inline-block h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
+              <JobTypeLabel
+                companyName={jt.companyName}
+                startLocation={jt.startLocation}
+                endLocation={jt.endLocation}
+                dispatchType={jt.dispatchType}
+                fallbackTitle={jt.jobTypeTitle}
+              />
+            </div>,
             <span key="r" className="font-mono font-semibold">{formatCurrency(jt.revenue)}</span>,
             jt.jobs,
             formatCurrency(jt.jobs > 0 ? jt.revenue / jt.jobs : 0),
           ],
         }))}
-        footerCells={['Total', '', '', formatCurrency(totalRev), data.reduce((s,r)=>s+r.jobs,0), '']}
+        footerCells={['Total', formatCurrency(totalRev), data.reduce((s,r)=>s+r.jobs,0), '']}
       />
     </div>
   );

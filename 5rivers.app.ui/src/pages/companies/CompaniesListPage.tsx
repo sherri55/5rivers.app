@@ -160,7 +160,7 @@ export function CompaniesListPage() {
             {data.data.map((company) => (
               <div
                 key={company.id}
-                onClick={() => navigate(`/companies/${company.id}/edit`)}
+                onClick={() => navigate(`/dashboard/companies/${company.id}/edit`)}
                 className="bg-surface-container-lowest rounded-xl ghost-border p-6 cursor-pointer hover:shadow-lg hover:shadow-on-surface/5 transition-all group"
               >
                 <div className="flex items-start gap-4 mb-4">
@@ -220,7 +220,7 @@ export function CompaniesListPage() {
                     onClick={(e) => e.stopPropagation()}
                   >
                     <Link
-                      to={`/companies/${company.id}/edit`}
+                      to={`/dashboard/companies/${company.id}/edit`}
                       className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-all"
                     >
                       <span className="material-symbols-outlined text-lg">

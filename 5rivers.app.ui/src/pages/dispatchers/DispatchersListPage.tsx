@@ -205,7 +205,7 @@ export function DispatchersListPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <Link
-              to={`/dispatchers/${d.id}/edit`}
+              to={`/dashboard/dispatchers/${d.id}/edit`}
               className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-all"
             >
               <span className="material-symbols-outlined text-lg">edit</span>
@@ -344,7 +344,7 @@ export function DispatchersListPage() {
             onSort={handleSort}
             onPageChange={setPage}
             onRowClick={(dispatcher) =>
-              navigate(`/dispatchers/${dispatcher.id}/edit`)
+              navigate(`/dashboard/dispatchers/${dispatcher.id}/edit`)
             }
             rowKey={(dispatcher) => dispatcher.id}
           />
@@ -447,7 +447,7 @@ export function DispatchersListPage() {
                               <tr key={inv.id} className="hover:bg-slate-50/50 transition-colors">
                                 <td className="px-6 py-4">
                                   <Link
-                                    to={`/invoices/${inv.id}/edit`}
+                                    to={`/dashboard/invoices/${inv.id}/edit`}
                                     className="text-sm font-bold text-blue-600 hover:underline"
                                   >
                                     {inv.invoiceNumber}

@@ -46,3 +46,19 @@ certificates
 
 node_modules
 package-lock.json
+
+# ─── Environment / secret files ──────────────────────────────────────────────
+# .env files hold live credentials (DB, JWT, API keys, SMTP, Telegram bot
+# tokens, etc.) — never commit them. Templates (.env.example, .env.sample,
+# .env.template) are explicitly allowed below.
+.env
+.env.local
+.env.development
+.env.production
+.env.*.local
+*.env
+
+# Allow templates so new contributors see what env vars are needed.
+!.env.example
+!.env.sample
+!.env.template

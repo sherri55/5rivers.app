@@ -177,7 +177,7 @@ export function CarriersListPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <Link
-              to={`/carriers/${c.id}/edit`}
+              to={`/dashboard/carriers/${c.id}/edit`}
               className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-all"
             >
               <span className="material-symbols-outlined text-lg">edit</span>
@@ -306,7 +306,7 @@ export function CarriersListPage() {
         emptyDescription="Add your first carrier to get started."
         onSort={handleSort}
         onPageChange={setPage}
-        onRowClick={(carrier) => navigate(`/carriers/${carrier.id}/edit`)}
+        onRowClick={(carrier) => navigate(`/dashboard/carriers/${carrier.id}/edit`)}
         rowKey={(carrier) => carrier.id}
       />
 

@@ -8,6 +8,7 @@ import { PayTypeBadge } from '@/components/ui/Badge';
 import { ConfirmModal, Modal } from '@/components/ui/Modal';
 import { DataTable, type Column } from '@/components/ui/DataTable';
 import { ColumnToggle } from '@/components/ui/ColumnToggle';
+import { JobTypeLabel } from '@/components/ui/JobTypeLabel';
 import { useColumnVisibility, type ColumnDef } from '@/hooks/useColumnVisibility';
 import { ExportPdfButton, type PdfColumnDef } from '@/components/ui/ExportPdfButton';
 import { Select } from '@/components/ui/Select';
@@ -272,7 +273,7 @@ export function DriversListPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <Link
-              to={`/drivers/${d.id}/edit`}
+              to={`/dashboard/drivers/${d.id}/edit`}
               className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-all"
             >
               <span className="material-symbols-outlined text-lg">edit</span>
@@ -412,7 +413,7 @@ export function DriversListPage() {
             emptyDescription="Add your first driver to get started."
             onSort={handleSort}
             onPageChange={setPage}
-            onRowClick={(driver) => navigate(`/drivers/${driver.id}/edit`)}
+            onRowClick={(driver) => navigate(`/dashboard/drivers/${driver.id}/edit`)}
             rowKey={(driver) => driver.id}
           />
         </>
@@ -625,7 +626,15 @@ export function DriversListPage() {
                                             />
                                           </td>
                                           <td className="px-6 py-4 text-sm text-slate-600">{formatDate(job.jobDate)}</td>
-                                          <td className="px-6 py-4 text-sm font-medium text-slate-700">{job.jobTypeTitle}</td>
+                                          <td className="px-6 py-4 text-sm font-medium text-slate-700">
+                                            <JobTypeLabel
+                                              companyName={job.companyName}
+                                              startLocation={job.jobTypeStartLocation}
+                                              endLocation={job.jobTypeEndLocation}
+                                              dispatchType={job.jobTypeDispatchType}
+                                              fallbackTitle={job.jobTypeTitle}
+                                            />
+                                          </td>
                                           <td className="px-6 py-4 text-sm font-mono text-slate-500 text-right">
                                             {job.jobAmount != null ? formatCurrency(job.jobAmount) : '—'}
                                           </td>

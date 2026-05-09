@@ -193,7 +193,7 @@ export function InvoicesListPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <Link
-              to={`/invoices/${inv.id}/edit`}
+              to={`/dashboard/invoices/${inv.id}/edit`}
               className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-all"
             >
               <span className="material-symbols-outlined text-lg">edit</span>
@@ -357,7 +357,7 @@ export function InvoicesListPage() {
         emptyDescription="Create your first invoice to get started."
         onSort={handleSort}
         onPageChange={setPage}
-        onRowClick={(invoice) => navigate(`/invoices/${invoice.id}/edit`)}
+        onRowClick={(invoice) => navigate(`/dashboard/invoices/${invoice.id}/edit`)}
         rowKey={(invoice) => invoice.id}
       />
 

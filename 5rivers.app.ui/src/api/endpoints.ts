@@ -288,7 +288,16 @@ export interface DriverRevenue { driverId: string; driverName: string; revenue: 
 export interface DispatcherRevenue { dispatcherId: string; dispatcherName: string; revenue: number; jobs: number; commission: number }
 export interface SourceTypeBreakdown { sourceType: string; count: number; revenue: number }
 export interface PaymentStatus { status: string; count: number; amount: number }
-export interface JobTypeRevenue { jobTypeId: string; jobTypeTitle: string; companyName: string; dispatchType: string; revenue: number; jobs: number }
+export interface JobTypeRevenue {
+  jobTypeId: string;
+  jobTypeTitle: string;
+  companyName: string;
+  startLocation: string | null;
+  endLocation: string | null;
+  dispatchType: string;
+  revenue: number;
+  jobs: number;
+}
 export interface ExpenseByCategoryItem { categoryId: string | null; categoryName: string; categoryColor: string | null; total: number; count: number }
 export interface MonthlyExpense { month: string; expenses: number; count: number }
 export interface MonthlyProfit { month: string; revenue: number; expenses: number; profit: number; jobs: number }

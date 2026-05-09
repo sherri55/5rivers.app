@@ -164,7 +164,11 @@ body {
 }
 
 .public-chapter {
+  /* 100dvh accounts for mobile browser chrome (URL bar / nav bar)
+     so chapters don't overshoot/undershoot the visible viewport.
+     100vh fallback for browsers that don't support dvh. */
   height: 100vh;
+  height: 100dvh;
   width: 100%;
   position: relative;
   overflow: hidden;
@@ -213,7 +217,11 @@ body {
 
 .public-huge-text {
   font-family: var(--font-display);
-  font-size: clamp(4rem, 10vw, 12rem);
+  /* min lowered from 4rem to 2.5rem so headlines don't overflow on
+     ~360px phones — at 12vw, "PROFESSIONAL" stays inside the viewport
+     while still feeling huge. nowrap kept because the parallax sweep
+     animates the whole line; wrapping would break the effect. */
+  font-size: clamp(2.5rem, 12vw, 12rem);
   line-height: 0.85;
   letter-spacing: -0.04em;
   text-transform: uppercase;

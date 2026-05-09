@@ -436,6 +436,8 @@ export interface JobTypeRevenue {
   jobTypeId: string;
   jobTypeTitle: string;
   companyName: string;
+  startLocation: string | null;
+  endLocation: string | null;
   dispatchType: string;
   revenue: number;
   jobs: number;
@@ -559,12 +561,13 @@ export async function getTopJobTypes(
   return query<JobTypeRevenue[]>(
     `SELECT TOP(@limit)
       jt.id AS jobTypeId, jt.title AS jobTypeTitle, c.name AS companyName,
-      jt.dispatchType, COALESCE(SUM(j.amount), 0) AS revenue, COUNT(j.id) AS jobs
+      jt.startLocation, jt.endLocation, jt.dispatchType,
+      COALESCE(SUM(j.amount), 0) AS revenue, COUNT(j.id) AS jobs
     FROM Jobs j
     JOIN JobTypes jt ON jt.id = j.jobTypeId
     JOIN Companies c ON c.id = jt.companyId
     WHERE j.organizationId = @organizationId ${dateFilter}
-    GROUP BY jt.id, jt.title, c.name, jt.dispatchType
+    GROUP BY jt.id, jt.title, c.name, jt.startLocation, jt.endLocation, jt.dispatchType
     ORDER BY revenue DESC`,
     { params }
   );

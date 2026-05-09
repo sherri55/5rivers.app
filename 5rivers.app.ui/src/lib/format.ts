@@ -125,8 +125,20 @@ export function parseTimeMinutesET(timeStr: string | null | undefined): number |
 /**
  * Format a job-type label from its constituent fields.
  * Produces: "{Company} - {Start} to {End} ({dispatchType})"
- * Gracefully omits any part that is null/empty.
- * Falls back to `title` if no other data is available.
+ *
+ * Three resolution paths in priority order:
+ *
+ *   1. Full structured data (company + start + end) — render the canonical
+ *      "{Company} - {Start} to {End}" string.
+ *   2. Title fallback — when the structured route can't be assembled, use the
+ *      legacy `title` field (which historically encodes the route as
+ *      "Company - Start ⇄ End - $85/hr"). We strip the trailing rate suffix
+ *      so it reads cleanly. This handles old JobType rows from before
+ *      startLocation/endLocation became required.
+ *   3. Company-only — if no title either, just the company name.
+ *
+ * The dispatchType, when provided, is appended in parens regardless of which
+ * branch produced the body.
  */
 export function formatJobTypeLabel(opts: {
   companyName?: string | null;
@@ -136,16 +148,36 @@ export function formatJobTypeLabel(opts: {
   title?: string | null;
 }): string {
   const { companyName, startLocation, endLocation, dispatchType, title } = opts;
-  let label = '';
-  if (companyName) label = companyName;
-  if (startLocation && endLocation) {
-    const route = `${startLocation} to ${endLocation}`;
-    label = label ? `${label} - ${route}` : route;
+
+  // Build the route portion from whichever location pieces are available.
+  // If both are present, render "Start to End"; if only one, render just
+  // that one (no "to" keyword); if neither, the route is empty.
+  const start = startLocation?.trim() || '';
+  const end = endLocation?.trim() || '';
+  const route = start && end
+    ? `${start} to ${end}`
+    : (start || end);
+
+  let body = '';
+  if (companyName && route) {
+    body = `${companyName} - ${route}`;
+  } else if (companyName && title) {
+    // No structured locations at all — fall back to the title (legacy job
+    // types often encode the route as "Company - Start ⇄ End - $85/hr").
+    // Strip the trailing rate suffix so it reads cleanly.
+    body = title.replace(/\s+-\s+\$[\d,.]+\s*\/?\s*(hr|hour|load|loads|ton|tons|tonne|tonnes|job)?\s*$/i, '').trim();
+  } else if (companyName) {
+    body = companyName;
+  } else if (route) {
+    body = route;
+  } else if (title) {
+    body = title.replace(/\s+-\s+\$[\d,.]+\s*\/?\s*(hr|hour|load|loads|ton|tons|tonne|tonnes|job)?\s*$/i, '').trim();
   }
+
   if (dispatchType) {
-    label = label ? `${label} (${dispatchType})` : `(${dispatchType})`;
+    return body ? `${body} (${dispatchType})` : `(${dispatchType})`;
   }
-  return label || title || '';
+  return body;
 }
 
 /**

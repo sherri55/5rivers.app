@@ -73,18 +73,28 @@ async function listDriverPaySummaries(organizationId) {
         return [];
     // Jobs with explicit driver pay (JobDriverPay)
     const jobRows = await (0, connection_1.query)(`SELECT jdp.driverId, jdp.jobId, jdp.amount, jdp.paidAt, jdp.paymentId,
-        j.jobDate, j.amount AS jobAmount, jt.title AS jobTypeTitle
+        j.jobDate, j.amount AS jobAmount, jt.title AS jobTypeTitle,
+        c.name AS companyName,
+        jt.startLocation AS jobTypeStartLocation,
+        jt.endLocation   AS jobTypeEndLocation,
+        jt.dispatchType  AS jobTypeDispatchType
      FROM JobDriverPay jdp
      INNER JOIN Jobs j ON j.id = jdp.jobId AND j.organizationId = @organizationId
      INNER JOIN JobTypes jt ON jt.id = j.jobTypeId
+     LEFT JOIN Companies c ON c.id = jt.companyId
      WHERE jdp.driverId IN (SELECT id FROM Drivers WHERE organizationId = @organizationId)
      ORDER BY jdp.driverId, j.jobDate DESC`, { params: { organizationId } });
     // Jobs with driver assigned but no JobDriverPay row — calculate driver pay from their rate
     const jobRowsNoPay = await (0, connection_1.query)(`SELECT j.driverId, j.id AS jobId, j.jobDate, jt.title AS jobTypeTitle,
+            c.name AS companyName,
+            jt.startLocation AS jobTypeStartLocation,
+            jt.endLocation   AS jobTypeEndLocation,
+            jt.dispatchType  AS jobTypeDispatchType,
             j.amount AS jobAmount, j.startTime, j.endTime, j.loads,
             d.payType, d.hourlyRate, d.percentageRate
      FROM Jobs j
      INNER JOIN JobTypes jt ON jt.id = j.jobTypeId
+     LEFT JOIN Companies c ON c.id = jt.companyId
      INNER JOIN Drivers d ON d.id = j.driverId
      WHERE j.organizationId = @organizationId AND j.driverId IS NOT NULL
        AND NOT EXISTS (SELECT 1 FROM JobDriverPay jdp WHERE jdp.jobId = j.id)
@@ -105,6 +115,10 @@ async function listDriverPaySummaries(organizationId) {
             jobId: row.jobId,
             jobDate: toJobDate(row.jobDate),
             jobTypeTitle: row.jobTypeTitle,
+            companyName: row.companyName ?? null,
+            jobTypeStartLocation: row.jobTypeStartLocation ?? null,
+            jobTypeEndLocation: row.jobTypeEndLocation ?? null,
+            jobTypeDispatchType: row.jobTypeDispatchType ?? null,
             jobAmount: row.jobAmount != null ? Number(row.jobAmount) : null,
             amount: Number(row.amount),
             paidAt,
@@ -119,6 +133,10 @@ async function listDriverPaySummaries(organizationId) {
             jobId: row.jobId,
             jobDate: toJobDate(row.jobDate),
             jobTypeTitle: row.jobTypeTitle,
+            companyName: row.companyName ?? null,
+            jobTypeStartLocation: row.jobTypeStartLocation ?? null,
+            jobTypeEndLocation: row.jobTypeEndLocation ?? null,
+            jobTypeDispatchType: row.jobTypeDispatchType ?? null,
             jobAmount: row.jobAmount != null ? Number(row.jobAmount) : null,
             amount: calcDriverPay(row),
             paidAt: null,

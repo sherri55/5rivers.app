@@ -16,6 +16,7 @@ import { PageSpinner, ButtonSpinner } from '@/components/ui/Spinner';
 import { ConfirmModal } from '@/components/ui/Modal';
 import { Modal } from '@/components/ui/Modal';
 import { Select } from '@/components/ui/Select';
+import { JobTypeLabel } from '@/components/ui/JobTypeLabel';
 import type { JobType } from '@/types';
 
 // ============================================
@@ -366,28 +367,18 @@ function JobTypesSection({
                 className="flex items-center justify-between p-4 bg-surface-container-low rounded-lg hover:bg-surface-container transition-colors"
               >
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-sm font-semibold text-on-surface">
-                    {jt.title}
-                  </h3>
-                  <div className="flex items-center gap-4 mt-1 text-xs text-slate-500">
-                    {jt.startLocation && (
-                      <span>
-                        {jt.startLocation} → {jt.endLocation}
-                      </span>
-                    )}
+                  {/* Company name is implicit on this page (we're inside the
+                      company's edit form), so we omit it from the label. */}
+                  <JobTypeLabel
+                    startLocation={jt.startLocation}
+                    endLocation={jt.endLocation}
+                    dispatchType={jt.dispatchType}
+                    fallbackTitle={jt.title}
+                    className="text-sm text-on-surface"
+                  />
+                  <div className="mt-1 text-xs">
                     <span className="font-medium text-primary">
                       Rate: {formatCurrency(jt.rateOfJob)}
-                    </span>
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                      jt.dispatchType === 'hourly'
-                        ? 'bg-blue-50 text-blue-600'
-                        : jt.dispatchType === 'load'
-                          ? 'bg-emerald-50 text-emerald-600'
-                          : jt.dispatchType === 'tonnage'
-                            ? 'bg-amber-50 text-amber-600'
-                            : 'bg-slate-100 text-slate-600'
-                    }`}>
-                      {jt.dispatchType}
                     </span>
                   </div>
                 </div>

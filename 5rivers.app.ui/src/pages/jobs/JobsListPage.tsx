@@ -4,11 +4,12 @@ import { useJobs, useDeleteJob, useUpdateJob } from '@/hooks/useJobs';
 import { useLookupMaps, useJobTypes, useDrivers, useDispatchers } from '@/hooks/useLookups';
 import { useColumnVisibility, type ColumnDef } from '@/hooks/useColumnVisibility';
 import { useToast } from '@/context/toast';
-import { formatCurrency, formatDate, formatTime, formatJobTypeLabel, getInitials, parseTimeMinutesET } from '@/lib/format';
+import { formatCurrency, formatDate, formatTime, getInitials, parseTimeMinutesET } from '@/lib/format';
 import { SourceTypeBadge } from '@/components/ui/Badge';
 import { ConfirmModal } from '@/components/ui/Modal';
 import { DataTable, type Column } from '@/components/ui/DataTable';
 import { ColumnToggle } from '@/components/ui/ColumnToggle';
+import { JobTypeLabel } from '@/components/ui/JobTypeLabel';
 import { ExportPdfButton, type PdfColumnDef } from '@/components/ui/ExportPdfButton';
 import { Select } from '@/components/ui/Select';
 import { DateRangePicker } from '@/components/ui/DateRangePicker';
@@ -356,20 +357,20 @@ export function JobsListPage() {
         render: (job) => {
           const jt = jobTypeMap.get(job.jobTypeId);
           const companyName = job.companyName ?? (jt ? (companyMap.get(jt.companyId) ?? '') : '');
-          const dispatchType = job.jobTypeDispatchType ?? jt?.dispatchType;
+          const startLocation = job.jobTypeStartLocation ?? jt?.startLocation;
+          const endLocation   = job.jobTypeEndLocation   ?? jt?.endLocation;
+          const dispatchType  = job.jobTypeDispatchType  ?? jt?.dispatchType;
           const rateOfJob = jt?.rateOfJob;
-          const label = formatJobTypeLabel({
-            companyName,
-            startLocation: jt?.startLocation,
-            endLocation: jt?.endLocation,
-            dispatchType,
-            title: job.jobTypeTitle ?? jt?.title,
-          });
           return (
             <div className="flex flex-col gap-0.5">
-              <span className="text-[13px] font-medium text-blue-700 leading-snug">
-                {label || '—'}
-              </span>
+              <JobTypeLabel
+                companyName={companyName}
+                startLocation={startLocation}
+                endLocation={endLocation}
+                dispatchType={dispatchType}
+                fallbackTitle={job.jobTypeTitle ?? jt?.title}
+                className="text-[13px] text-blue-700 leading-snug"
+              />
               {jt && rateOfJob == null ? (
                 <span className="text-[11px] font-medium text-amber-600">Rate Pending</span>
               ) : jt && rateOfJob != null && rateOfJob > 0 ? (
@@ -582,7 +583,7 @@ export function JobsListPage() {
         render: (job) => (
           <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
             <Link
-              to={`/jobs/${job.id}/edit`}
+              to={`/dashboard/jobs/${job.id}/edit`}
               className="p-1.5 hover:bg-blue-50 text-slate-400 hover:text-blue-600 rounded transition-colors"
             >
               <span className="material-symbols-outlined text-[20px]">edit</span>
@@ -822,7 +823,7 @@ export function JobsListPage() {
         emptyDescription="Create your first job to get started."
         onSort={handleSort}
         onPageChange={setPage}
-        onRowClick={(job) => navigate(`/jobs/${job.id}/edit`)}
+        onRowClick={(job) => navigate(`/dashboard/jobs/${job.id}/edit`)}
         rowKey={(job) => job.id}
       />
 

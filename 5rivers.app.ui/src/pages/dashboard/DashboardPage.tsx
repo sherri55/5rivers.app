@@ -5,6 +5,7 @@ import type { DashboardStats, DriverRevenue } from '@/api/endpoints';
 import { useLookupMaps } from '@/hooks/useLookups';
 import { formatCurrency, formatDate } from '@/lib/format';
 import { SourceTypeBadge } from '@/components/ui/Badge';
+import { JobTypeLabel } from '@/components/ui/JobTypeLabel';
 import { PageSpinner } from '@/components/ui/Spinner';
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
@@ -434,8 +435,15 @@ export function DashboardPage() {
                 <div key={jt.jobTypeId}>
                   <div className="flex items-center justify-between mb-1">
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-gray-700 truncate">{jt.jobTypeTitle}</p>
-                      <p className="text-[10px] text-gray-400">{jt.companyName} &middot; {jt.jobs} jobs</p>
+                      <JobTypeLabel
+                        companyName={jt.companyName}
+                        startLocation={jt.startLocation}
+                        endLocation={jt.endLocation}
+                        dispatchType={jt.dispatchType}
+                        fallbackTitle={jt.jobTypeTitle}
+                        className="text-sm text-gray-700"
+                      />
+                      <p className="text-[10px] text-gray-400 mt-1">{jt.jobs} jobs</p>
                     </div>
                     <span className="text-sm font-semibold text-gray-800 ml-3">{formatCurrency(jt.revenue)}</span>
                   </div>
