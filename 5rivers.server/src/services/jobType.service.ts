@@ -136,7 +136,6 @@ export async function createJobType(organizationId: string, input: CreateJobType
 export async function updateJobType(organizationId: string, input: UpdateJobTypeInput): Promise<JobType | null> {
   const existing = await getJobTypeById(input.id, organizationId);
   if (!existing) return null;
-  const oldRate = existing.rateOfJob;
   const params: Record<string, unknown> = {
     id: input.id,
     title: input.title ?? existing.title,
@@ -151,11 +150,11 @@ export async function updateJobType(organizationId: string, input: UpdateJobType
     { params }
   );
 
-  // If rate was just confirmed (changed from NULL to a value), backfill job amounts
-  const newRate = input.rateOfJob !== undefined ? input.rateOfJob : existing.rateOfJob;
-  if (oldRate == null && newRate != null) {
-    await backfillJobAmounts(organizationId, input.id);
-  }
+  // We used to call `backfillJobAmounts` here when a rate went from NULL
+  // to a value — that has been removed. Auto-filling existing jobs with
+  // a calculated amount surprised users who hadn't explicitly entered
+  // those values. Now amounts only change when someone edits the job.
+  // `backfillJobAmounts` remains exported below as a manual operation.
 
   return getJobTypeById(input.id, organizationId);
 }

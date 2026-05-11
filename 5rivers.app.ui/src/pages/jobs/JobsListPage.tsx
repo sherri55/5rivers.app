@@ -104,6 +104,37 @@ export function JobsListPage() {
     prevFilterKeyRef.current = filterKey;
   }, [filterKey]);
 
+  // Fetch job types early so the selection callbacks below can use jobTypeMap.
+  const { data: jobTypesData } = useJobTypes();
+
+  // Job type lookup map — declared early because getEffectiveAmount uses it.
+  const jobTypeMap = useMemo(
+    () =>
+      new Map(
+        jobTypesData?.data.map((jt) => [
+          jt.id,
+          {
+            title: jt.title,
+            companyId: jt.companyId,
+            dispatchType: jt.dispatchType,
+            rateOfJob: jt.rateOfJob,
+            startLocation: jt.startLocation,
+            endLocation: jt.endLocation,
+          },
+        ]) ?? [],
+      ),
+    [jobTypesData],
+  );
+
+  // Resolve a job's *effective* amount — the server already computes this
+  // via the `vJobsEffective` SQL view. We just read the field. Kept as a
+  // helper so all downstream consumers (selection subtotals, etc.) share
+  // one source.
+  const getEffectiveAmount = useCallback(
+    (job: Job): number | null => job.effectiveAmount,
+    [],
+  );
+
   const toggleSelect = useCallback((id: string, e: React.MouseEvent, job: Job) => {
     e.stopPropagation();
     setSelectedIds((prev) => {
@@ -114,10 +145,10 @@ export function JobsListPage() {
     setSelectedJobData((prev) => {
       const next = new Map(prev);
       if (next.has(id)) next.delete(id);
-      else next.set(id, { amount: job.amount, dispatcherId: job.dispatcherId });
+      else next.set(id, { amount: getEffectiveAmount(job), dispatcherId: job.dispatcherId });
       return next;
     });
-  }, []);
+  }, [getEffectiveAmount]);
 
   const toggleSelectAll = useCallback((jobs: Job[]) => {
     setSelectedIds((prev) => {
@@ -136,10 +167,10 @@ export function JobsListPage() {
       const allSelected = jobs.every((j) => prev.has(j.id));
       const next = new Map(prev);
       if (allSelected) jobs.forEach((j) => next.delete(j.id));
-      else jobs.forEach((j) => next.set(j.id, { amount: j.amount, dispatcherId: j.dispatcherId }));
+      else jobs.forEach((j) => next.set(j.id, { amount: getEffectiveAmount(j), dispatcherId: j.dispatcherId }));
       return next;
     });
-  }, []);
+  }, [getEffectiveAmount]);
 
   // Filters & pagination — stored in URL so Back button restores them
   const page           = Number(searchParams.get('page') ?? '1');
@@ -190,31 +221,12 @@ export function JobsListPage() {
     return p;
   }, [page, limit, sortBy, order, sourceFilter, dateFrom, dateTo, searchFilter, driverFilter, dispatcherFilter, jobPaidFilter, driverPaidFilter]);
 
-  // Fetch data
+  // Fetch data — jobTypesData and jobTypeMap were hoisted earlier so the
+  // selection callbacks can reference them. Everything else still loads here.
   const { data, isLoading } = useJobs(params);
   const { companyMap, driverMap, dispatcherMap, unitMap } = useLookupMaps();
-  const { data: jobTypesData } = useJobTypes();
   const { data: driversData } = useDrivers();
   const { data: dispatchersData } = useDispatchers();
-
-  // Job type lookup map
-  const jobTypeMap = useMemo(
-    () =>
-      new Map(
-        jobTypesData?.data.map((jt) => [
-          jt.id,
-          {
-            title: jt.title,
-            companyId: jt.companyId,
-            dispatchType: jt.dispatchType,
-            rateOfJob: jt.rateOfJob,
-            startLocation: jt.startLocation,
-            endLocation: jt.endLocation,
-          },
-        ]) ?? [],
-      ),
-    [jobTypesData],
-  );
 
   // Toggle paid statuses
   const updateJob = useUpdateJob();
@@ -360,7 +372,10 @@ export function JobsListPage() {
           const startLocation = job.jobTypeStartLocation ?? jt?.startLocation;
           const endLocation   = job.jobTypeEndLocation   ?? jt?.endLocation;
           const dispatchType  = job.jobTypeDispatchType  ?? jt?.dispatchType;
-          const rateOfJob = jt?.rateOfJob;
+          // Prefer the rate that the server joined directly onto the job —
+          // jobTypeMap is paginated (limit:200) so it can miss entries.
+          // Fall back to the map lookup if the joined field is absent.
+          const rateOfJob = job.jobTypeRateOfJob ?? jt?.rateOfJob;
           return (
             <div className="flex flex-col gap-0.5">
               <JobTypeLabel
@@ -371,9 +386,15 @@ export function JobsListPage() {
                 fallbackTitle={job.jobTypeTitle ?? jt?.title}
                 className="text-[13px] text-blue-700 leading-snug"
               />
-              {jt && rateOfJob == null ? (
+              {/*
+                Rate Pending fires only when the server couldn't produce an
+                effective amount — neither an override nor a computable
+                rate × inputs. `job.effectiveAmount` comes from the server's
+                vJobsEffective view (single source of truth).
+              */}
+              {job.effectiveAmount == null ? (
                 <span className="text-[11px] font-medium text-amber-600">Rate Pending</span>
-              ) : jt && rateOfJob != null && rateOfJob > 0 ? (
+              ) : rateOfJob != null && rateOfJob > 0 ? (
                 <span className="text-[11px] text-slate-400">{formatCurrency(rateOfJob)}</span>
               ) : null}
             </div>
@@ -511,19 +532,35 @@ export function JobsListPage() {
         sortable: true,
         align: 'right' as const,
         render: (job) => {
-          if (job.amount == null) {
+          // Single source of truth: the server returns `effectiveAmount` from
+          // the `vJobsEffective` SQL view (override OR calculated). The UI
+          // just displays it. `job.amount` is treated as the override flag —
+          // if set, the row gets an "Override" tag for visual distinction.
+          const effective = job.effectiveAmount;
+          const isOverride = job.amount != null;
+
+          if (effective == null) {
             return (
               <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700 ring-1 ring-inset ring-amber-600/20">
-                <span className="material-symbols-rounded text-[14px]">pending</span>
+                <span className="material-symbols-outlined text-[14px]">pending</span>
                 No Rate
               </span>
             );
           }
-          const withTax = job.amount * 1.13;
+
+          const withTax = effective * 1.13;
           return (
             <div className="text-right">
               <span className="text-[13px] font-bold text-on-surface">{formatCurrency(withTax)}</span>
-              <span className="block text-[11px] text-slate-400">{formatCurrency(job.amount)}</span>
+              <span className="block text-[11px] text-slate-400">{formatCurrency(effective)}</span>
+              {isOverride && (
+                <span
+                  className="inline-block mt-0.5 text-[9px] font-bold uppercase tracking-wider text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-sm ring-1 ring-inset ring-amber-600/30"
+                  title="Manual override — this value was entered explicitly rather than calculated from the job type rate"
+                >
+                  Override
+                </span>
+              )}
             </div>
           );
         },

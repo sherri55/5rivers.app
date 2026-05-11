@@ -71,8 +71,8 @@ export function useInvoiceJobs(invoiceId: string) {
 export function useAddJobToInvoice() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ invoiceId, jobId, amount }: { invoiceId: string; jobId: string; amount: number }) =>
-      invoiceJobsApi.add(invoiceId, { jobId, amount }),
+    mutationFn: ({ invoiceId, jobId, amount }: { invoiceId: string; jobId: string; amount?: number | null }) =>
+      invoiceJobsApi.add(invoiceId, { jobId, amount: amount ?? null }),
     onSuccess: (_data, variables) => {
       qc.invalidateQueries({ queryKey: invoiceKeys.jobs(variables.invoiceId) });
     },

@@ -227,9 +227,18 @@ function withColumns(qs: string, columns?: string[]): string {
   return `${qs}${sep}columns=${columns.join(',')}`;
 }
 
+export interface InvoicePdfOptions {
+  /** Show the commission section on the PDF summary. Defaults to true. */
+  includeCommission?: boolean;
+}
+
 export const pdfApi = {
-  downloadInvoice: (invoiceId: string) =>
-    downloadFile(`/invoices/${invoiceId}/pdf`, 'invoice.pdf'),
+  downloadInvoice: (invoiceId: string, options: InvoicePdfOptions = {}) => {
+    const params = new URLSearchParams();
+    if (options.includeCommission === false) params.set('includeCommission', 'false');
+    const qs = params.toString();
+    return downloadFile(`/invoices/${invoiceId}/pdf${qs ? `?${qs}` : ''}`, 'invoice.pdf');
+  },
   exportJobs: (params?: PaginationParams, columns?: string[]) =>
     downloadFile(withColumns(`/export/jobs${buildQuery(params)}`, columns), 'jobs-report.pdf'),
   exportInvoices: (params?: PaginationParams, columns?: string[]) =>
@@ -391,7 +400,8 @@ export const inquiriesApi = {
 
 export const invoiceJobsApi = {
   list: (invoiceId: string) => api.get<JobInvoiceLine[]>(`/invoices/${invoiceId}/jobs`),
-  add: (invoiceId: string, data: { jobId: string; amount: number }) =>
+  /** `amount` is OPTIONAL. Send null/omit to inherit the job's effectiveAmount. */
+  add: (invoiceId: string, data: { jobId: string; amount?: number | null }) =>
     api.post<JobInvoiceLine>(`/invoices/${invoiceId}/jobs`, data),
   remove: (invoiceId: string, jobId: string) =>
     api.delete(`/invoices/${invoiceId}/jobs/${jobId}`),

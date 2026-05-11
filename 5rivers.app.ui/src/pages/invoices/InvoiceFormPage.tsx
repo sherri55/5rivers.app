@@ -16,8 +16,8 @@ import { useToast } from '@/context/toast';
 import { formatCurrency, formatDate } from '@/lib/format';
 import { invoicesApi, pdfApi } from '@/api/endpoints';
 import { SourceTypeBadge } from '@/components/ui/Badge';
+import { JobTypeLabel } from '@/components/ui/JobTypeLabel';
 import { PageSpinner, ButtonSpinner } from '@/components/ui/Spinner';
-import { ExportPdfButton } from '@/components/ui/ExportPdfButton';
 import { Select } from '@/components/ui/Select';
 import { ConfirmModal, Modal } from '@/components/ui/Modal';
 import type { InvoiceStatus, JobInvoiceLine } from '@/types';
@@ -44,6 +44,12 @@ export function InvoiceFormPage() {
   const removeJobFromInvoice = useRemoveJobFromInvoice();
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showReceivedModal, setShowReceivedModal] = useState(false);
+  // Invoice-PDF download options modal — opens when the user clicks
+  // "Download PDF". Controls whether the commission section appears
+  // on the generated PDF.
+  const [showPdfOptions, setShowPdfOptions] = useState(false);
+  const [pdfIncludeCommission, setPdfIncludeCommission] = useState(true);
+  const [pdfDownloading, setPdfDownloading] = useState(false);
   const [showAddJobsModal, setShowAddJobsModal] = useState(false);
 
   // Load existing invoice for edit mode
@@ -205,19 +211,20 @@ export function InvoiceFormPage() {
     }
   }
 
-  // Selected jobs total amount
+  // Selected jobs total — uses effectiveAmount so jobs without an override
+  // still contribute their calculated value to the preview.
   const selectedTotal = useMemo(() => {
     let sum = 0;
     for (const jobId of selectedJobIds) {
       const job = allJobsMap.get(jobId);
-      if (job) sum += job.amount ?? 0;
+      if (job) sum += job.effectiveAmount ?? job.amount ?? 0;
     }
     return sum;
   }, [selectedJobIds, allJobsMap]);
 
   // Invoice totals
   const subtotal = useMemo(
-    () => (invoiceJobs ?? []).reduce((sum, line) => sum + (line.amount ?? 0), 0),
+    () => (invoiceJobs ?? []).reduce((sum, line) => sum + (line.effectiveAmount ?? line.amount ?? 0), 0),
     [invoiceJobs],
   );
   const selectedDispatcher = existingInvoice?.dispatcherId
@@ -310,10 +317,12 @@ export function InvoiceFormPage() {
     if (!id || selectedJobIds.size === 0) return;
     let added = 0;
     for (const jobId of selectedJobIds) {
-      const job = allJobsMap.get(jobId);
-      const amount = job?.amount ?? 0;
+      // Don't snapshot the current amount onto the invoice line. Sending
+      // null tells the server "inherit from the job's effectiveAmount" via
+      // the vJobInvoiceEffective view — so if the job type's rate changes
+      // later, the invoice line reflects the new value automatically.
       try {
-        await addJobToInvoice.mutateAsync({ invoiceId: id, jobId, amount });
+        await addJobToInvoice.mutateAsync({ invoiceId: id, jobId, amount: null });
         added++;
       } catch (err) {
         addToast(
@@ -361,10 +370,14 @@ export function InvoiceFormPage() {
             {isEdit ? 'Edit Invoice' : 'Create Invoice'}
           </h1>
           {isEdit && id && (
-            <ExportPdfButton
-              onExport={() => pdfApi.downloadInvoice(id)}
-              label="Download PDF"
-            />
+            <button
+              type="button"
+              onClick={() => setShowPdfOptions(true)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium text-slate-600 bg-surface-container-low hover:bg-surface-container ghost-border transition-colors"
+            >
+              <span className="material-symbols-outlined text-[16px]">picture_as_pdf</span>
+              Download PDF
+            </button>
           )}
         </div>
         <p className="text-on-surface-variant text-sm mt-1">
@@ -579,21 +592,29 @@ export function InvoiceFormPage() {
                   </thead>
                   <tbody>
                     {jobLines.map((line) => {
+                      // Prefer the joined fields from the API response (always
+                      // present); fall back to the paginated jobTypeDetailMap
+                      // for any line whose join was missing for some reason.
                       const jt = line.jobTypeId ? jobTypeDetailMap.get(line.jobTypeId) : undefined;
+                      const companyName = line.companyName ?? (jt?.companyId ? companyMap.get(jt.companyId) : undefined);
                       return (
                         <tr key={line.jobId} className="border-b border-outline-variant/10 hover:bg-surface-container-low/50 transition-colors">
                           <td className="py-3 px-4 text-sm text-on-surface">{formatDate(line.jobDate)}</td>
                           <td className="py-3 px-4">
                             <div className="flex flex-col">
-                              <span className="text-sm font-medium text-blue-700">{jt?.title ?? '—'}</span>
-                              {jt?.companyId && (
-                                <span className="text-[11px] text-slate-500">{companyMap.get(jt.companyId)}</span>
-                              )}
+                              <JobTypeLabel
+                                companyName={companyName ?? null}
+                                startLocation={line.jobTypeStartLocation ?? jt?.startLocation ?? null}
+                                endLocation={line.jobTypeEndLocation ?? jt?.endLocation ?? null}
+                                dispatchType={line.jobTypeDispatchType ?? jt?.dispatchType ?? null}
+                                fallbackTitle={line.jobTypeTitle ?? jt?.title ?? null}
+                                className="text-sm font-medium text-blue-700"
+                              />
                             </div>
                           </td>
                           <td className="py-3 px-4 text-sm text-on-surface">{line.driverId ? driverMap.get(line.driverId) ?? '—' : '—'}</td>
                           <td className="py-3 px-4">{line.sourceType ? <SourceTypeBadge sourceType={line.sourceType} /> : '—'}</td>
-                          <td className="py-3 px-4 text-right text-sm font-semibold text-on-surface">{formatCurrency(line.amount)}</td>
+                          <td className="py-3 px-4 text-right text-sm font-semibold text-on-surface">{formatCurrency(line.effectiveAmount ?? line.amount)}</td>
                           <td className="py-3 px-2">
                             <button
                               type="button"
@@ -707,6 +728,79 @@ export function InvoiceFormPage() {
         confirmLabel="Confirm"
       />
 
+      {/* PDF options modal — toggleable include-commission section */}
+      <Modal
+        open={showPdfOptions}
+        onClose={() => !pdfDownloading && setShowPdfOptions(false)}
+        title="PDF Options"
+        size="sm"
+        actions={
+          <>
+            <button
+              type="button"
+              onClick={() => setShowPdfOptions(false)}
+              disabled={pdfDownloading}
+              className="px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-surface-container-low transition-colors disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                if (!id) return;
+                setPdfDownloading(true);
+                try {
+                  await pdfApi.downloadInvoice(id, { includeCommission: pdfIncludeCommission });
+                  setShowPdfOptions(false);
+                } catch (err) {
+                  addToast(err instanceof Error ? err.message : 'Failed to download PDF', 'error');
+                } finally {
+                  setPdfDownloading(false);
+                }
+              }}
+              disabled={pdfDownloading}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white bg-primary hover:bg-primary-container transition-colors disabled:opacity-50"
+            >
+              {pdfDownloading ? (
+                <>
+                  <ButtonSpinner />
+                  Generating…
+                </>
+              ) : (
+                <>
+                  <span className="material-symbols-outlined text-[16px]">download</span>
+                  Download PDF
+                </>
+              )}
+            </button>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-4 py-2">
+          <p className="text-sm text-on-surface-variant">
+            Configure what appears on the generated invoice PDF.
+          </p>
+          <label className="flex items-start gap-3 p-3 rounded-lg border border-outline-variant/40 hover:bg-surface-container-low cursor-pointer transition-colors">
+            <input
+              type="checkbox"
+              checked={pdfIncludeCommission}
+              onChange={(e) => setPdfIncludeCommission(e.target.checked)}
+              className="mt-0.5 w-4 h-4 rounded accent-primary"
+            />
+            <div className="flex-1">
+              <div className="text-sm font-medium text-on-surface">
+                Include commission section
+              </div>
+              <p className="text-xs text-on-surface-variant mt-0.5">
+                When checked, the PDF summary shows the dispatcher's commission
+                line and deducts it before HST. Uncheck to produce a clean
+                customer-facing total without commission disclosure.
+              </p>
+            </div>
+          </label>
+        </div>
+      </Modal>
+
       {/* Add Jobs modal — revamped with search, select-all, rich info */}
       <Modal
         open={showAddJobsModal}
@@ -818,7 +912,11 @@ export function InvoiceFormPage() {
                   </thead>
                   <tbody>
                     {filteredAvailableJobs.map((job) => {
+                      // Prefer joined fields on the Job row (always present
+                      // from the listJobs projection) over the paginated
+                      // detail map, which silently truncates at limit 200.
                       const jt = jobTypeDetailMap.get(job.jobTypeId);
+                      const companyName = job.companyName ?? (jt?.companyId ? companyMap.get(jt.companyId) : undefined);
                       const isSelected = selectedJobIds.has(job.id);
                       return (
                         <tr
@@ -844,16 +942,14 @@ export function InvoiceFormPage() {
                             </span>
                           </td>
                           <td className="py-2.5 px-3">
-                            <div className="flex flex-col">
-                              <span className="text-[13px] font-medium text-blue-700">
-                                {jt?.title ?? '—'}
-                              </span>
-                              <span className="text-[11px] text-slate-500">
-                                {jt?.companyId ? companyMap.get(jt.companyId) : ''}
-                                {jt?.startLocation && ` · ${jt.startLocation}`}
-                                {jt?.endLocation && ` → ${jt.endLocation}`}
-                              </span>
-                            </div>
+                            <JobTypeLabel
+                              companyName={companyName ?? null}
+                              startLocation={job.jobTypeStartLocation ?? jt?.startLocation ?? null}
+                              endLocation={job.jobTypeEndLocation ?? jt?.endLocation ?? null}
+                              dispatchType={job.jobTypeDispatchType ?? jt?.dispatchType ?? null}
+                              fallbackTitle={job.jobTypeTitle ?? jt?.title ?? null}
+                              className="text-[13px] font-medium text-blue-700"
+                            />
                           </td>
                           <td className="py-2.5 px-3 text-[13px] text-slate-700">
                             {job.driverId ? driverMap.get(job.driverId) ?? '—' : '—'}
@@ -863,7 +959,7 @@ export function InvoiceFormPage() {
                           </td>
                           <td className="py-2.5 px-3 text-right">
                             <span className="text-[13px] font-bold text-on-surface">
-                              {formatCurrency(job.amount)}
+                              {formatCurrency(job.effectiveAmount ?? job.amount)}
                             </span>
                           </td>
                         </tr>

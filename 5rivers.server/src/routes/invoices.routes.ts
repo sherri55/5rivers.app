@@ -37,15 +37,18 @@ router.post(
   '/invoices/:id/jobs',
   asyncHandler(async (req: Request, res: Response) => {
     const body = req.body ?? {};
-    if (body.jobId == null || body.amount == null) throw badRequest('jobId and amount are required');
+    if (body.jobId == null) throw badRequest('jobId is required');
     const invoice = await invoiceService.getInvoiceById(req.params.id, req.user!.organizationId);
     if (!invoice) throw notFound('Invoice not found');
     try {
+      // amount is optional in the dynamic-calc model. When omitted, the line
+      // inherits the job's effectiveAmount via the vJobInvoiceEffective view.
+      const explicitAmount = body.amount == null ? null : Number(body.amount);
       const line = await jobInvoiceService.addJobToInvoice(
         req.user!.organizationId,
         req.params.id,
         body.jobId,
-        Number(body.amount)
+        explicitAmount,
       );
       res.status(201).json(line);
     } catch (e) {

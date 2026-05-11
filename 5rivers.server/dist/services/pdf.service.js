@@ -139,7 +139,8 @@ async function compressImageToDataUri(content, contentType, maxWidth = 720, maxH
         }
     }
 }
-async function generateInvoicePDF(invoiceId, organizationId) {
+async function generateInvoicePDF(invoiceId, organizationId, options = {}) {
+    const includeCommission = options.includeCommission !== false;
     // Fetch invoice
     const invoiceRows = await (0, connection_1.query)(`SELECT i.*, d.name AS dispatcherName, d.commissionPercent
      FROM Invoices i
@@ -148,22 +149,25 @@ async function generateInvoicePDF(invoiceId, organizationId) {
     if (!invoiceRows?.length)
         throw new Error('Invoice not found');
     const inv = invoiceRows[0];
-    // Fetch jobs on this invoice with all related data
-    const jobRows = await (0, connection_1.query)(`SELECT ji.jobId, ji.amount AS lineAmount,
+    // Fetch jobs on this invoice. We read from the vJobInvoiceEffective view so
+    // `lineAmount` is the override-OR-inherited value (effectiveAmount). The
+    // job-side `amount` field also comes from vJobsEffective so the PDF
+    // shows calculated values for jobs without an explicit override.
+    const jobRows = await (0, connection_1.query)(`SELECT vji.jobId, vji.effectiveAmount AS lineAmount,
             j.jobDate, j.startTime, j.endTime, j.loads, j.weight,
-            j.ticketIds, j.amount, j.sourceType,
+            j.ticketIds, j.effectiveAmount AS amount, j.sourceType,
             dr.name AS driverName,
             u.name AS unitName,
             jt.title AS jobTypeTitle, jt.dispatchType, jt.rateOfJob,
             jt.startLocation, jt.endLocation,
             c.name AS companyName
-     FROM JobInvoice ji
-     INNER JOIN Jobs j ON j.id = ji.jobId
+     FROM vJobInvoiceEffective vji
+     INNER JOIN vJobsEffective j ON j.id = vji.jobId
      LEFT JOIN Drivers dr ON j.driverId = dr.id
      LEFT JOIN Units u ON j.unitId = u.id
      LEFT JOIN JobTypes jt ON j.jobTypeId = jt.id
      LEFT JOIN Companies c ON jt.companyId = c.id
-     WHERE ji.invoiceId = @invoiceId AND j.organizationId = @orgId
+     WHERE vji.invoiceId = @invoiceId AND j.organizationId = @orgId
      ORDER BY j.jobDate ASC`, { params: { invoiceId, orgId: organizationId } });
     const jobs = Array.isArray(jobRows) ? jobRows : [];
     // Fetch all images for these jobs
@@ -187,9 +191,11 @@ async function generateInvoicePDF(invoiceId, organizationId) {
         list.push(img);
         imagesByJob.set(img.jobId, list);
     }
-    // Calculate totals
+    // Calculate totals. When the caller opted out of commission display,
+    // we force the commission to zero so the summary section reads
+    // SUBTOTAL → HST → TOTAL (no commission line, no deduction).
     const subtotal = jobs.reduce((s, j) => s + (j.lineAmount ?? 0), 0);
-    const commissionPct = inv.commissionPercent ?? 0;
+    const commissionPct = includeCommission ? (inv.commissionPercent ?? 0) : 0;
     const commission = commissionPct > 0 ? subtotal * (commissionPct / 100) : 0;
     const netAmount = subtotal - commission;
     const hst = netAmount * 0.13;

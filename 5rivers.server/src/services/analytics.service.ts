@@ -64,13 +64,13 @@ export async function getDashboardStats(organizationId: string): Promise<Dashboa
   const rows = await query<any[]>(
     `
     SELECT
-      COALESCE(SUM(j.amount), 0) AS revenueTotal,
-      COALESCE(SUM(CASE WHEN j.jobDate >= DATEFROMPARTS(YEAR(CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATETIME2)), MONTH(CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATETIME2)), 1) THEN j.amount END), 0) AS revenueThisMonth,
+      COALESCE(SUM(j.effectiveAmount), 0) AS revenueTotal,
+      COALESCE(SUM(CASE WHEN j.jobDate >= DATEFROMPARTS(YEAR(CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATETIME2)), MONTH(CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATETIME2)), 1) THEN j.effectiveAmount END), 0) AS revenueThisMonth,
       COALESCE(SUM(CASE WHEN j.jobDate >= DATEADD(MONTH, -1, DATEFROMPARTS(YEAR(CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATETIME2)), MONTH(CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATETIME2)), 1))
                          AND j.jobDate <  DATEFROMPARTS(YEAR(CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATETIME2)), MONTH(CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATETIME2)), 1)
-                    THEN j.amount END), 0) AS revenueLastMonth,
-      COALESCE(SUM(CASE WHEN j.jobDate >= DATEADD(DAY, 1-DATEPART(WEEKDAY, CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATETIME2)), CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATE)) THEN j.amount END), 0) AS revenueThisWeek,
-      COALESCE(SUM(CASE WHEN j.jobDate = CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATE) THEN j.amount END), 0) AS revenueToday,
+                    THEN j.effectiveAmount END), 0) AS revenueLastMonth,
+      COALESCE(SUM(CASE WHEN j.jobDate >= DATEADD(DAY, 1-DATEPART(WEEKDAY, CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATETIME2)), CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATE)) THEN j.effectiveAmount END), 0) AS revenueThisWeek,
+      COALESCE(SUM(CASE WHEN j.jobDate = CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATE) THEN j.effectiveAmount END), 0) AS revenueToday,
       COUNT(*) AS jobsTotal,
       COUNT(CASE WHEN j.jobDate >= DATEFROMPARTS(YEAR(CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATETIME2)), MONTH(CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATETIME2)), 1) THEN 1 END) AS jobsThisMonth,
       COUNT(CASE WHEN j.jobDate >= DATEADD(MONTH, -1, DATEFROMPARTS(YEAR(CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATETIME2)), MONTH(CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATETIME2)), 1))
@@ -81,7 +81,7 @@ export async function getDashboardStats(organizationId: string): Promise<Dashboa
       COUNT(CASE WHEN j.jobPaid = 1 THEN 1 END) AS paidCount,
       CONVERT(VARCHAR(10), MIN(j.jobDate), 120) AS minDate,
       CONVERT(VARCHAR(10), MAX(j.jobDate), 120) AS maxDate
-    FROM Jobs j
+    FROM vJobsEffective j
     WHERE j.organizationId = @organizationId
     `,
     { params: { organizationId } }
@@ -98,10 +98,13 @@ export async function getDashboardStats(organizationId: string): Promise<Dashboa
     { params: { organizationId } }
   );
 
+  // Outstanding totals use the vJobInvoiceEffective view so each line's
+  // effectiveAmount (override OR inherited from the job's calculated value)
+  // is summed. Otherwise lines without an explicit override would count as $0.
   const outstandingRows = await query<any[]>(
-    `SELECT COALESCE(SUM(ji.amount), 0) AS totalOutstanding
+    `SELECT COALESCE(SUM(vji.effectiveAmount), 0) AS totalOutstanding
     FROM Invoices i
-    JOIN JobInvoice ji ON ji.invoiceId = i.id
+    JOIN vJobInvoiceEffective vji ON vji.invoiceId = i.id
     WHERE i.organizationId = @organizationId
       AND i.status IN ('CREATED', 'RAISED')`,
     { params: { organizationId } }
@@ -231,9 +234,9 @@ export async function getRevenueByDay(
   const rows = await query<DailyRevenue[]>(
     `SELECT
       CONVERT(VARCHAR(10), j.jobDate, 120) AS date,
-      COALESCE(SUM(j.amount), 0) AS revenue,
+      COALESCE(SUM(j.effectiveAmount), 0) AS revenue,
       COUNT(*) AS jobs
-    FROM Jobs j
+    FROM vJobsEffective j
     WHERE j.organizationId = @organizationId
       AND j.jobDate >= DATEADD(DAY, -@days, (SELECT MAX(jobDate) FROM Jobs WHERE organizationId = @organizationId))
     GROUP BY j.jobDate
@@ -264,9 +267,9 @@ export async function getRevenueByCompany(
 
   return query<CompanyRevenue[]>(
     `SELECT c.id AS companyId, c.name AS companyName,
-      COALESCE(SUM(j.amount), 0) AS revenue,
+      COALESCE(SUM(j.effectiveAmount), 0) AS revenue,
       COUNT(j.id) AS jobs
-    FROM Jobs j
+    FROM vJobsEffective j
     JOIN JobTypes jt ON jt.id = j.jobTypeId
     JOIN Companies c ON c.id = jt.companyId
     WHERE j.organizationId = @organizationId ${dateFilter}
@@ -299,11 +302,11 @@ export async function getRevenueByDriver(
 
   return query<DriverRevenue[]>(
     `SELECT d.id AS driverId, d.name AS driverName,
-      COALESCE(SUM(j.amount), 0) AS revenue,
+      COALESCE(SUM(j.effectiveAmount), 0) AS revenue,
       COUNT(j.id) AS jobs,
       COUNT(CASE WHEN j.driverPaid = 1 THEN 1 END) AS paid,
       COUNT(CASE WHEN j.driverPaid = 0 THEN 1 END) AS unpaid
-    FROM Jobs j
+    FROM vJobsEffective j
     JOIN Drivers d ON d.id = j.driverId
     WHERE j.organizationId = @organizationId AND j.driverId IS NOT NULL ${dateFilter}
     GROUP BY d.id, d.name
@@ -334,10 +337,10 @@ export async function getRevenueByDispatcher(
 
   return query<DispatcherRevenue[]>(
     `SELECT dp.id AS dispatcherId, dp.name AS dispatcherName,
-      COALESCE(SUM(j.amount), 0) AS revenue,
+      COALESCE(SUM(j.effectiveAmount), 0) AS revenue,
       COUNT(j.id) AS jobs,
-      COALESCE(SUM(j.amount * dp.commissionPercent / 100.0), 0) AS commission
-    FROM Jobs j
+      COALESCE(SUM(j.effectiveAmount * dp.commissionPercent / 100.0), 0) AS commission
+    FROM vJobsEffective j
     JOIN Dispatchers dp ON dp.id = j.dispatcherId
     WHERE j.organizationId = @organizationId AND j.dispatcherId IS NOT NULL ${dateFilter}
     GROUP BY dp.id, dp.name, dp.commissionPercent
@@ -362,9 +365,9 @@ export async function getMonthlyRevenue(
   return query<MonthlyRevenue[]>(
     `SELECT
       FORMAT(j.jobDate, 'yyyy-MM') AS month,
-      COALESCE(SUM(j.amount), 0) AS revenue,
+      COALESCE(SUM(j.effectiveAmount), 0) AS revenue,
       COUNT(*) AS jobs
-    FROM Jobs j
+    FROM vJobsEffective j
     WHERE j.organizationId = @organizationId
       AND j.jobDate >= DATEADD(MONTH, -@months, (SELECT COALESCE(MAX(jobDate), CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' AS DATETIME2)) FROM Jobs WHERE organizationId = @organizationId))
     GROUP BY FORMAT(j.jobDate, 'yyyy-MM')
@@ -392,8 +395,8 @@ export async function getSourceTypeBreakdown(
   if (endDate) { dateFilter += ' AND j.jobDate <= @endDate'; params.endDate = endDate; }
 
   return query<SourceTypeBreakdown[]>(
-    `SELECT j.sourceType, COUNT(*) AS count, COALESCE(SUM(j.amount), 0) AS revenue
-    FROM Jobs j
+    `SELECT j.sourceType, COUNT(*) AS count, COALESCE(SUM(j.effectiveAmount), 0) AS revenue
+    FROM vJobsEffective j
     WHERE j.organizationId = @organizationId ${dateFilter}
     GROUP BY j.sourceType`,
     { params }
@@ -422,8 +425,8 @@ export async function getPaymentStatus(
     `SELECT
       CASE WHEN j.jobPaid = 1 THEN 'Received' ELSE 'Outstanding' END AS status,
       COUNT(*) AS count,
-      COALESCE(SUM(j.amount), 0) AS amount
-    FROM Jobs j
+      COALESCE(SUM(j.effectiveAmount), 0) AS amount
+    FROM vJobsEffective j
     WHERE j.organizationId = @organizationId ${dateFilter}
     GROUP BY j.jobPaid`,
     { params }
@@ -527,13 +530,13 @@ export async function getMonthlyProfit(
       COALESCE(r.revenue, 0) - COALESCE(x.expenses, 0) AS profit,
       COALESCE(r.jobs, 0) AS jobs
     FROM (
-      SELECT FORMAT(j.jobDate, 'yyyy-MM') AS month FROM Jobs j WHERE j.organizationId = @organizationId
+      SELECT FORMAT(j.jobDate, 'yyyy-MM') AS month FROM vJobsEffective j WHERE j.organizationId = @organizationId
       UNION
       SELECT FORMAT(e.expenseDate, 'yyyy-MM') AS month FROM Expenses e WHERE e.organizationId = @organizationId
     ) m
     LEFT JOIN (
-      SELECT FORMAT(j.jobDate, 'yyyy-MM') AS month, SUM(j.amount) AS revenue, COUNT(*) AS jobs
-      FROM Jobs j WHERE j.organizationId = @organizationId
+      SELECT FORMAT(j.jobDate, 'yyyy-MM') AS month, SUM(j.effectiveAmount) AS revenue, COUNT(*) AS jobs
+      FROM vJobsEffective j WHERE j.organizationId = @organizationId
       GROUP BY FORMAT(j.jobDate, 'yyyy-MM')
     ) r ON r.month = m.month
     LEFT JOIN (
@@ -562,8 +565,8 @@ export async function getTopJobTypes(
     `SELECT TOP(@limit)
       jt.id AS jobTypeId, jt.title AS jobTypeTitle, c.name AS companyName,
       jt.startLocation, jt.endLocation, jt.dispatchType,
-      COALESCE(SUM(j.amount), 0) AS revenue, COUNT(j.id) AS jobs
-    FROM Jobs j
+      COALESCE(SUM(j.effectiveAmount), 0) AS revenue, COUNT(j.id) AS jobs
+    FROM vJobsEffective j
     JOIN JobTypes jt ON jt.id = j.jobTypeId
     JOIN Companies c ON c.id = jt.companyId
     WHERE j.organizationId = @organizationId ${dateFilter}

@@ -26,6 +26,10 @@ export interface Job {
   startTime: string | null;
   endTime: string | null;
   amount: number | null;
+  /** Override (`amount`) when set, otherwise computed from rate × inputs.
+   *  Sourced from the `vJobsEffective` SQL view. NULL when neither an
+   *  override nor a computable rate × inputs combination is available. */
+  effectiveAmount: number | null;
   carrierAmount: number | null;
   ticketIds: string | null;
   jobPaid: boolean;
@@ -37,6 +41,7 @@ export interface Job {
   jobTypeDispatchType: string | null;
   jobTypeStartLocation: string | null;
   jobTypeEndLocation: string | null;
+  jobTypeRateOfJob: number | null;
   companyId: string | null;
   companyName: string | null;
   driverName: string | null;
@@ -169,7 +174,12 @@ export async function listJobs(
     LEFT JOIN Units u ON j.unitId = u.id`;
 
   const jobColumns = ALL_COLUMNS.split(', ').map(c => `j.${c}`).join(', ')
-    + ', jt.title AS jobTypeTitle, jt.dispatchType AS jobTypeDispatchType, jt.startLocation AS jobTypeStartLocation, jt.endLocation AS jobTypeEndLocation, c.id AS companyId, c.name AS companyName, d.name AS driverName, dp.name AS dispatcherName, u.name AS unitName';
+    // `effectiveAmount` is the override (j.amount) when set, otherwise the
+    // value computed from JobType.rateOfJob × the job's own hours/loads/weight.
+    // Sourced from the `vJobsEffective` SQL view (migration 008) so the
+    // formula stays in one place across analytics, list, PDF, and driver pay.
+    + ', j.effectiveAmount'
+    + ', jt.title AS jobTypeTitle, jt.dispatchType AS jobTypeDispatchType, jt.startLocation AS jobTypeStartLocation, jt.endLocation AS jobTypeEndLocation, jt.rateOfJob AS jobTypeRateOfJob, c.id AS companyId, c.name AS companyName, d.name AS driverName, dp.name AS dispatcherName, u.name AS unitName';
 
   // ORDER BY composition.
   //   Primary   — whatever the caller asked for (defaults to jobDate).
@@ -190,16 +200,16 @@ export async function listJobs(
   const [rows, countRows] = await Promise.all([
     query<Job[]>(
       needsJoins
-        ? `SELECT ${jobColumns} FROM Jobs j${joins} WHERE j.organizationId = @organizationId${whereExtra}
+        ? `SELECT ${jobColumns} FROM vJobsEffective j${joins} WHERE j.organizationId = @organizationId${whereExtra}
            ${orderClause} OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY`
-        : `SELECT ${jobColumns} FROM Jobs j WHERE j.organizationId = @organizationId${whereExtra}
+        : `SELECT ${jobColumns} FROM vJobsEffective j WHERE j.organizationId = @organizationId${whereExtra}
            ${orderClause} OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY`,
       { params }
     ),
     query<Array<{ total: number }>>(
       needsJoins
-        ? `SELECT COUNT(*) AS total FROM Jobs j${joins} WHERE j.organizationId = @organizationId${whereExtra}`
-        : `SELECT COUNT(*) AS total FROM Jobs j WHERE j.organizationId = @organizationId${whereExtra}`,
+        ? `SELECT COUNT(*) AS total FROM vJobsEffective j${joins} WHERE j.organizationId = @organizationId${whereExtra}`
+        : `SELECT COUNT(*) AS total FROM vJobsEffective j WHERE j.organizationId = @organizationId${whereExtra}`,
       { params: countParams }
     ),
   ]);
@@ -216,9 +226,13 @@ export async function listJobs(
 export async function getJobById(id: string, organizationId: string): Promise<Job | null> {
   const rows = await query<Job[]>(
     `SELECT ${ALL_COLUMNS.split(', ').map(c => `j.${c}`).join(', ')},
-            jt.title AS jobTypeTitle, jt.dispatchType AS jobTypeDispatchType, c.id AS companyId, c.name AS companyName,
+            j.effectiveAmount,
+            jt.title AS jobTypeTitle, jt.dispatchType AS jobTypeDispatchType,
+            jt.startLocation AS jobTypeStartLocation, jt.endLocation AS jobTypeEndLocation,
+            jt.rateOfJob AS jobTypeRateOfJob,
+            c.id AS companyId, c.name AS companyName,
             d.name AS driverName, dp.name AS dispatcherName, u.name AS unitName
-     FROM Jobs j
+     FROM vJobsEffective j
      LEFT JOIN JobTypes jt ON j.jobTypeId = jt.id
      LEFT JOIN Companies c  ON jt.companyId = c.id
      LEFT JOIN Drivers d    ON j.driverId = d.id
@@ -231,11 +245,82 @@ export async function getJobById(id: string, organizationId: string): Promise<Jo
   return Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
 }
 
+export interface ComputeAmountInputs {
+  rateOfJob: number | null | undefined;
+  dispatchType: string | null | undefined;
+  loads?: number | null;
+  weight?: string | null;
+  startTime?: string | Date | null;
+  endTime?: string | Date | null;
+}
+
 /**
- * Auto-calculate the job amount based on the job type's rate and dispatch type.
- * Returns null if rate is pending (NULL) or if we don't have enough data.
+ * Pure formula: compute a job's amount from a rate + dispatchType + inputs.
+ *
+ * This is the SINGLE source of truth for the TypeScript half of the
+ * dynamic-calc model. The SQL view `vJobsEffective` (migration 008) and
+ * the UI's `lib/format.ts → computeJobPreviewAmount` MUST stay in sync
+ * with this formula — the test suite enforces that via shared fixtures.
+ *
+ * Returns null when:
+ *   • the rate is unset (NULL, 0, or negative — treated as "rate pending")
+ *   • dispatch type is hourly and start/end are missing/invalid
+ *   • dispatch type is tonnage and weight parses to no positive values
+ *
+ * Unknown dispatchType with a non-zero rate falls through to flat-rate
+ * (returns `rate`) — matches the SQL view's `ELSE jt.rateOfJob` arm and
+ * the UI's default branch.
  */
-async function autoCalcAmount(
+export function computeJobAmountFromInputs(input: ComputeAmountInputs): number | null {
+  const { rateOfJob, dispatchType, loads, weight, startTime, endTime } = input;
+  if (rateOfJob == null || rateOfJob <= 0) return null;
+
+  // Lowercase + trim so 'Hourly' / ' HOURLY ' / 'load' all match.
+  switch ((dispatchType ?? '').trim().toLowerCase()) {
+    case 'load':
+    case 'loads':
+      // Default loads to 1 when missing — matches `COALESCE(j.loads, 1)`
+      // in vJobsEffective. Single-trip tickets often omit the count.
+      return Math.round(rateOfJob * (loads ?? 1) * 100) / 100;
+    case 'fixed':
+      return Math.round(rateOfJob * 100) / 100;
+    case 'hourly': {
+      if (!startTime || !endTime) return null;
+      const start = new Date(startTime).getTime();
+      const end = new Date(endTime).getTime();
+      if (isNaN(start) || isNaN(end) || end <= start) return null;
+      const hours = (end - start) / (1000 * 60 * 60);
+      return Math.round(rateOfJob * hours * 100) / 100;
+    }
+    case 'tonnage': {
+      if (!weight) return null;
+      // weight is stored as JSON array string "[22.5,22.5]" OR space/comma separated
+      let weights: number[] = [];
+      const trimmed = weight.trim();
+      if (trimmed.startsWith('[')) {
+        try { weights = JSON.parse(trimmed).filter((n: number) => !isNaN(n) && n > 0); } catch { /* ignore */ }
+      }
+      if (weights.length === 0) {
+        weights = trimmed.split(/[\s,]+/).map((w) => parseFloat(w)).filter((w) => !isNaN(w) && w > 0);
+      }
+      if (weights.length === 0) return null;
+      const totalWeight = weights.reduce((s, w) => s + w, 0);
+      return Math.round(rateOfJob * totalWeight * 100) / 100;
+    }
+    default:
+      // Unknown / null / empty dispatchType — flat-rate fallback.
+      // Matches `ELSE jt.rateOfJob` in vJobsEffective and the UI default arm.
+      return Math.round(rateOfJob * 100) / 100;
+  }
+}
+
+/**
+ * DB-backed wrapper: look up the JobType, then run the formula above.
+ * Used by read-time consumers (analytics, invoice generation, etc.) when
+ * they only have a jobTypeId. The pure formula above is the unit-testable
+ * surface; this is the convenience entry point for service code.
+ */
+export async function computeJobAmount(
   organizationId: string,
   jobTypeId: string,
   loads: number | null | undefined,
@@ -244,30 +329,15 @@ async function autoCalcAmount(
   endTime: string | Date | null | undefined
 ): Promise<number | null> {
   const jt = await getJobTypeById(jobTypeId, organizationId);
-  if (!jt || jt.rateOfJob == null) return null;
-
-  switch (jt.dispatchType) {
-    case 'load':
-      return jt.rateOfJob * (loads ?? 1);
-    case 'fixed':
-      return jt.rateOfJob;
-    case 'hourly': {
-      if (!startTime || !endTime) return null;
-      const start = new Date(startTime).getTime();
-      const end = new Date(endTime).getTime();
-      if (isNaN(start) || isNaN(end) || end <= start) return null;
-      const hours = (end - start) / (1000 * 60 * 60);
-      return Math.round(jt.rateOfJob * hours * 100) / 100;
-    }
-    case 'tonnage': {
-      if (!weight) return null;
-      const w = parseFloat(weight);
-      if (isNaN(w)) return null;
-      return Math.round(jt.rateOfJob * w * 100) / 100;
-    }
-    default:
-      return null;
-  }
+  if (!jt) return null;
+  return computeJobAmountFromInputs({
+    rateOfJob: jt.rateOfJob,
+    dispatchType: jt.dispatchType,
+    loads,
+    weight,
+    startTime,
+    endTime,
+  });
 }
 
 export async function createJob(organizationId: string, input: CreateJobInput): Promise<Job> {
@@ -280,11 +350,16 @@ export async function createJob(organizationId: string, input: CreateJobInput): 
   const startTime = parseTimeInputToUTC(input.jobDate, input.startTime);
   const endTime   = parseTimeInputToUTC(input.jobDate, input.endTime);
 
-  // Auto-calculate amount if not explicitly provided
-  let amount = input.amount ?? null;
-  if (amount == null) {
-    amount = await autoCalcAmount(organizationId, input.jobTypeId, input.loads, input.weight, startTime, endTime);
-  }
+  // Amount semantics (dynamic-calc model):
+  //   The `amount` column is OVERRIDE-ONLY. NULL means "no override —
+  //   read paths compute the value live from JobType.rateOfJob × inputs".
+  //   Non-NULL means "the user explicitly set this number for this row".
+  //
+  // Server never auto-calculates; the UI's computeJobPreviewAmount and any
+  // analytics queries are responsible for the calculation at read time.
+  // This guarantees the displayed value is always fresh when a job type's
+  // rate changes — no backfill required.
+  const amount = input.amount ?? null;
 
   await query(
     `INSERT INTO Jobs (id, organizationId, jobDate, jobTypeId, driverId, dispatcherId, unitId, carrierId, sourceType, weight, loads, startTime, endTime, amount, carrierAmount, ticketIds, jobPaid, driverPaid, createdAt, updatedAt)
@@ -324,16 +399,12 @@ export async function updateJob(organizationId: string, input: UpdateJobInput): 
   const effectiveWeight = input.weight !== undefined ? input.weight : existing.weight;
   const effectiveLoads = input.loads !== undefined ? input.loads : existing.loads;
 
-  // Determine amount: if explicitly provided use it, otherwise try auto-calc if currently NULL
-  let amount: number | null;
-  if (input.amount !== undefined) {
-    amount = input.amount;
-  } else if (existing.amount == null) {
-    // Amount is still NULL — try to auto-calculate
-    amount = await autoCalcAmount(organizationId, effectiveJobTypeId, effectiveLoads, effectiveWeight, startTime, endTime);
-  } else {
-    amount = existing.amount;
-  }
+  // Amount semantics (dynamic-calc model — see createJob comment):
+  //   • input.amount omitted from payload  → keep the existing override
+  //   • input.amount is null               → clear the override (NULL = compute live)
+  //   • input.amount is a number           → store as the explicit override
+  const amount: number | null =
+    input.amount !== undefined ? input.amount : existing.amount;
 
   const params: Record<string, unknown> = {
     id: input.id, organizationId,

@@ -167,6 +167,14 @@ export interface Job {
   startTime: string | null;
   endTime: string | null;
   amount: number | null;
+  /**
+   * Server-computed effective amount: the explicit override (`amount`) when
+   * set, otherwise the calculation from JobType rate × hours/loads/weight.
+   * Sourced from the `vJobsEffective` SQL view, mirroring the formula in
+   * `lib/format.ts → computeJobPreviewAmount`. NULL only when neither an
+   * override nor a computable rate is available — that's a true "Rate Pending".
+   */
+  effectiveAmount: number | null;
   carrierAmount: number | null;
   ticketIds: string | null;
   jobPaid: boolean;
@@ -178,6 +186,7 @@ export interface Job {
   jobTypeDispatchType: string | null;
   jobTypeStartLocation: string | null;
   jobTypeEndLocation: string | null;
+  jobTypeRateOfJob: number | null;
   companyId: string | null;
   companyName: string | null;
   driverName: string | null;
@@ -227,7 +236,11 @@ export interface Invoice {
 export interface JobInvoiceLine {
   jobId: string;
   invoiceId: string;
-  amount: number;
+  /** Override on the invoice line (NULL = inherit from the job's effective amount). */
+  amount: number | null;
+  /** What the UI should actually display & sum: override-or-inherited. NULL only
+   *  when the underlying job has no rate either. From vJobInvoiceEffective. */
+  effectiveAmount?: number | null;
   addedAt: string;
   // Enriched fields from JOIN (returned by GET /invoices/:id/jobs)
   jobDate?: string;
@@ -241,6 +254,16 @@ export interface JobInvoiceLine {
   startTime?: string | null;
   endTime?: string | null;
   ticketIds?: string | null;
+  // Joined JobType + Company fields — populated so the invoice line can
+  // render the full "Company - Start to End (dispatch)" label without
+  // depending on a paginated client-side jobTypeMap.
+  jobTypeTitle?: string | null;
+  jobTypeDispatchType?: string | null;
+  jobTypeStartLocation?: string | null;
+  jobTypeEndLocation?: string | null;
+  jobTypeRateOfJob?: number | null;
+  companyId?: string | null;
+  companyName?: string | null;
 }
 
 // --- Driver Pay Summary ---

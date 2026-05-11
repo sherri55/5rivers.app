@@ -140,7 +140,11 @@ export function JobFormPage() {
     }
   }, [dispatchType, selectedJobType, startTime, endTime, loads, weight]);
 
-  // Populate form when editing
+  // Populate form when editing. In the dynamic-calc model, `Jobs.amount`
+  // is OVERRIDE-ONLY — NULL means "no override, compute live from rate ×
+  // inputs". So the form pre-fills the Amount Override field iff the
+  // existing row has a non-null amount, and otherwise leaves it blank
+  // (the live calculation runs in the preview panel above the input).
   useEffect(() => {
     if (!existingJob) return;
     setSourceType(existingJob.sourceType);
@@ -155,7 +159,7 @@ export function JobFormPage() {
     setEndTime(extractTimeForInput(existingJob.endTime));
     setWeight(existingJob.weight ?? '');
     setLoads(existingJob.loads?.toString() ?? '');
-    setAmount(existingJob.amount?.toString() ?? '');
+    setAmount(existingJob.amount != null ? existingJob.amount.toString() : '');
     setTicketIds(existingJob.ticketIds ?? '');
     setJobPaid(existingJob.jobPaid);
     setDriverPaid(existingJob.driverPaid);
@@ -383,7 +387,7 @@ export function JobFormPage() {
             </FormField>
 
             {/* Company */}
-            <FormField label="Company" required linkTo={selectedCompanyId ? `/companies/${selectedCompanyId}/edit` : undefined}>
+            <FormField label="Company" required linkTo={selectedCompanyId ? `/dashboard/companies/${selectedCompanyId}/edit` : undefined}>
               <Select
                 value={selectedCompanyId}
                 onChange={(e) => {
@@ -403,7 +407,7 @@ export function JobFormPage() {
             </FormField>
 
             {/* Job Type */}
-            <FormField label="Job Type" required linkTo={selectedCompanyId ? `/companies/${selectedCompanyId}/edit` : undefined}>
+            <FormField label="Job Type" required linkTo={selectedCompanyId ? `/dashboard/companies/${selectedCompanyId}/edit` : undefined}>
               <Select
                 value={jobTypeId}
                 onChange={(e) => setJobTypeId(e.target.value)}
@@ -441,7 +445,7 @@ export function JobFormPage() {
             </FormField>
 
             {/* Driver */}
-            <FormField label="Driver" linkTo={driverId ? `/drivers/${driverId}/edit` : undefined}>
+            <FormField label="Driver" linkTo={driverId ? `/dashboard/drivers/${driverId}/edit` : undefined}>
               <Select
                 value={driverId}
                 onChange={(e) => setDriverId(e.target.value)}
@@ -695,7 +699,7 @@ export function JobFormPage() {
               </div>
             ) : null}
 
-            <FormField label={dispatchType === 'fixed' ? 'Amount ($)' : 'Amount Override ($)'}>
+            <FormField label="Amount Override ($) — optional">
               <div className="relative">
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-primary">
                   $
@@ -709,11 +713,11 @@ export function JobFormPage() {
                   className="w-full pl-8 pr-4 py-4 bg-white rounded-lg border-none text-xl font-bold text-on-surface shadow-sm focus:ring-2 focus:ring-primary/20"
                 />
               </div>
-              {dispatchType && dispatchType !== 'fixed' && (
-                <p className="text-[10px] text-slate-400 mt-1">
-                  Leave blank to use the calculated amount.
-                </p>
-              )}
+              <p className="text-[10px] text-slate-400 mt-1">
+                Leave blank — the calculated amount above is the default. Only enter
+                a value here when this specific job's price differs from the rate
+                calculation (e.g. a negotiated flat fee).
+              </p>
             </FormField>
 
             <FormField label="Ticket IDs">
@@ -972,7 +976,7 @@ function FormField({
             className="flex items-center gap-0.5 text-[10px] text-slate-400 hover:text-primary transition-colors"
             title={`Open ${label}`}
           >
-            <span className="material-symbols-rounded text-[13px]">open_in_new</span>
+            <span className="material-symbols-outlined text-[13px]">open_in_new</span>
           </a>
         )}
       </div>

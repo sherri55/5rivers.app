@@ -114,9 +114,18 @@ function buildSubtitle(filters: Record<string, string>): string {
 router.get(
   '/invoices/:id/pdf',
   asyncHandler(async (req: Request, res: Response) => {
+    // ?includeCommission=false → omit the commission section from the PDF.
+    // Anything else (or omitted) keeps the default behaviour (commission
+    // shown when the dispatcher has commissionPercent > 0).
+    const includeCommission =
+      typeof req.query.includeCommission === 'string'
+        ? req.query.includeCommission !== 'false'
+        : true;
+
     const { buffer, filename } = await generateInvoicePDF(
       req.params.id,
       req.user!.organizationId,
+      { includeCommission },
     );
     sendPdf(res, buffer, filename);
   }),
@@ -163,7 +172,7 @@ router.get(
       j.dispatcherName ?? '',
       j.unitName ?? '',
       j.sourceType ?? '',
-      fmtCurrency(j.amount),
+      fmtCurrency(j.effectiveAmount ?? j.amount),
       j.driverPaid ? 'Yes' : 'No',
     ]);
 

@@ -96,7 +96,6 @@ async function updateJobType(organizationId, input) {
     const existing = await getJobTypeById(input.id, organizationId);
     if (!existing)
         return null;
-    const oldRate = existing.rateOfJob;
     const params = {
         id: input.id,
         title: input.title ?? existing.title,
@@ -107,11 +106,11 @@ async function updateJobType(organizationId, input) {
         updatedAt: (0, timezone_1.nowEastern)(),
     };
     await (0, connection_1.query)(`UPDATE JobTypes SET title = @title, startLocation = @startLocation, endLocation = @endLocation, dispatchType = @dispatchType, rateOfJob = @rateOfJob, updatedAt = @updatedAt WHERE id = @id`, { params });
-    // If rate was just confirmed (changed from NULL to a value), backfill job amounts
-    const newRate = input.rateOfJob !== undefined ? input.rateOfJob : existing.rateOfJob;
-    if (oldRate == null && newRate != null) {
-        await backfillJobAmounts(organizationId, input.id);
-    }
+    // We used to call `backfillJobAmounts` here when a rate went from NULL
+    // to a value — that has been removed. Auto-filling existing jobs with
+    // a calculated amount surprised users who hadn't explicitly entered
+    // those values. Now amounts only change when someone edits the job.
+    // `backfillJobAmounts` remains exported below as a manual operation.
     return getJobTypeById(input.id, organizationId);
 }
 /**

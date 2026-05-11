@@ -6,7 +6,12 @@ import { nowEastern } from '../utils/timezone';
 export interface JobInvoiceLine {
   jobId: string;
   invoiceId: string;
-  amount: number;
+  /** Override on the invoice line (NULL = inherit from the underlying job). */
+  amount: number | null;
+  /** The value totals/PDF should actually use: override if set, else
+   *  the job's effectiveAmount (from vJobsEffective). NULL only when
+   *  the underlying job has no rate either. */
+  effectiveAmount?: number | null;
   addedAt: Date;
   // Full job details (populated via JOIN)
   jobDate?: string;
@@ -20,6 +25,16 @@ export interface JobInvoiceLine {
   startTime?: string | null;
   endTime?: string | null;
   ticketIds?: string | null;
+  // Joined JobType + Company fields — included so the invoice UI can render
+  // the full "Company - Start to End (dispatch)" label without depending on
+  // a paginated client-side jobTypeMap (which silently truncates at limit 200).
+  jobTypeTitle?: string | null;
+  jobTypeDispatchType?: string | null;
+  jobTypeStartLocation?: string | null;
+  jobTypeEndLocation?: string | null;
+  jobTypeRateOfJob?: number | null;
+  companyId?: string | null;
+  companyName?: string | null;
 }
 
 export async function listJobsOnInvoice(
@@ -29,14 +44,28 @@ export async function listJobsOnInvoice(
   const invoice = await getInvoiceById(invoiceId, organizationId);
   if (!invoice) return [];
 
+  // Pull from the vJobInvoiceEffective view (which itself joins to
+  // vJobsEffective) so each line carries:
+  //   • amount           — the raw override on this invoice line (NULL = inherit)
+  //   • effectiveAmount  — the value to actually use for totals/PDFs
+  //   • full job + jobType + company fields for the UI label
   const rows = await query<JobInvoiceLine[]>(
-    `SELECT ji.jobId, ji.invoiceId, ji.amount, ji.addedAt,
+    `SELECT vji.jobId, vji.invoiceId, vji.amount, vji.effectiveAmount, vji.addedAt,
             j.jobDate, j.jobTypeId, j.driverId, j.dispatcherId, j.unitId,
-            j.sourceType, j.weight, j.loads, j.startTime, j.endTime, j.ticketIds
-     FROM JobInvoice ji
-     LEFT JOIN Jobs j ON j.id = ji.jobId
-     WHERE ji.invoiceId = @invoiceId
-     ORDER BY j.jobDate, ji.addedAt`,
+            j.sourceType, j.weight, j.loads, j.startTime, j.endTime, j.ticketIds,
+            jt.title AS jobTypeTitle,
+            jt.dispatchType AS jobTypeDispatchType,
+            jt.startLocation AS jobTypeStartLocation,
+            jt.endLocation AS jobTypeEndLocation,
+            jt.rateOfJob AS jobTypeRateOfJob,
+            c.id AS companyId,
+            c.name AS companyName
+     FROM vJobInvoiceEffective vji
+     LEFT JOIN Jobs j ON j.id = vji.jobId
+     LEFT JOIN JobTypes jt ON jt.id = j.jobTypeId
+     LEFT JOIN Companies c ON c.id = jt.companyId
+     WHERE vji.invoiceId = @invoiceId
+     ORDER BY j.jobDate, vji.addedAt`,
     { params: { invoiceId } }
   );
   return Array.isArray(rows) ? rows : [];
@@ -50,7 +79,9 @@ export async function getJobInvoice(
   const invoice = await getInvoiceById(invoiceId, organizationId);
   if (!invoice) return null;
   const rows = await query<JobInvoiceLine[]>(
-    `SELECT jobId, invoiceId, amount, addedAt FROM JobInvoice WHERE invoiceId = @invoiceId AND jobId = @jobId`,
+    `SELECT jobId, invoiceId, amount, effectiveAmount, addedAt
+     FROM vJobInvoiceEffective
+     WHERE invoiceId = @invoiceId AND jobId = @jobId`,
     { params: { invoiceId, jobId } }
   );
   return Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
@@ -72,7 +103,7 @@ export async function addJobToInvoice(
   organizationId: string,
   invoiceId: string,
   jobId: string,
-  amount: number
+  amount: number | null = null,
 ): Promise<JobInvoiceLine> {
   const invoice = await getInvoiceById(invoiceId, organizationId);
   if (!invoice) throw new Error('Invoice not found');
@@ -103,13 +134,15 @@ export async function addJobToInvoice(
     }
   }
 
+  // Store the override-only amount. NULL means "inherit from the job's
+  // effectiveAmount via vJobInvoiceEffective" — that's the common case.
   await query(
     `INSERT INTO JobInvoice (jobId, invoiceId, amount, addedAt) VALUES (@jobId, @invoiceId, @amount, @addedAt)`,
     {
       params: {
         jobId,
         invoiceId,
-        amount: Number(amount),
+        amount: amount == null ? null : Number(amount),
         addedAt: nowEastern(),
       },
     }

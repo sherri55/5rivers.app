@@ -129,9 +129,11 @@ function formatJobTable(
     lines.push(`Found ${meta.total} job(s)${paging}\n`);
   }
 
-  // Table header
-  lines.push('| # | Date | Job Type | Driver | Time | Amount | Paid | ID |');
-  lines.push('|---|------|----------|--------|------|--------|------|----|');
+  // Table header — Company and Dispatcher are always rendered in job
+  // listings (per agent UX spec) so the user has full context without
+  // having to call get_job for each row.
+  lines.push('| # | Date | Company | Dispatcher | Job Type | Driver | Time | Amount | Paid | ID |');
+  lines.push('|---|------|---------|------------|----------|--------|------|--------|------|----|');
 
   // Rows
   for (let i = 0; i < jobs.length; i++) {
@@ -139,7 +141,7 @@ function formatJobTable(
     const time = `${fmtTime(j.startTime)}–${fmtTime(j.endTime)}`;
     const shortId = typeof j.id === 'string' ? j.id.slice(0, 8) : '—';
     lines.push(
-      `| ${i + 1} | ${fmtDate(j.date)} | ${j.jobType ?? '—'} | ${j.driver ?? '—'} | ${time} | ${fmtMoney(j.amount)} | ${fmtPaid(j.jobPaid)} | ${shortId}… |`,
+      `| ${i + 1} | ${fmtDate(j.date)} | ${j.company ?? '—'} | ${j.dispatcher ?? '—'} | ${j.jobType ?? '—'} | ${j.driver ?? '—'} | ${time} | ${fmtMoney(j.amount)} | ${fmtPaid(j.jobPaid)} | ${shortId}… |`,
     );
   }
 

@@ -72,27 +72,35 @@ async function listDriverPaySummaries(organizationId) {
     if (driverIds.length === 0)
         return [];
     // Jobs with explicit driver pay (JobDriverPay)
-    const jobRows = await (0, connection_1.query)(`SELECT jdp.driverId, jdp.jobId, jdp.amount, jdp.paidAt, jdp.paymentId,
-        j.jobDate, j.amount AS jobAmount, jt.title AS jobTypeTitle,
+    const jobRows = await (0, connection_1.query)(
+    // Pull `effectiveAmount` from the vJobsEffective view so jobs without
+    // an explicit override still contribute their calculated value to
+    // driver-pay totals. Without this, every NULL-amount job would show
+    // $0 driver pay even when the job type has a rate.
+    `SELECT jdp.driverId, jdp.jobId, jdp.amount, jdp.paidAt, jdp.paymentId,
+        j.jobDate, j.effectiveAmount AS jobAmount, jt.title AS jobTypeTitle,
         c.name AS companyName,
         jt.startLocation AS jobTypeStartLocation,
         jt.endLocation   AS jobTypeEndLocation,
         jt.dispatchType  AS jobTypeDispatchType
      FROM JobDriverPay jdp
-     INNER JOIN Jobs j ON j.id = jdp.jobId AND j.organizationId = @organizationId
+     INNER JOIN vJobsEffective j ON j.id = jdp.jobId AND j.organizationId = @organizationId
      INNER JOIN JobTypes jt ON jt.id = j.jobTypeId
      LEFT JOIN Companies c ON c.id = jt.companyId
      WHERE jdp.driverId IN (SELECT id FROM Drivers WHERE organizationId = @organizationId)
      ORDER BY jdp.driverId, j.jobDate DESC`, { params: { organizationId } });
     // Jobs with driver assigned but no JobDriverPay row — calculate driver pay from their rate
-    const jobRowsNoPay = await (0, connection_1.query)(`SELECT j.driverId, j.id AS jobId, j.jobDate, jt.title AS jobTypeTitle,
+    const jobRowsNoPay = await (0, connection_1.query)(
+    // Same rationale as above — use effectiveAmount so calculated values
+    // (not just overrides) flow into driver-pay calculations.
+    `SELECT j.driverId, j.id AS jobId, j.jobDate, jt.title AS jobTypeTitle,
             c.name AS companyName,
             jt.startLocation AS jobTypeStartLocation,
             jt.endLocation   AS jobTypeEndLocation,
             jt.dispatchType  AS jobTypeDispatchType,
-            j.amount AS jobAmount, j.startTime, j.endTime, j.loads,
+            j.effectiveAmount AS jobAmount, j.startTime, j.endTime, j.loads,
             d.payType, d.hourlyRate, d.percentageRate
-     FROM Jobs j
+     FROM vJobsEffective j
      INNER JOIN JobTypes jt ON jt.id = j.jobTypeId
      LEFT JOIN Companies c ON c.id = jt.companyId
      INNER JOIN Drivers d ON d.id = j.driverId
@@ -212,8 +220,9 @@ async function markJobsAsPaid(organizationId, input) {
             await (0, connection_1.query)(`UPDATE JobDriverPay SET paidAt = @now, paymentId = @paymentId WHERE jobId = @jobId`, { params: { jobId, now, paymentId } });
         }
         else {
-            // No JobDriverPay row — create one using the job's amount
-            const jobRows = await (0, connection_1.query)(`SELECT amount, driverId FROM Jobs WHERE id = @jobId AND organizationId = @organizationId`, { params: { jobId, organizationId } });
+            // No JobDriverPay row — create one using the job's effective amount
+            // (override if set, otherwise computed from rate × inputs).
+            const jobRows = await (0, connection_1.query)(`SELECT effectiveAmount AS amount, driverId FROM vJobsEffective WHERE id = @jobId AND organizationId = @organizationId`, { params: { jobId, organizationId } });
             const job = Array.isArray(jobRows) ? jobRows[0] : null;
             if (job) {
                 await (0, connection_1.query)(`INSERT INTO JobDriverPay (jobId, driverId, amount, paidAt, paymentId, createdAt)

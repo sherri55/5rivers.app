@@ -195,7 +195,8 @@
       "PowerShell(Start-Sleep -Seconds 5; try { $resp = Invoke-RestMethod -Uri \"http://127.0.0.1:4000/api/jobs\" -Headers @{ \"Authorization\" = \"Bearer ddabeba8c514e390ad85f25288cf6cf08b76d94b2ec5dc2c6e8ce30a9a72fb77\" } -TimeoutSec 10; \"API key works! Got $\\($resp.Count\\) jobs\" } catch { \"Error: $\\($_.Exception.Message\\)\" })",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://127.0.0.1:4000/api/health)",
       "Bash(timeout 30 node dist/cli.js)",
-      "Bash(node dist/cli.js --help)"
+      "Bash(node dist/cli.js --help)",
+      "Bash(grep -rn \"linkTo=\\\\`\\\\?/\" /d/Personal/5rivers.app/5rivers.app.ui/src --include=\"*.tsx\")"
     ],
     "deny": [],
     "ask": []

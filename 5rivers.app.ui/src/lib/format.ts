@@ -11,6 +11,70 @@ export function formatCurrency(value: number | null | undefined): string {
 }
 
 /**
+ * Compute what a job's amount WOULD be from its job type rate × the job's
+ * own data (hours, loads, weight). Returns null when:
+ *   - the job type's rate is unset (rate pending at the type level)
+ *   - the dispatch type is hourly/tonnage but the necessary data is missing
+ *
+ * This is the same formula the JobFormPage uses for its "Calculated Amount"
+ * preview — shared here so the JobsListPage can decide whether a job with a
+ * NULL `amount` column is "rate pending" or just "not explicitly entered yet,
+ * but derivable from the type's rate".
+ */
+export function computeJobPreviewAmount(opts: {
+  rate: number | null | undefined;
+  dispatchType: string | null | undefined;
+  startTime: string | null | undefined;
+  endTime: string | null | undefined;
+  loads: number | null | undefined;
+  weight: string | null | undefined;
+}): number | null {
+  const { rate, dispatchType, startTime, endTime, loads, weight } = opts;
+  if (rate == null || rate === 0) return null;
+
+  switch ((dispatchType ?? '').toLowerCase()) {
+    case 'fixed':
+      return rate;
+    case 'load':
+    case 'loads': {
+      // Mirrors server `autoCalcAmount`: a load-type job with no `loads`
+      // count is treated as a single load. Otherwise every single-trip
+      // ticket (where drivers rarely fill in a count) would render as
+      // "Rate Pending" even though the job type has a rate.
+      const effectiveLoads = loads ?? 1;
+      return Math.round(rate * effectiveLoads * 100) / 100;
+    }
+    case 'hourly': {
+      if (!startTime || !endTime) return null;
+      const start = new Date(startTime).getTime();
+      const end   = new Date(endTime).getTime();
+      if (isNaN(start) || isNaN(end) || end <= start) return null;
+      const hours = (end - start) / (1000 * 60 * 60);
+      return Math.round(rate * hours * 100) / 100;
+    }
+    case 'tonnage': {
+      if (!weight) return null;
+      let weights: number[] = [];
+      if (weight.startsWith('[')) {
+        try { weights = JSON.parse(weight).filter((n: number) => !isNaN(n) && n > 0); } catch { /* ignore */ }
+      }
+      if (weights.length === 0) {
+        weights = weight.split(/[\s,]+/).map((w) => parseFloat(w)).filter((w) => !isNaN(w) && w > 0);
+      }
+      if (weights.length === 0) return null;
+      const total = weights.reduce((s, w) => s + w, 0);
+      return Math.round(rate * total * 100) / 100;
+    }
+    default:
+      // Unknown dispatch type but a rate is present — fall back to flat-rate.
+      // Avoids rendering "Rate Pending" when a JobType was created with a
+      // dispatch label the UI doesn't recognise yet (e.g. an old enum value
+      // or a new one not yet handled).
+      return rate;
+  }
+}
+
+/**
  * Format an ISO date string to a readable format.
  * e.g. "2026-03-15" → "Mar 15, 2026"
  * All dates are treated as Eastern Time (America/Toronto).

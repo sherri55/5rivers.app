@@ -619,7 +619,10 @@ describe('5rivers.server API', () => {
         });
       expect(res.status).toBe(201);
       expect(res.body).toHaveProperty('id');
-      expect(res.body.invoiceNumber).toBe('INV-TEST-001');
+      // invoiceNumber is auto-generated server-side (the request-supplied
+      // value is ignored). Just assert one was assigned.
+      expect(typeof res.body.invoiceNumber).toBe('string');
+      expect(res.body.invoiceNumber.length).toBeGreaterThan(0);
       expect(res.body.dispatcherId).toBe(dispRes.body.id);
       expect(res.body.organizationId).toBe(testContext.orgId);
     });
@@ -709,16 +712,22 @@ describe('5rivers.server API', () => {
         .set('Authorization', `Bearer ${testContext.token}`)
         .send({ companyId: companyRes.body.id, title: 'Haul' });
       expect(jtRes.status).toBe(201);
-      const jobRes = await request(app)
-        .post('/api/jobs')
-        .set('Authorization', `Bearer ${testContext.token}`)
-        .send({ jobDate: '2025-02-10', jobTypeId: jtRes.body.id });
-      expect(jobRes.status).toBe(201);
       const dispRes = await request(app)
         .post('/api/dispatchers')
         .set('Authorization', `Bearer ${testContext.token}`)
         .send({ name: 'Disp JobInv Add' });
       expect(dispRes.status).toBe(201);
+      // Job must be assigned to the same dispatcher as the invoice (the
+      // service enforces this match). Pass dispatcherId in createJob.
+      const jobRes = await request(app)
+        .post('/api/jobs')
+        .set('Authorization', `Bearer ${testContext.token}`)
+        .send({
+          jobDate: '2025-02-10',
+          jobTypeId: jtRes.body.id,
+          dispatcherId: dispRes.body.id,
+        });
+      expect(jobRes.status).toBe(201);
       const invRes = await request(app)
         .post('/api/invoices')
         .set('Authorization', `Bearer ${testContext.token}`)
@@ -734,14 +743,17 @@ describe('5rivers.server API', () => {
         .set('Authorization', `Bearer ${testContext.token}`)
         .send({ jobId: jobRes.body.id, amount: 250 });
       expect(addRes.status).toBe(201);
-      expect(addRes.body).toMatchObject({ jobId: jobRes.body.id, invoiceId: invRes.body.id, amount: 250 });
+      expect(addRes.body).toMatchObject({ jobId: jobRes.body.id, invoiceId: invRes.body.id });
+      expect(Number(addRes.body.amount)).toBe(250);
 
       const listRes = await request(app)
         .get(`/api/invoices/${invRes.body.id}/jobs`)
         .set('Authorization', `Bearer ${testContext.token}`);
       expect(listRes.status).toBe(200);
       expect(listRes.body).toHaveLength(1);
-      expect(listRes.body[0].amount).toBe(250);
+      // In dynamic-calc mode, `effectiveAmount` is what consumers should read.
+      // The raw override column `amount` here equals 250 since we set it.
+      expect(Number(listRes.body[0].amount)).toBe(250);
     });
 
     it('PATCH /api/invoices/:id/jobs/:jobId updates amount', async () => {
@@ -754,14 +766,14 @@ describe('5rivers.server API', () => {
         .post('/api/job-types')
         .set('Authorization', `Bearer ${testContext.token}`)
         .send({ companyId: companyRes.body.id, title: 'Haul' });
-      const jobRes = await request(app)
-        .post('/api/jobs')
-        .set('Authorization', `Bearer ${testContext.token}`)
-        .send({ jobDate: '2025-02-12', jobTypeId: jtRes.body.id });
       const dispRes = await request(app)
         .post('/api/dispatchers')
         .set('Authorization', `Bearer ${testContext.token}`)
         .send({ name: 'Disp JobInv Patch' });
+      const jobRes = await request(app)
+        .post('/api/jobs')
+        .set('Authorization', `Bearer ${testContext.token}`)
+        .send({ jobDate: '2025-02-12', jobTypeId: jtRes.body.id, dispatcherId: dispRes.body.id });
       const invRes = await request(app)
         .post('/api/invoices')
         .set('Authorization', `Bearer ${testContext.token}`)
@@ -780,7 +792,7 @@ describe('5rivers.server API', () => {
         .set('Authorization', `Bearer ${testContext.token}`)
         .send({ amount: 300 });
       expect(patchRes.status).toBe(200);
-      expect(patchRes.body.amount).toBe(300);
+      expect(Number(patchRes.body.amount)).toBe(300);
     });
 
     it('DELETE /api/invoices/:id/jobs/:jobId removes job from invoice', async () => {
@@ -793,14 +805,14 @@ describe('5rivers.server API', () => {
         .post('/api/job-types')
         .set('Authorization', `Bearer ${testContext.token}`)
         .send({ companyId: companyRes.body.id, title: 'Haul' });
-      const jobRes = await request(app)
-        .post('/api/jobs')
-        .set('Authorization', `Bearer ${testContext.token}`)
-        .send({ jobDate: '2025-02-14', jobTypeId: jtRes.body.id });
       const dispRes = await request(app)
         .post('/api/dispatchers')
         .set('Authorization', `Bearer ${testContext.token}`)
         .send({ name: 'Disp JobInv Del' });
+      const jobRes = await request(app)
+        .post('/api/jobs')
+        .set('Authorization', `Bearer ${testContext.token}`)
+        .send({ jobDate: '2025-02-14', jobTypeId: jtRes.body.id, dispatcherId: dispRes.body.id });
       const invRes = await request(app)
         .post('/api/invoices')
         .set('Authorization', `Bearer ${testContext.token}`)
@@ -825,7 +837,9 @@ describe('5rivers.server API', () => {
       expect(listRes.body).toHaveLength(0);
     });
 
-    it('POST /api/invoices/:id/jobs without jobId or amount returns 400', async () => {
+    it('POST /api/invoices/:id/jobs without jobId returns 400; nonexistent jobId returns 404', async () => {
+      // amount is now optional in the dynamic-calc model — the route only
+      // validates jobId. Missing jobId → 400. Present but unresolvable → 404.
       if (!testContext) return;
       const dispRes = await request(app)
         .post('/api/dispatchers')
@@ -839,11 +853,18 @@ describe('5rivers.server API', () => {
           invoiceDate: '2025-02-16',
           dispatcherId: dispRes.body.id,
         });
-      const res = await request(app)
+
+      const missingJobId = await request(app)
+        .post(`/api/invoices/${invRes.body.id}/jobs`)
+        .set('Authorization', `Bearer ${testContext.token}`)
+        .send({});
+      expect(missingJobId.status).toBe(400);
+
+      const bogusJobId = await request(app)
         .post(`/api/invoices/${invRes.body.id}/jobs`)
         .set('Authorization', `Bearer ${testContext.token}`)
         .send({ jobId: '00000000-0000-0000-0000-000000000000' });
-      expect(res.status).toBe(400);
+      expect(bogusJobId.status).toBe(404);
     });
   });
 
