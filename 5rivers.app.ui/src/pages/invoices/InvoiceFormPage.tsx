@@ -51,6 +51,7 @@ export function InvoiceFormPage() {
   const [pdfIncludeCommission, setPdfIncludeCommission] = useState(true);
   const [pdfDownloading, setPdfDownloading] = useState(false);
   const [showAddJobsModal, setShowAddJobsModal] = useState(false);
+  const [showAllJobs, setShowAllJobs] = useState(false);
 
   // Load existing invoice for edit mode
   const { data: existingInvoice, isLoading: invoiceLoading } = useInvoice(id ?? '');
@@ -63,7 +64,10 @@ export function InvoiceFormPage() {
   const { data: companiesData } = useCompanies();
   const { data: driversData } = useDrivers();
   const { data: jobTypesData } = useJobTypes();
-  const { data: allJobsData } = useJobs({ limit: 500 });
+  const { data: allJobsData } = useJobs({
+    limit: 500,
+    ...(showAllJobs ? {} : { filter_hasInvoice: 'false' }),
+  });
 
   // Auto-generate invoice number for new invoices
   const { data: nextNumberData } = useQuery({
@@ -336,6 +340,7 @@ export function InvoiceFormPage() {
     }
     setSelectedJobIds(new Set());
     setShowAddJobsModal(false);
+    setShowAllJobs(false);
   }
 
   function toggleJobSelection(jobId: string) {
@@ -804,7 +809,7 @@ export function InvoiceFormPage() {
       {/* Add Jobs modal — revamped with search, select-all, rich info */}
       <Modal
         open={showAddJobsModal}
-        onClose={() => setShowAddJobsModal(false)}
+        onClose={() => { setShowAddJobsModal(false); setShowAllJobs(false); }}
         title="Add Jobs to Invoice"
         size="xl"
         actions={
@@ -877,12 +882,21 @@ export function InvoiceFormPage() {
               )}
             </div>
 
-            {/* Results count */}
+            {/* Results count + show-all toggle */}
             <div className="flex items-center justify-between mb-2 text-xs text-slate-500">
               <span>
                 {filteredAvailableJobs.length} job{filteredAvailableJobs.length !== 1 ? 's' : ''} available
                 {jobSearchTerm && ` (filtered from ${availableJobs.length})`}
               </span>
+              <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={showAllJobs}
+                  onChange={(e) => setShowAllJobs(e.target.checked)}
+                  className="rounded border-outline-variant"
+                />
+                <span>Show already-invoiced jobs</span>
+              </label>
             </div>
 
             {filteredAvailableJobs.length === 0 ? (

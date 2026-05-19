@@ -154,6 +154,14 @@ export async function listJobs(
       filterClauses.push(`(j.driverPaid = @filter_driverPaid)`);
       params['filter_driverPaid'] = driverPaidVal === 'true' ? 1 : 0;
     }
+    const hasInvoiceVal = options.filters['hasInvoice'];
+    if (hasInvoiceVal === 'true' || hasInvoiceVal === 'false') {
+      if (hasInvoiceVal === 'false') {
+        filterClauses.push(`NOT EXISTS (SELECT 1 FROM JobInvoice ji WHERE ji.jobId = j.id)`);
+      } else {
+        filterClauses.push(`EXISTS (SELECT 1 FROM JobInvoice ji WHERE ji.jobId = j.id)`);
+      }
+    }
   }
   const whereExtra = filterClauses.length ? ` AND ${filterClauses.join(' AND ')}` : '';
   const countParams: Record<string, unknown> = { organizationId };
