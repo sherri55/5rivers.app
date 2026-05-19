@@ -36,16 +36,6 @@ export interface ListResult<T> {
   totalPages: number;
 }
 
-// --- Organizations ---
-export interface Organization {
-  id: string;
-  name: string;
-  slug: string;
-  settings: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
 // --- Companies ---
 export interface Company {
   id: string;
