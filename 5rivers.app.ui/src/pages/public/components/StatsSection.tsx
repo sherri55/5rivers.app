@@ -29,9 +29,9 @@ export function StatsSection() {
   return (
     <section id="ch-stats" className="public-stats-chapter">
       <div className="public-stats-grid">
-        <StatItem target={15} suffix="+" label="Years of Experience" />
-        <StatItem target={500} suffix="+" label="Projects Completed" />
-        <StatItem target={10} suffix="+" label="Equipment Fleet" />
+        <StatItem target={2} suffix="+" label="Years of Experience" />
+        <StatItem target={50} suffix="+" label="Companies Served" />
+        <StatItem target={20} suffix="+" label="Projects Completed" />
       </div>
     </section>
   );
