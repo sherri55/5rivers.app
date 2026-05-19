@@ -17,7 +17,7 @@ import {
   deleteTestData,
   type TestContext,
 } from '../helpers';
-import { createCompany, createJobType } from '../helpers/factories';
+import { createCompany, createJobType, createDispatcher, createInvoice, addJobToInvoice } from '../helpers/factories';
 import { normalizePagination } from '../../types';
 
 let ctx: TestContext;
@@ -164,6 +164,81 @@ describe('listJobs — joined fields and pagination', () => {
     const result = await listJobs(otherOrgFakeId, normalizePagination({ limit: 100 }));
     expect(result.data).toEqual([]);
     expect(result.total).toBe(0);
+  });
+});
+
+describe('listJobs — filter_hasInvoice', () => {
+  let freeJobId: string;
+  let invoicedJobId: string;
+
+  beforeAll(async () => {
+    const dispatcher = await createDispatcher(ctx.orgId);
+
+    const freeJob = await createJob(ctx.orgId, {
+      jobDate: '2026-05-01',
+      jobTypeId: hourlyJobTypeId,
+      sourceType: 'DISPATCHED',
+      dispatcherId: dispatcher.id,
+    });
+    freeJobId = freeJob.id;
+
+    const invoicedJob = await createJob(ctx.orgId, {
+      jobDate: '2026-05-02',
+      jobTypeId: hourlyJobTypeId,
+      sourceType: 'DISPATCHED',
+      dispatcherId: dispatcher.id,
+    });
+    invoicedJobId = invoicedJob.id;
+
+    const invoice = await createInvoice(ctx.orgId, { dispatcherId: dispatcher.id });
+    await addJobToInvoice(ctx.orgId, invoice.id, invoicedJobId);
+  }, 30_000);
+
+  it("filter_hasInvoice='false' returns only jobs with no invoice", async () => {
+    const result = await listJobs(
+      ctx.orgId,
+      normalizePagination({ limit: 100 }),
+      { filters: { hasInvoice: 'false' } },
+    );
+    const ids = result.data.map((j) => j.id);
+    expect(ids).toContain(freeJobId);
+    expect(ids).not.toContain(invoicedJobId);
+  });
+
+  it("filter_hasInvoice='true' returns only jobs already on an invoice", async () => {
+    const result = await listJobs(
+      ctx.orgId,
+      normalizePagination({ limit: 100 }),
+      { filters: { hasInvoice: 'true' } },
+    );
+    const ids = result.data.map((j) => j.id);
+    expect(ids).toContain(invoicedJobId);
+    expect(ids).not.toContain(freeJobId);
+  });
+
+  it('no filter returns both invoiced and free jobs', async () => {
+    const result = await listJobs(
+      ctx.orgId,
+      normalizePagination({ limit: 100 }),
+    );
+    const ids = result.data.map((j) => j.id);
+    expect(ids).toContain(freeJobId);
+    expect(ids).toContain(invoicedJobId);
+  });
+
+  it("filter_hasInvoice='false' total reflects only un-invoiced count", async () => {
+    const all = await listJobs(ctx.orgId, normalizePagination({ limit: 100 }));
+    const free = await listJobs(
+      ctx.orgId,
+      normalizePagination({ limit: 100 }),
+      { filters: { hasInvoice: 'false' } },
+    );
+    const invoiced = await listJobs(
+      ctx.orgId,
+      normalizePagination({ limit: 100 }),
+      { filters: { hasInvoice: 'true' } },
+    );
+    expect(free.total + invoiced.total).toBe(all.total);
   });
 });
 

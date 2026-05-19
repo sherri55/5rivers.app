@@ -466,7 +466,18 @@ export function JobsListPage() {
             const start = parseTimeMinutes(job.startTime);
             const end   = parseTimeMinutes(job.endTime);
             if (start !== null && end !== null) {
-              const mins = end - start;
+              let mins = end - start;
+              if (job.breaks) {
+                try {
+                  const brks: { start: string; end: string }[] = JSON.parse(job.breaks);
+                  for (const b of brks) {
+                    const [bs, bm] = b.start.split(':').map(Number);
+                    const [be, bem] = b.end.split(':').map(Number);
+                    const d = (be * 60 + bem) - (bs * 60 + bm);
+                    if (d > 0) mins -= d;
+                  }
+                } catch { /* ignore malformed */ }
+              }
               const h = Math.floor(mins / 60);
               const m = mins % 60;
               lines.push({ label: 'Hours', value: m > 0 ? `${h}h ${m}m` : `${h}h` });

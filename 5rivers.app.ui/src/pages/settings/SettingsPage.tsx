@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/auth';
 import { Badge } from '@/components/ui/Badge';
+import { useOrganization, useUpdateOrganizationSettings } from '@/hooks/useOrganization';
+import { useToast } from '@/context/toast';
 
 // ============================================
 // Settings Page — Organization, User, Security
@@ -9,10 +11,11 @@ import { Badge } from '@/components/ui/Badge';
 
 export function SettingsPage() {
   const { user } = useAuth();
+  const { addToast } = useToast();
 
-  // Placeholder state for org profile
-  const [orgName, setOrgName] = useState('5 Rivers Trucking');
-  const orgSlug = 'five-rivers';
+  // Org data from API
+  const { data: org } = useOrganization();
+  const updateSettings = useUpdateOrganizationSettings();
 
   // Placeholder state for user profile
   const [userName, setUserName] = useState(user?.name ?? '');
@@ -21,6 +24,43 @@ export function SettingsPage() {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+
+  // PDF company info state
+  const [pdfName, setPdfName] = useState('');
+  const [pdfAddress, setPdfAddress] = useState('');
+  const [pdfPhone, setPdfPhone] = useState('');
+  const [pdfEmail, setPdfEmail] = useState('');
+  const [pdfHst, setPdfHst] = useState('');
+
+  // Populate PDF fields when org data loads
+  useEffect(() => {
+    if (!org?.settings?.pdfCompany) return;
+    const p = org.settings.pdfCompany;
+    setPdfName(p.name ?? '');
+    setPdfAddress(p.address ?? '');
+    setPdfPhone(p.phone ?? '');
+    setPdfEmail(p.email ?? '');
+    setPdfHst(p.hst ?? '');
+  }, [org]);
+
+  async function handleSavePdf() {
+    try {
+      await updateSettings.mutateAsync({
+        pdfCompany: {
+          name: pdfName,
+          address: pdfAddress,
+          phone: pdfPhone,
+          email: pdfEmail,
+          hst: pdfHst,
+        },
+      });
+      addToast('Invoice PDF settings saved', 'success');
+    } catch {
+      addToast('Failed to save settings', 'error');
+    }
+  }
+
+  const canEdit = user?.role === 'OWNER' || user?.role === 'ADMIN';
 
   return (
     <div className="max-w-5xl mx-auto">
@@ -49,24 +89,107 @@ export function SettingsPage() {
           <div className="col-span-2 bg-surface-container-lowest p-8 rounded-xl shadow-[0_4px_20px_-10px_rgba(0,0,0,0.05)] border border-outline-variant/15">
             <div className="space-y-6">
               <FormField label="Organization Name">
-                <input
-                  type="text"
-                  value={orgName}
-                  onChange={(e) => setOrgName(e.target.value)}
-                  className="w-full bg-surface-container-low border-none rounded-lg p-3 text-sm focus:bg-white focus:ring-1 focus:ring-primary transition-all"
-                />
+                <div className="bg-surface-container-highest/30 border border-outline-variant/20 rounded-lg px-4 py-3 text-sm text-slate-500 cursor-not-allowed">
+                  {org?.name ?? '—'}
+                </div>
               </FormField>
 
               <FormField label="Slug">
                 <div className="bg-surface-container-highest/30 border border-outline-variant/20 rounded-lg px-4 py-3 text-sm text-slate-400 cursor-not-allowed">
-                  {orgSlug}
+                  {org?.slug ?? '—'}
                 </div>
               </FormField>
             </div>
           </div>
         </div>
 
-        {/* Section 2: User Account */}
+        {/* Section 2: Invoice PDF Info */}
+        <div className="grid grid-cols-3 gap-12 items-start">
+          <div>
+            <h2 className="text-sm font-semibold text-on-surface">Invoice PDF</h2>
+            <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+              Company information printed in the header of every generated invoice PDF.
+            </p>
+          </div>
+          <div className="col-span-2 bg-surface-container-lowest p-8 rounded-xl shadow-[0_4px_20px_-10px_rgba(0,0,0,0.05)] border border-outline-variant/15">
+            <div className="space-y-6">
+              <FormField label="Company Name">
+                <input
+                  type="text"
+                  value={pdfName}
+                  onChange={(e) => setPdfName(e.target.value)}
+                  placeholder="e.g. 5 Rivers Trucking Inc."
+                  disabled={!canEdit}
+                  className="w-full bg-surface-container-low border-none rounded-lg p-3 text-sm focus:bg-white focus:ring-1 focus:ring-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                />
+              </FormField>
+
+              <FormField label="Address">
+                <textarea
+                  value={pdfAddress}
+                  onChange={(e) => setPdfAddress(e.target.value)}
+                  placeholder={"e.g. 140 Cherryhill Place\nLondon, Ontario\nN6H4M5"}
+                  rows={3}
+                  disabled={!canEdit}
+                  className="w-full bg-surface-container-low border-none rounded-lg p-3 text-sm focus:bg-white focus:ring-1 focus:ring-primary transition-all resize-none disabled:opacity-50 disabled:cursor-not-allowed"
+                />
+              </FormField>
+
+              <div className="grid grid-cols-2 gap-4">
+                <FormField label="Phone">
+                  <input
+                    type="text"
+                    value={pdfPhone}
+                    onChange={(e) => setPdfPhone(e.target.value)}
+                    placeholder="e.g. +1 (437) 679 9350"
+                    disabled={!canEdit}
+                    className="w-full bg-surface-container-low border-none rounded-lg p-3 text-sm focus:bg-white focus:ring-1 focus:ring-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  />
+                </FormField>
+
+                <FormField label="Email">
+                  <input
+                    type="email"
+                    value={pdfEmail}
+                    onChange={(e) => setPdfEmail(e.target.value)}
+                    placeholder="e.g. info@company.ca"
+                    disabled={!canEdit}
+                    className="w-full bg-surface-container-low border-none rounded-lg p-3 text-sm focus:bg-white focus:ring-1 focus:ring-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  />
+                </FormField>
+              </div>
+
+              <FormField label="HST Number">
+                <input
+                  type="text"
+                  value={pdfHst}
+                  onChange={(e) => setPdfHst(e.target.value)}
+                  placeholder="e.g. 760059956"
+                  disabled={!canEdit}
+                  className="w-full bg-surface-container-low border-none rounded-lg p-3 text-sm focus:bg-white focus:ring-1 focus:ring-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                />
+              </FormField>
+
+              {canEdit && (
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={handleSavePdf}
+                    disabled={updateSettings.isPending}
+                    className="gradient-primary text-white px-6 py-2.5 rounded-lg font-semibold text-sm shadow-md active:scale-[0.98] transition-all flex items-center gap-2 disabled:opacity-60"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">
+                      {updateSettings.isPending ? 'hourglass_empty' : 'save'}
+                    </span>
+                    {updateSettings.isPending ? 'Saving…' : 'Save PDF Settings'}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Section 3: User Account */}
         <div className="grid grid-cols-3 gap-12 items-start">
           <div>
             <h2 className="text-sm font-semibold text-on-surface">User Account</h2>
@@ -103,7 +226,7 @@ export function SettingsPage() {
           </div>
         </div>
 
-        {/* Section 3: Security / Change Password */}
+        {/* Section 4: Security / Change Password */}
         <div className="grid grid-cols-3 gap-12 items-start">
           <div>
             <h2 className="text-sm font-semibold text-on-surface">Security</h2>

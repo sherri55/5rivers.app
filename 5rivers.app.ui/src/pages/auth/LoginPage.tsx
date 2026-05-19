@@ -138,9 +138,11 @@ export function LoginPage() {
                 label="Organization Slug"
                 icon="corporate_fare"
                 type="text"
+                name="organization"
+                autoComplete="organization"
                 value={orgSlug}
                 onChange={setOrgSlug}
-                placeholder="e.g. 5rivers-trucking"
+                placeholder="e.g. 5rivers"
                 required
               />
 
@@ -149,6 +151,8 @@ export function LoginPage() {
                 label="Email Address"
                 icon="alternate_email"
                 type="email"
+                name="email"
+                autoComplete="email"
                 value={email}
                 onChange={setEmail}
                 placeholder="name@company.com"
@@ -160,6 +164,8 @@ export function LoginPage() {
                 label="Password"
                 icon="lock_open"
                 type={showPassword ? 'text' : 'password'}
+                name="password"
+                autoComplete="current-password"
                 value={password}
                 onChange={setPassword}
                 placeholder="••••••••"
@@ -241,6 +247,8 @@ interface FormFieldProps {
   label: string;
   icon: string;
   type: string;
+  name: string;
+  autoComplete: string;
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
@@ -248,10 +256,11 @@ interface FormFieldProps {
   trailing?: React.ReactNode;
 }
 
-function FormField({ label, icon, type, value, onChange, placeholder, required, trailing }: FormFieldProps) {
+function FormField({ label, icon, type, name, autoComplete, value, onChange, placeholder, required, trailing }: FormFieldProps) {
   return (
     <div className="flex flex-col gap-2">
       <label
+        htmlFor={name}
         className="text-[10px] font-bold uppercase tracking-widest"
         style={{ color: 'var(--color-public-primary)', fontFamily: 'var(--font-label-mono)' }}
       >
@@ -264,7 +273,10 @@ function FormField({ label, icon, type, value, onChange, placeholder, required, 
           {icon}
         </span>
         <input
+          id={name}
           type={type}
+          name={name}
+          autoComplete={autoComplete}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           required={required}

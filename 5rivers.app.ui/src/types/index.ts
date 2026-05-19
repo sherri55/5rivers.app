@@ -177,6 +177,7 @@ export interface Job {
   effectiveAmount: number | null;
   carrierAmount: number | null;
   ticketIds: string | null;
+  breaks: string | null;
   jobPaid: boolean;
   driverPaid: boolean;
   createdAt: string;
@@ -209,11 +210,34 @@ export interface CreateJobInput {
   amount?: number | null;
   carrierAmount?: number | null;
   ticketIds?: string | null;
+  breaks?: string | null;
   jobPaid?: boolean;
   driverPaid?: boolean;
 }
 
 export type UpdateJobInput = Partial<CreateJobInput>;
+
+// --- Organization Settings ---
+export interface OrgPdfCompany {
+  name: string;
+  address: string;
+  phone: string;
+  email: string;
+  hst: string;
+}
+
+export interface OrgSettings {
+  pdfCompany?: OrgPdfCompany;
+}
+
+export interface Organization {
+  id: string;
+  name: string;
+  slug: string;
+  settings: OrgSettings | null;
+  createdAt: string;
+  updatedAt: string;
+}
 
 // --- Invoices ---
 export type InvoiceStatus = 'CREATED' | 'RAISED' | 'RECEIVED';

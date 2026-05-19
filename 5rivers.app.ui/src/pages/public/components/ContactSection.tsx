@@ -70,18 +70,19 @@ export function ContactSection() {
   }
 
   return (
-    <section className="public-chapter bg-white" id="ch-contact">
+    <section className="public-chapter bg-white" id="ch-contact" style={{ height: 'auto', minHeight: '100vh' }}>
       <div className="public-chapter-bg gs-bg" data-speed="0.5">
         <img
           alt="Red dump truck side panel detail"
           src="/images/homepage-form.png"
         />
       </div>
+      <div className="public-chapter-blur" />
       <div
         className="public-chapter-overlay"
         style={{ background: 'rgba(255,255,255,0.8)' }}
       />
-      <div className="public-chapter-content items-center text-center">
+      <div className="public-chapter-content items-center text-center" style={{ justifyContent: 'flex-start', minHeight: 'auto' }}>
         <h2
           className="public-huge-text text-[var(--color-public-on-surface)] gs-title-scale font-bold mb-12"
           data-speed="1.2"

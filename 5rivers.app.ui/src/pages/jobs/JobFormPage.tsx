@@ -16,6 +16,7 @@ import { PageSpinner, ButtonSpinner } from '@/components/ui/Spinner';
 import { ConfirmModal } from '@/components/ui/Modal';
 import { Select } from '@/components/ui/Select';
 import { WeightTagsInput } from '@/components/ui/WeightTagsInput';
+import { BreaksInput } from '@/components/ui/BreaksInput';
 import { TagsInput } from '@/components/ui/TagsInput';
 import type { CreateJobInput, JobSourceType } from '@/types';
 
@@ -63,6 +64,7 @@ export function JobFormPage() {
   const [loads, setLoads] = useState('');
   const [amount, setAmount] = useState('');
   const [ticketIds, setTicketIds] = useState('');
+  const [breaks, setBreaks] = useState('');
   const [jobPaid, setJobPaid] = useState(false);
   const [driverPaid, setDriverPaid] = useState(false);
 
@@ -112,6 +114,17 @@ export function JobFormPage() {
         const [eh, em] = endTime.split(':').map(Number);
         let hours = (eh + em / 60) - (sh + sm / 60);
         if (hours < 0) hours += 24; // overnight
+        if (breaks) {
+          try {
+            const brks: { start: string; end: string }[] = JSON.parse(breaks);
+            for (const b of brks) {
+              const [bs, bm] = b.start.split(':').map(Number);
+              const [be, bem] = b.end.split(':').map(Number);
+              const d = (be + bem / 60) - (bs + bm / 60);
+              if (d > 0) hours -= d;
+            }
+          } catch { /* ignore malformed */ }
+        }
         return hours * rate;
       }
       case 'load':
@@ -138,7 +151,7 @@ export function JobFormPage() {
       default:
         return null;
     }
-  }, [dispatchType, selectedJobType, startTime, endTime, loads, weight]);
+  }, [dispatchType, selectedJobType, startTime, endTime, loads, weight, breaks]);
 
   // Populate form when editing. In the dynamic-calc model, `Jobs.amount`
   // is OVERRIDE-ONLY — NULL means "no override, compute live from rate ×
@@ -161,6 +174,7 @@ export function JobFormPage() {
     setLoads(existingJob.loads?.toString() ?? '');
     setAmount(existingJob.amount != null ? existingJob.amount.toString() : '');
     setTicketIds(existingJob.ticketIds ?? '');
+    setBreaks(existingJob.breaks ?? '');
     setJobPaid(existingJob.jobPaid);
     setDriverPaid(existingJob.driverPaid);
 
@@ -197,6 +211,7 @@ export function JobFormPage() {
           ? parseFloat(carrierAmount)
           : null,
       ticketIds: ticketIds || null,
+      breaks: breaks || null,
       jobPaid,
       driverPaid,
     };
@@ -615,6 +630,12 @@ export function JobFormPage() {
                       className="w-full px-4 py-3 bg-surface-container rounded-lg border-none text-sm font-medium focus:bg-white focus:ring-1 focus:ring-primary transition-all"
                     />
                   </FormField>
+
+                  <div className="col-span-2">
+                    <FormField label="Breaks">
+                      <BreaksInput value={breaks} onChange={setBreaks} />
+                    </FormField>
+                  </div>
                 </>
               )}
 

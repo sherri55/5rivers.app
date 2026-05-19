@@ -48,6 +48,14 @@ export const authApi = {
     api.post<LoginResponse>('/auth/login', { email, password, organizationSlug }),
 };
 
+// --- Organization ---
+
+export const organizationApi = {
+  getMe: () => api.get<import('@/types').Organization>('/organization/me'),
+  updateSettings: (settings: import('@/types').OrgSettings) =>
+    api.patch<import('@/types').OrgSettings>('/organization/me', { pdfCompany: settings.pdfCompany }),
+};
+
 // --- Companies ---
 
 export const companiesApi = {

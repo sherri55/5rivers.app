@@ -1,70 +1,62 @@
-/**
- * ServicesSection — Chapter 2 of the homepage.
- *
- * Right-aligned headline ("CORE SERVICES") with two glass-panel cards
- * describing the available services. On mobile the cards stack full-width;
- * on tablet+ they sit side-by-side, right-aligned to mirror the headline.
- *
- * Each card is a small content block — duplicate the existing `<div>` to
- * add a third service.
- */
-
-interface ServiceCardProps {
-  title: string;
+interface ServicePanelProps {
+  eyebrow: string;
+  headline: string;
   description: string;
+  image: string;
+  imageAlt: string;
 }
 
-function ServiceCard({ title, description }: ServiceCardProps) {
+function ServicePanel({ eyebrow, headline, description, image, imageAlt }: ServicePanelProps) {
   return (
-    <div className="public-glass-panel p-8 text-left w-full sm:w-80">
-      <h3 className="public-display text-2xl font-bold mb-4">{title}</h3>
-      <p className="text-base text-[var(--color-public-on-surface-variant)] mb-6">
-        {description}
-      </p>
+    <div className="services-panel">
+      <div className="services-panel-bg">
+        <img alt={imageAlt} src={image} />
+      </div>
+      <div className="services-panel-blur" />
+      <div className="services-panel-overlay" />
+      <div className="services-panel-content">
+        <p className="public-label-mono text-xs text-[var(--color-public-primary)] tracking-[0.25em] uppercase mb-4 gs-panel-reveal">
+          {eyebrow}
+        </p>
+        <div className="gs-line-mask">
+          <h2 className="public-huge-text text-[var(--color-public-on-surface)] font-bold gs-panel-line">
+            {headline}
+          </h2>
+        </div>
+        <p className="mt-8 text-lg text-[var(--color-public-on-surface-variant)] max-w-md leading-relaxed gs-panel-reveal">
+          {description}
+        </p>
+      </div>
     </div>
   );
 }
 
 export function ServicesSection() {
   return (
-    <section
-      className="public-chapter bg-[var(--color-public-surface-low)]"
-      id="ch-services"
-    >
-      <div className="public-chapter-bg gs-bg" data-speed="0.6">
-        <img
-          alt="Red dump truck loading at an excavation site"
-          src="/images/homepage-services.png"
+    <div className="services-outer" id="ch-services">
+      <div className="services-track">
+        <ServicePanel
+          eyebrow="01 — Earthwork"
+          headline="EXCAVATION"
+          description="Precision earth moving, trenching, and fine grading for residential, commercial, and municipal projects across London and the surrounding area."
+          image="/images/homepage-services.png"
+          imageAlt="Red dump truck loading at an excavation site"
+        />
+        <ServicePanel
+          eyebrow="02 — Material Transport"
+          headline="HAULING"
+          description="Reliable dump truck hauling of aggregate, fill, topsoil, and construction materials. Efficient, on-time delivery every job."
+          image="/images/homepage-hero.png"
+          imageAlt="Red dump truck on a construction haul road"
+        />
+        <ServicePanel
+          eyebrow="03 — Hardscape"
+          headline="DRIVEWAYS"
+          description="Interlock driveways, patios, and professional site cleanup. Quality hardscape work built to last, delivered with precision and care."
+          image="/images/homepage-about.png"
+          imageAlt="Excavator working on a London Ontario construction site"
         />
       </div>
-      <div className="public-chapter-overlay" />
-      <div className="public-chapter-content items-end text-right">
-        <h2
-          className="public-huge-text text-[var(--color-public-on-surface)] gs-title-right font-bold"
-          data-speed="1.3"
-        >
-          CORE
-        </h2>
-        <h2
-          className="public-huge-text text-[var(--color-public-primary)] gs-title-left font-bold"
-          data-speed="1.6"
-        >
-          SERVICES
-        </h2>
-        <div
-          className="mt-16 w-full flex flex-col md:flex-row gap-8 items-stretch md:items-end md:justify-end gs-reveal-y"
-          data-speed="1.2"
-        >
-          <ServiceCard
-            title="Excavation & Grading"
-            description="Precision earth moving, trenching, and fine grading operations."
-          />
-          <ServiceCard
-            title="Driveways & Patios"
-            description="Interlock driveways, patios, and professional site cleanup services."
-          />
-        </div>
-      </div>
-    </section>
+    </div>
   );
 }

@@ -28,13 +28,34 @@ pdfmake.setUrlAccessPolicy(() => false);
 // Company info (used in invoice header)
 // ============================================
 
-const COMPANY = {
+const COMPANY_DEFAULTS = {
   name: '5 Rivers Trucking Inc.',
   address: '140 Cherryhill Place\nLondon, Ontario\nN6H4M5',
   phone: '+1 (437) 679 9350',
   email: 'info@5riverstruckinginc.ca',
   hst: '760059956',
 };
+
+async function getCompanyInfo(organizationId: string): Promise<typeof COMPANY_DEFAULTS> {
+  try {
+    const rows = await query<Array<{ settings: string | null }>>(
+      `SELECT settings FROM Organizations WHERE id = @id`,
+      { params: { id: organizationId } }
+    );
+    const settings = rows?.[0]?.settings ? JSON.parse(rows[0].settings) : null;
+    const pdf = settings?.pdfCompany;
+    if (!pdf) return COMPANY_DEFAULTS;
+    return {
+      name:    pdf.name    || COMPANY_DEFAULTS.name,
+      address: pdf.address || COMPANY_DEFAULTS.address,
+      phone:   pdf.phone   || COMPANY_DEFAULTS.phone,
+      email:   pdf.email   || COMPANY_DEFAULTS.email,
+      hst:     pdf.hst     || COMPANY_DEFAULTS.hst,
+    };
+  } catch {
+    return COMPANY_DEFAULTS;
+  }
+}
 
 // ============================================
 // Shared helpers
@@ -155,6 +176,7 @@ interface InvoiceJobRow {
   loads: number | null;
   weight: string | null;
   ticketIds: string | null;
+  breaks: string | null;
   amount: number;
   sourceType: string;
   driverName: string | null;
@@ -191,6 +213,7 @@ export async function generateInvoicePDF(
   options: InvoicePDFOptions = {},
 ): Promise<{ buffer: Buffer; filename: string }> {
   const includeCommission = options.includeCommission !== false;
+  const COMPANY = await getCompanyInfo(organizationId);
   // Fetch invoice
   const invoiceRows = await query<any[]>(
     `SELECT i.*, d.name AS dispatcherName, d.commissionPercent
@@ -209,7 +232,7 @@ export async function generateInvoicePDF(
   const jobRows = await query<InvoiceJobRow[]>(
     `SELECT vji.jobId, vji.effectiveAmount AS lineAmount,
             j.jobDate, j.startTime, j.endTime, j.loads, j.weight,
-            j.ticketIds, j.effectiveAmount AS amount, j.sourceType,
+            j.ticketIds, j.breaks, j.effectiveAmount AS amount, j.sourceType,
             dr.name AS driverName,
             u.name AS unitName,
             jt.title AS jobTypeTitle, jt.dispatchType, jt.rateOfJob,
@@ -451,11 +474,11 @@ export async function generateInvoicePDF(
     content.push({
       text: 'Tickets',
       fontSize: 36, bold: true, color: '#2d3748', alignment: 'center',
-      margin: [0, 10, 0, 20],
+      margin: [0, 226, 0, 0],
     });
 
     for (let i = 0; i < allImages.length; i++) {
-      if (i > 0) content.push({ text: '', pageBreak: 'before' });
+      content.push({ text: '', pageBreak: 'before' });
       const img = allImages[i];
       content.push({
         text: `${img.jobDate}  —  ${img.description}`,
@@ -635,6 +658,19 @@ function computeQuantity(job: InvoiceJobRow): string {
     if (!s || !e || s.some(isNaN) || e.some(isNaN)) return '';
     let mins = (e[0] * 60 + e[1]) - (s[0] * 60 + s[1]);
     if (mins < 0) mins += 24 * 60;
+    if (job.breaks) {
+      try {
+        const brks: { start: string; end: string }[] = JSON.parse(job.breaks);
+        for (const b of brks) {
+          const bs = b.start?.split(':').map(Number);
+          const be = b.end?.split(':').map(Number);
+          if (bs?.length === 2 && be?.length === 2) {
+            const bMins = (be[0] * 60 + be[1]) - (bs[0] * 60 + bs[1]);
+            if (bMins > 0) mins -= bMins;
+          }
+        }
+      } catch { /* ignore malformed */ }
+    }
     return (mins / 60).toFixed(2);
   }
   if (dt === 'tonnage' && job.weight) {

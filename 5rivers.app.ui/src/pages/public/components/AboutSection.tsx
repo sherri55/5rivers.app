@@ -35,6 +35,7 @@ export function AboutSection() {
           src="/images/homepage-about.png"
         />
       </div>
+      <div className="public-chapter-blur" />
       <div className="public-chapter-overlay public-chapter-overlay-dark" />
       <div className="public-chapter-content">
         <h2 className="public-huge-text text-white gs-title-left font-bold" data-speed="1.4">
