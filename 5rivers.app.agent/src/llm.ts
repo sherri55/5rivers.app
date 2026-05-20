@@ -96,6 +96,32 @@ function getToolDefs(toolFilter?: ReadonlySet<string>) {
     }));
 }
 
+// ─── Vision-capable provider selection ────────────────────────────────────────
+//
+// Not every provider can handle inline images. deepseek-chat and groq's
+// llama-3.3-70b are text-only; their APIs reject multi-part content arrays
+// with `image_url` parts. This helper returns the right provider for an
+// image-bearing call — the active one if it can do vision, otherwise Gemini
+// as a free fallback (if configured).
+
+const VISION_CAPABLE_PROVIDERS = new Set(['gemini', 'lmstudio', 'ollama']);
+
+function pickVisionProvider(): string {
+  const main = (process.env.LLM_PROVIDER ?? 'lmstudio').toLowerCase();
+  if (VISION_CAPABLE_PROVIDERS.has(main)) return main;
+
+  if (process.env.GEMINI_API_KEY) {
+    console.log(`[vision] "${main}" is text-only — routing image through gemini`);
+    return 'gemini';
+  }
+
+  throw new Error(
+    `[vision] Active provider "${main}" cannot process images, and ` +
+    `GEMINI_API_KEY is not set. Either set GEMINI_API_KEY in .env or pick a ` +
+    `vision-capable provider (gemini, lmstudio, ollama).`,
+  );
+}
+
 // ─── Shared OpenAI-compatible message formatter ───────────────────────────────
 //
 // Converts a Message to the OpenAI chat-completion format.
@@ -1378,9 +1404,15 @@ export async function processMessage(
       mimeType: img.mimeType,
     }));
 
-    // One-shot chat function for the Parser phase — uses the active provider.
+    // One-shot chat function for the Parser phase.
+    //
+    // The active provider handles text/tool-calling — but several providers
+    // we support are text-only (deepseek-chat, groq llama-3.3-70b). For
+    // those, we fall back to Gemini for the parser step IF GEMINI_API_KEY is
+    // set. The user's choice of -Model still drives Validator/Creator and
+    // every non-image turn; only image extraction is routed to vision.
     const callProvider = async (msgs: Message[]): Promise<string> => {
-      const providerName = (process.env.LLM_PROVIDER ?? 'lmstudio').toLowerCase();
+      const providerName = pickVisionProvider();
       const provider = getProvider(providerName);
       const sanitized = sanitizeForProvider(msgs, providerName);
       const response = await provider.chat(sanitized, undefined);
@@ -1416,10 +1448,19 @@ export async function processMessage(
   }
 
   if (!pipelineHandled && !resumingFromConfirmation) {
-    // Attach images directly — the active model handles vision itself.
-    // (Gemini uses its own pipeline above; all other providers receive images
-    //  inline via the standard message content array.)
-    const imageUrls = images?.map((img) => `data:${img.mimeType};base64,${img.data}`);
+    // Attach images only if the active provider supports vision — otherwise
+    // the request would crash with "unknown variant `image_url`" (deepseek)
+    // or similar. The pipeline normally handles images via pickVisionProvider
+    // before we reach here; this branch is a safety net for fall-through cases
+    // (parser threw, no GEMINI_API_KEY, etc.).
+    const provider = (process.env.LLM_PROVIDER ?? 'lmstudio').toLowerCase();
+    const canSendImages = VISION_CAPABLE_PROVIDERS.has(provider);
+    if (images?.length && !canSendImages) {
+      console.warn(`[llm] Dropping ${images.length} image(s) — "${provider}" does not support vision`);
+    }
+    const imageUrls = canSendImages
+      ? images?.map((img) => `data:${img.mimeType};base64,${img.data}`)
+      : undefined;
     addMessage(platform, userId, { role: 'user', content: userMessage, imageUrls });
   }
 
