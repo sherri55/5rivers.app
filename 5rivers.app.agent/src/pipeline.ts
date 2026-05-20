@@ -16,7 +16,6 @@
  * a new image (anything → validating, restarting the pipeline).
  */
 
-import { GoogleGenerativeAI, type Part } from '@google/generative-ai';
 import {
   addMessage,
   clearHistory,
@@ -178,31 +177,31 @@ If the document contains multiple distinct tickets, output an array of ticket ob
 - Paystub: each table row = exactly one lineItems entry. NEVER include totals, subtotals, or cheque amounts.
 - Paystub amounts MUST be numbers (no $, no commas).`;
 
-export async function parseImage(images: PipelineImage[], userMessage: string): Promise<string> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error('GEMINI_API_KEY is not set');
-
-  const modelName = process.env.GEMINI_MODEL ?? 'gemini-2.5-flash';
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({
-    model: modelName,
-    systemInstruction: { role: 'user', parts: [{ text: PARSER_PROMPT }] },
-  });
-
+/**
+ * One-shot image-to-JSON extraction using the active cloud provider.
+ * Builds a standard Message array (system prompt + user message with inline
+ * images) and calls `callProvider` — same interface used by every other turn.
+ */
+export async function parseImage(
+  images: PipelineImage[],
+  userMessage: string,
+  callProvider: (messages: Message[]) => Promise<string>,
+): Promise<string> {
   const userText = userMessage?.trim()
     ? `Extract the document. User note: ${userMessage.trim()}`
     : 'Extract the document.';
 
-  const parts: Part[] = [
-    { text: userText },
-    ...images.map((img) => ({
-      inlineData: { mimeType: img.mimeType, data: img.data },
-    })),
+  const messages: Message[] = [
+    { role: 'system', content: PARSER_PROMPT },
+    {
+      role: 'user',
+      content: userText,
+      imageUrls: images.map((img) => `data:${img.mimeType};base64,${img.data}`),
+    },
   ];
 
-  console.log(`[pipeline:parser] sending ${images.length} image(s) to ${modelName}`);
-  const result = await model.generateContent({ contents: [{ role: 'user', parts }] });
-  const text = result.response.text() ?? '';
+  console.log(`[pipeline:parser] sending ${images.length} image(s) via active provider`);
+  const text = await callProvider(messages);
   console.log(`[pipeline:parser] extraction (${text.length} chars):\n${text.slice(0, 600)}${text.length > 600 ? '…' : ''}`);
   return text;
 }
@@ -504,6 +503,8 @@ export async function routePipelineTurn(args: {
   images?: PipelineImage[];
   resumingFromConfirmation: boolean;
   easternDate: string;
+  /** One-shot chat function used by the Parser phase. */
+  callProvider: (messages: Message[]) => Promise<string>;
 }): Promise<PipelineRouting> {
   const { platform, userId, userMessage, images, resumingFromConfirmation, easternDate } = args;
 
@@ -522,7 +523,7 @@ export async function routePipelineTurn(args: {
 
     let parsed: string;
     try {
-      parsed = await parseImage(llmImages, userMessage);
+      parsed = await parseImage(llmImages, userMessage, args.callProvider);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error(`[pipeline:parser] error: ${msg}`);

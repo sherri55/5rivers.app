@@ -102,6 +102,39 @@ function getToolDefs(toolFilter?: ReadonlySet<string>) {
     }));
 }
 
+// ─── Shared OpenAI-compatible message formatter ───────────────────────────────
+//
+// Converts a Message to the OpenAI chat-completion format.
+// User messages with imageUrls become multi-part content arrays
+// (text + image_url parts) as required by the vision API.
+
+function toOpenAIMessage(m: Message): Record<string, unknown> {
+  if (m.role === 'tool') {
+    return { role: 'tool', tool_call_id: m.tool_call_id ?? 'unknown', content: m.content };
+  }
+  if (m.role === 'assistant' && m.tool_calls?.length) {
+    return {
+      role: 'assistant',
+      content: m.content || null,
+      tool_calls: m.tool_calls.map((tc) => ({
+        id: tc.id ?? 'unknown',
+        type: 'function',
+        function: { name: tc.function.name, arguments: JSON.stringify(tc.function.arguments) },
+      })),
+    };
+  }
+  if (m.role === 'user' && m.imageUrls?.length) {
+    return {
+      role: 'user',
+      content: [
+        ...(m.content ? [{ type: 'text', text: m.content }] : []),
+        ...m.imageUrls.map((url) => ({ type: 'image_url', image_url: { url } })),
+      ],
+    };
+  }
+  return { role: m.role, content: m.content };
+}
+
 // ─── Ollama provider ──────────────────────────────────────────────────────────
 
 let _ollama: Ollama | null = null;
@@ -166,31 +199,10 @@ class GroqProvider implements LLMProvider {
   async chat(messages: Message[], toolFilter?: ReadonlySet<string>): Promise<NormalizedResponse> {
     const model = process.env.GROQ_MODEL ?? 'llama-3.3-70b-versatile';
 
-    // Convert to Groq message format (OpenAI-compatible)
-    const groqMessages = messages.map((m): Groq.Chat.ChatCompletionMessageParam => {
-      if (m.role === 'tool') {
-        return {
-          role: 'tool',
-          tool_call_id: m.tool_call_id ?? 'unknown',
-          content: m.content,
-        };
-      }
-      if (m.role === 'assistant' && m.tool_calls?.length) {
-        return {
-          role: 'assistant',
-          content: m.content || null,
-          tool_calls: m.tool_calls.map((tc) => ({
-            id: tc.id ?? 'unknown',
-            type: 'function' as const,
-            function: {
-              name: tc.function.name,
-              arguments: JSON.stringify(tc.function.arguments),
-            },
-          })),
-        };
-      }
-      return { role: m.role as 'system' | 'user' | 'assistant', content: m.content };
-    });
+    // Convert to Groq message format (OpenAI-compatible, vision-aware)
+    const groqMessages = messages.map(
+      (m) => toOpenAIMessage(m) as unknown as Groq.Chat.ChatCompletionMessageParam,
+    );
 
     const response = await this.getClient().chat.completions.create({
       model,
@@ -245,23 +257,7 @@ class DeepSeekProvider implements LLMProvider {
 
     const body: Record<string, unknown> = {
       model,
-      messages: messages.map((m) => {
-        if (m.role === 'tool') {
-          return { role: 'tool', tool_call_id: m.tool_call_id ?? 'unknown', content: m.content };
-        }
-        if (m.role === 'assistant' && m.tool_calls?.length) {
-          return {
-            role: 'assistant',
-            content: m.content || null,
-            tool_calls: m.tool_calls.map((tc) => ({
-              id: tc.id ?? 'unknown',
-              type: 'function',
-              function: { name: tc.function.name, arguments: JSON.stringify(tc.function.arguments) },
-            })),
-          };
-        }
-        return { role: m.role, content: m.content };
-      }),
+      messages: messages.map(toOpenAIMessage),
       tools:       getToolDefs(toolFilter),
       tool_choice: 'auto',
       stream:      false,
@@ -419,23 +415,7 @@ class LMStudioProvider implements LLMProvider {
       // The agent only sends conversation turns and tool definitions.
       messages: messages
         .filter((m) => m.role !== 'system')
-        .map((m) => {
-          if (m.role === 'tool') {
-            return { role: 'tool', tool_call_id: m.tool_call_id ?? 'unknown', content: m.content };
-          }
-          if (m.role === 'assistant' && m.tool_calls?.length) {
-            return {
-              role: 'assistant',
-              content: m.content || null,
-              tool_calls: m.tool_calls.map((tc) => ({
-                id: tc.id ?? 'unknown',
-                type: 'function',
-                function: { name: tc.function.name, arguments: JSON.stringify(tc.function.arguments) },
-              })),
-            };
-          }
-          return { role: m.role, content: m.content };
-        }),
+        .map(toOpenAIMessage),
       tools:       getToolDefs(toolFilter),
       tool_choice: 'auto',
       stream:      false,
@@ -1396,17 +1376,31 @@ export async function processMessage(
   // For Gemini only: when an image arrives, or when the user is mid-pipeline,
   // route through the Parser → Validator → Creator state machine. The router
   // sets the system prompt + user message itself, so we skip the normal flow
-  // below when it took ownership. Gated on the *cloud* provider name so the
-  // pipeline still runs in hybrid mode (where LLM_PROVIDER may be unset).
+  // below when it took ownership.
+  //
+  // The pipeline runs for any web/cloud provider (gemini, deepseek, groq, …)
+  // and in hybrid mode. It is skipped for local-only providers (lmstudio,
+  // ollama) which just attach images directly to the chat model instead.
   let activeToolFilter: ReadonlySet<string> | undefined;
   let pipelineHandled = false;
 
-  if (cloudProviderName() === 'gemini') {
+  const singleProvider = (process.env.LLM_PROVIDER ?? '').toLowerCase();
+  const pipelineEnabled =
+    hybridEnabled() || !['lmstudio', 'ollama', ''].includes(singleProvider);
+
+  if (pipelineEnabled) {
     const easternDate = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' });
     const pipelineImages: PipelineImage[] | undefined = images?.map((img) => ({
       data: img.data,
       mimeType: img.mimeType,
     }));
+
+    // One-shot provider function for the Parser phase — uses the cloud tier
+    // so images always go to a capable vision model even in hybrid mode.
+    const callProvider = async (msgs: Message[]): Promise<string> => {
+      const { response } = await chatWithFallback(msgs, undefined, 'cloud');
+      return response.content;
+    };
 
     const routing = await routePipelineTurn({
       platform,
@@ -1415,6 +1409,7 @@ export async function processMessage(
       images: pipelineImages,
       resumingFromConfirmation,
       easternDate,
+      callProvider,
     });
 
     if (routing.handled) {
