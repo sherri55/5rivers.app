@@ -158,7 +158,8 @@ export function applyConfig(argv?: string[]): string {
   const args = parseArgs(argv);
 
   // Step 1 — apply named profile as a base
-  const profileName = args.profile ?? pf.default;
+  // Priority: --profile flag > AGENT_PROFILE env var > "default" in profiles json
+  const profileName = args.profile ?? process.env.AGENT_PROFILE ?? pf.default;
   if (profileName && pf.profiles[profileName]) {
     applyProfile(pf.profiles[profileName]);
   } else if (args.profile) {

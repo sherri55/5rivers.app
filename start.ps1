@@ -1,4 +1,16 @@
+param(
+  [string]$Profile = ""   # e.g. .\start.ps1 -Profile deepseek
+)
+
 $root = $PSScriptRoot
+
+# Pass the profile to the agent process via env var (picked up by config.ts)
+if ($Profile) {
+  $env:AGENT_PROFILE = $Profile
+  Write-Host "Agent profile: $Profile" -ForegroundColor Magenta
+} else {
+  Remove-Item Env:AGENT_PROFILE -ErrorAction SilentlyContinue
+}
 
 Write-Host "Stopping existing 5Rivers processes..." -ForegroundColor Red
 
