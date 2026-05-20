@@ -54,6 +54,7 @@ import {
   hybridEnabled,
   type Tier,
 } from './provider-router.js';
+import { buildMemoryPromptSection, recordJobPattern, parseNameFromToolResult } from './memory.js';
 
 const API_URL = process.env.FIVE_RIVERS_API_URL ?? 'http://localhost:4000/api';
 
@@ -246,6 +247,36 @@ async function probeLMStudioModels(host: string): Promise<void> {
   }
 }
 
+/**
+ * Quick check: does LM Studio have at least one model loaded?
+ * Uses a short 3-second timeout so hybrid fallback fires immediately
+ * instead of waiting for a full chat-completion timeout.
+ * Returns false if LM Studio is unreachable or has no loaded models.
+ */
+async function lmStudioHasModels(host: string): Promise<boolean> {
+  try {
+    const controller = new AbortController();
+    const timer      = setTimeout(() => controller.abort(), 3000);
+    const res        = await fetch(`${host}/v1/models`, {
+      headers: { Authorization: 'Bearer lm-studio' },
+      signal:  controller.signal,
+    });
+    clearTimeout(timer);
+    const data = await res.json() as { data?: Array<{ id: string }> };
+    const loaded = data.data ?? [];
+    if (loaded.length) {
+      console.log(`[lmstudio] ${loaded.length} model(s) loaded: ${loaded.map((m) => m.id).join(', ')}`);
+      return true;
+    }
+    console.warn('[lmstudio] No models loaded — will fall back to cloud');
+    return false;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn(`[lmstudio] /v1/models unreachable (${msg}) — will fall back to cloud`);
+    return false;
+  }
+}
+
 function parseLMStudioResponse(data: LMStudioResponse, label: string): NormalizedResponse {
   if (data.error?.message) {
     throw new Error(`LM Studio (${label}): ${data.error.message}`);
@@ -279,6 +310,13 @@ class LMStudioProvider implements LLMProvider {
     const url   = `${host}/v1/chat/completions`;
     const model = process.env.LMSTUDIO_TOOL_MODEL;
     if (!model) throw new Error('LMSTUDIO_TOOL_MODEL is not set in .env');
+
+    // Before attempting a chat completion, verify at least one model is loaded.
+    // This lets the hybrid fallback fire immediately (< 3 s) instead of waiting
+    // for a full chat-completion timeout when LM Studio has no models active.
+    if (!(await lmStudioHasModels(host))) {
+      throw new Error('[lmstudio] No models loaded — triggering cloud fallback');
+    }
 
     const body: Record<string, unknown> = {
       model,
@@ -1029,7 +1067,13 @@ list_dispatchers / list_companies / list_drivers / list_units return:
   NO_MATCH            → show the full list, ask user which is correct
 Never invent a UUID.
 
-Company = ticket letterhead (companyId). Dispatcher = "Trucking Co" field (dispatcherId).`;
+Company = ticket letterhead (companyId). Dispatcher = "Trucking Co" field (dispatcherId).
+
+━━ BREAKS (hourly jobs only) ━━
+Hourly jobs can have unpaid breaks (lunch, coffee, etc.).
+breaks field = JSON array: [{"start":"HH:MM","end":"HH:MM","tag":"Lunch"}]
+Extract break times from ticket text/images when present.
+Pass breaks to create_job / update_job. Paid hours = (end−start) minus total break time.${buildMemoryPromptSection()}`;
 }
 
 /**
@@ -1120,9 +1164,17 @@ Step 4 — Show a confirmation table BEFORE marking anything.
 
 Step 5 — Show final results table (same format as PATH A Step 3).
 
+━━ BREAKS (hourly jobs only) ━━
+Hourly jobs can have unpaid breaks that reduce paid hours.
+  breaks field = JSON array: [{"start":"HH:MM","end":"HH:MM","tag":"Lunch"},{"start":"HH:MM","end":"HH:MM","tag":"Coffee"}]
+  • Extract break start/end times from ticket text or images when present.
+  • Pass breaks to create_job / update_job. If no breaks visible, omit the field.
+  • Paid hours = (endTime − startTime) − total break minutes.
+  • Tag is optional but useful (e.g. "Lunch", "Coffee", "Break").
+
 ━━ REQUIRED FIELDS ━━
 create_job: jobDate (required), jobTypeId (required).
-create_job_type: companyId (required), title format "Company - Route - Rate" (required).`;
+create_job_type: companyId (required), title format "Company - Route - Rate" (required).${buildMemoryPromptSection()}`;
 }
 
 // ─── Pipeline image-attachment helper ────────────────────────────────────────
@@ -1243,6 +1295,14 @@ export async function processMessage(
    *  they can't leak onto a later, unrelated create_job. */
   let imagesAttachedThisTurn = false;
 
+  /**
+   * Session-level name resolution cache.
+   * Populated from USE_ID responses (which include "NAME: <display>") so we
+   * can record human-readable patterns to memory after create_job succeeds.
+   * Key = entity type ('company' | 'dispatcher' | 'jobType' | 'driver' | 'unit').
+   */
+  const resolvedNames: Record<string, string> = {};
+
   // ── Supervision mode: handle a pending confirmation ───────────────────────
   let resumingFromConfirmation = false;
 
@@ -1295,6 +1355,33 @@ export async function processMessage(
           if (await maybeAttachImagesToJob(client, platform, userId, tc.name, result)) {
             imagesAttachedThisTurn = true;
           }
+
+          // Name resolution cache (supervision path)
+          const resolvedNameSupervision = parseNameFromToolResult(result);
+          if (resolvedNameSupervision) {
+            if (tc.name === 'list_companies')   resolvedNames['company']    = resolvedNameSupervision;
+            if (tc.name === 'list_dispatchers') resolvedNames['dispatcher'] = resolvedNameSupervision;
+            if (tc.name === 'list_job_types')   resolvedNames['jobType']    = resolvedNameSupervision;
+            if (tc.name === 'list_drivers')     resolvedNames['driver']     = resolvedNameSupervision;
+            if (tc.name === 'list_units')       resolvedNames['unit']       = resolvedNameSupervision;
+          }
+
+          // Memory: record pattern after successful create_job (supervision path)
+          if (tc.name === 'create_job' && !result.startsWith('Error')) {
+            const company    = resolvedNames['company'];
+            const dispatcher = resolvedNames['dispatcher'];
+            const jobType    = resolvedNames['jobType'];
+            if (company && dispatcher && jobType) {
+              recordJobPattern({
+                companyName:    company,
+                dispatcherName: dispatcher,
+                jobTypeName:    jobType,
+                driverName:     resolvedNames['driver'],
+                unitName:       resolvedNames['unit'],
+              });
+            }
+          }
+
           toolCalls.push({ name: tc.name, args: tc.arguments, result });
           addMessage(platform, userId, { role: 'tool', content: result, tool_call_id: tc.id, tool_call_name: tc.name });
         }
@@ -1662,6 +1749,33 @@ export async function processMessage(
         if (await maybeAttachImagesToJob(client, platform, userId, tc.name, result)) {
           imagesAttachedThisTurn = true;
         }
+
+        // ── Name resolution cache — capture display names from list_* USE_ID responses ──
+        const resolvedName = parseNameFromToolResult(result);
+        if (resolvedName) {
+          if (tc.name === 'list_companies')   resolvedNames['company']    = resolvedName;
+          if (tc.name === 'list_dispatchers') resolvedNames['dispatcher'] = resolvedName;
+          if (tc.name === 'list_job_types')   resolvedNames['jobType']    = resolvedName;
+          if (tc.name === 'list_drivers')     resolvedNames['driver']     = resolvedName;
+          if (tc.name === 'list_units')       resolvedNames['unit']       = resolvedName;
+        }
+
+        // ── Memory: record job pattern after a successful create_job ──────────
+        if (tc.name === 'create_job' && !result.startsWith('Error')) {
+          const company    = resolvedNames['company'];
+          const dispatcher = resolvedNames['dispatcher'];
+          const jobType    = resolvedNames['jobType'];
+          if (company && dispatcher && jobType) {
+            recordJobPattern({
+              companyName:    company,
+              dispatcherName: dispatcher,
+              jobTypeName:    jobType,
+              driverName:     resolvedNames['driver'],
+              unitName:       resolvedNames['unit'],
+            });
+          }
+        }
+
         toolCalls.push({ name: tc.name, args: tc.arguments, result });
 
         // Store tool result — include tool_call_id for Groq/OpenAI, tool_call_name for Gemini
