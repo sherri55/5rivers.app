@@ -191,11 +191,14 @@ export async function parseImage(
     ? `Extract the document. User note: ${userMessage.trim()}`
     : 'Extract the document.';
 
+  // The parser instructions are embedded in the user message rather than sent
+  // as a system role — this works uniformly across every provider, including
+  // LM Studio which strips system messages (its system prompt lives in the
+  // model preset).
   const messages: Message[] = [
-    { role: 'system', content: PARSER_PROMPT },
     {
       role: 'user',
-      content: userText,
+      content: `${PARSER_PROMPT}\n\n---\n\n${userText}`,
       imageUrls: images.map((img) => `data:${img.mimeType};base64,${img.data}`),
     },
   ];

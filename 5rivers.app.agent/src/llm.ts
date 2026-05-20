@@ -45,13 +45,7 @@ import {
   type PipelineImage,
 } from './pipeline.js';
 import type { RestClient } from '../../5rivers.app.mcp/dist/rest-client.js';
-import {
-  chatWithFallback,
-  routeTurn,
-  cloudProviderName,
-  hybridEnabled,
-  type Tier,
-} from './provider-router.js';
+import { sanitizeForProvider } from './conversation.js';
 import { buildMemoryPromptSection, recordJobPattern, parseNameFromToolResult } from './memory.js';
 
 const API_URL = process.env.FIVE_RIVERS_API_URL ?? 'http://localhost:4000/api';
@@ -339,8 +333,8 @@ async function probeLMStudioModels(host: string): Promise<void> {
 
 /**
  * Quick check: does LM Studio have at least one model loaded?
- * Uses a short 3-second timeout so hybrid fallback fires immediately
- * instead of waiting for a full chat-completion timeout.
+ * Uses a short 3-second timeout so an unreachable / empty LM Studio fails
+ * fast instead of waiting for a full chat-completion timeout.
  * Returns false if LM Studio is unreachable or has no loaded models.
  */
 async function lmStudioHasModels(host: string): Promise<boolean> {
@@ -401,11 +395,11 @@ class LMStudioProvider implements LLMProvider {
     const model = process.env.LMSTUDIO_TOOL_MODEL;
     if (!model) throw new Error('LMSTUDIO_TOOL_MODEL is not set in .env');
 
-    // Before attempting a chat completion, verify at least one model is loaded.
-    // This lets the hybrid fallback fire immediately (< 3 s) instead of waiting
-    // for a full chat-completion timeout when LM Studio has no models active.
+    // Fast precheck — surface a clear error in < 3 s if LM Studio is reachable
+    // but has no model loaded, rather than waiting for the full chat-completion
+    // timeout.
     if (!(await lmStudioHasModels(host))) {
-      throw new Error('[lmstudio] No models loaded — triggering cloud fallback');
+      throw new Error('[lmstudio] No models loaded — load a model in LM Studio and try again');
     }
 
     const body: Record<string, unknown> = {
@@ -762,10 +756,9 @@ class GeminiProvider implements LLMProvider {
 
 // ─── Provider registry ────────────────────────────────────────────────────────
 //
-// Each provider name maps to its own lazy singleton. This replaces the old
-// single-provider singleton so the hybrid router can hand back whichever one
-// the current turn calls for (local LM Studio for simple tasks, cloud Gemini
-// for complex tasks or fallback).
+// Each provider name maps to its own lazy singleton, so switching providers at
+// runtime (via /profile or /provider commands) just looks up a different entry
+// without re-instantiating the active one.
 
 const _providerRegistry = new Map<string, LLMProvider>();
 
@@ -967,12 +960,10 @@ function coerceValue(raw: string): unknown {
 function buildSystemPrompt(): string {
   const easternDate = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' });
 
-  // Use the simplified prompt only when LM Studio is the *sole* provider.
-  // In hybrid mode (LLM_PROVIDER_LOCAL=lmstudio) or in web/cloud-only mode
-  // the full prompt is used — LM Studio in hybrid still receives it via API,
-  // and every cloud provider (DeepSeek, Gemini, Groq) needs the full context.
-  const singleProvider = (process.env.LLM_PROVIDER ?? '').toLowerCase();
-  if (singleProvider === 'lmstudio') {
+  // LM Studio gets a short prompt (the long system prompt lives in its model
+  // preset); every cloud provider needs the full instructional prompt.
+  const provider = (process.env.LLM_PROVIDER ?? 'lmstudio').toLowerCase();
+  if (provider === 'lmstudio') {
     return buildSimplifiedPrompt(easternDate);
   }
   return buildFullPrompt(easternDate);
@@ -1376,29 +1367,23 @@ export async function processMessage(
   // For Gemini only: when an image arrives, or when the user is mid-pipeline,
   // route through the Parser → Validator → Creator state machine. The router
   // sets the system prompt + user message itself, so we skip the normal flow
-  // below when it took ownership.
-  //
-  // The pipeline runs for any web/cloud provider (gemini, deepseek, groq, …)
-  // and in hybrid mode. It is skipped for local-only providers (lmstudio,
-  // ollama) which just attach images directly to the chat model instead.
+  // below when it took ownership. Runs for every provider.
   let activeToolFilter: ReadonlySet<string> | undefined;
   let pipelineHandled = false;
 
-  const singleProvider = (process.env.LLM_PROVIDER ?? '').toLowerCase();
-  const pipelineEnabled =
-    hybridEnabled() || !['lmstudio', 'ollama', ''].includes(singleProvider);
-
-  if (pipelineEnabled) {
+  {
     const easternDate = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' });
     const pipelineImages: PipelineImage[] | undefined = images?.map((img) => ({
       data: img.data,
       mimeType: img.mimeType,
     }));
 
-    // One-shot provider function for the Parser phase — uses the cloud tier
-    // so images always go to a capable vision model even in hybrid mode.
+    // One-shot chat function for the Parser phase — uses the active provider.
     const callProvider = async (msgs: Message[]): Promise<string> => {
-      const { response } = await chatWithFallback(msgs, undefined, 'cloud');
+      const providerName = (process.env.LLM_PROVIDER ?? 'lmstudio').toLowerCase();
+      const provider = getProvider(providerName);
+      const sanitized = sanitizeForProvider(msgs, providerName);
+      const response = await provider.chat(sanitized, undefined);
       return response.content;
     };
 
@@ -1420,16 +1405,12 @@ export async function processMessage(
   }
 
   // ── Normal flow: add user message ─────────────────────────────────────────
-  // System prompt is injected for Groq / Ollama / Gemini; for LM Studio it
-  // lives in the model preset and is intentionally not sent via the API.
-  // In hybrid mode the local tier is LM Studio, so we still skip there — but
-  // the cloud tier (Gemini) needs the prompt, so we always set it when the
-  // cloud is in use. Simplest correct rule: skip the prompt only when the
-  // configured single provider is LM Studio.
+  // The system prompt is injected for every provider except LM Studio — LM
+  // Studio's system prompt lives in the model preset and is filtered out by
+  // its provider, so injecting one here would be discarded anyway.
   if (!pipelineHandled) {
-    const single = (process.env.LLM_PROVIDER ?? '').toLowerCase();
-    const skipForLMStudio = single === 'lmstudio';  // back-compat single-provider mode
-    if (!skipForLMStudio) {
+    const provider = (process.env.LLM_PROVIDER ?? 'lmstudio').toLowerCase();
+    if (provider !== 'lmstudio') {
       setSystemPrompt(platform, userId, buildSystemPrompt());
     }
   }
@@ -1442,20 +1423,6 @@ export async function processMessage(
     addMessage(platform, userId, { role: 'user', content: userMessage, imageUrls });
   }
 
-  // ── Routing decision for this turn ─────────────────────────────────────────
-  // Hybrid mode: 'local' for simple text turns, 'cloud' for images / pipeline /
-  // post-fallback. Single-provider mode: always 'cloud' (which resolves to
-  // LLM_PROVIDER inside chatWithFallback). Once a fallback fires, currentTier
-  // sticks at 'cloud' for the rest of the turn so we don't bounce back to a
-  // model that just gave up.
-  let currentTier: Tier = routeTurn({
-    hasImages: !!images?.length,
-    phase: getPipelinePhase(platform, userId),
-  });
-  if (hybridEnabled()) {
-    console.log(`[router] route=${currentTier} (hybrid: local=${process.env.LLM_PROVIDER_LOCAL}, cloud=${process.env.LLM_PROVIDER_CLOUD})`);
-  }
-
   // ── Agent loop ────────────────────────────────────────────────────────────
   const MAX_ITERATIONS = 10;
   let iterations = 0;
@@ -1463,7 +1430,8 @@ export async function processMessage(
   while (iterations < MAX_ITERATIONS) {
     iterations++;
 
-    console.log(`[llm] Sending to ${process.env.LLM_PROVIDER ?? 'ollama'} (iteration ${iterations})...`);
+    const providerName = (process.env.LLM_PROVIDER ?? 'lmstudio').toLowerCase();
+    console.log(`[llm] Sending to ${providerName} (iteration ${iterations})...`);
     // Strip excluded tool calls (e.g. login) from history before sending to LLM
     const rawHistory = getHistory(platform, userId);
     const excludedIds = new Set(
@@ -1487,13 +1455,10 @@ export async function processMessage(
 
     let response: NormalizedResponse;
     try {
-      const routed = await chatWithFallback(history, activeToolFilter, currentTier);
-      response = routed.response;
-      // Sticky upgrade: once we've fallen back to cloud, stay on cloud for
-      // the remainder of this turn (don't keep retrying a failing local model).
-      if (routed.fallbackReason) currentTier = routed.tier;
+      const provider = getProvider(providerName);
+      const sanitized = sanitizeForProvider(history, providerName);
+      response = await provider.chat(sanitized, activeToolFilter);
       // Free image data from history after the first LLM call.
-      // Only relevant for single-model mode where images were attached directly.
       if (iterations === 1 && !resumingFromConfirmation) stripImageUrls(platform, userId);
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);

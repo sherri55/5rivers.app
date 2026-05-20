@@ -1,9 +1,8 @@
 param(
-  # -Mode  : local | web | hybrid   (default: local)
-  # -Model : which cloud model to use when Mode is web or hybrid
-  #          web     → deepseek (default) | deepseek-r | gemini | gemini-pro | groq
-  #          hybrid  → gemini  (default cloud is deepseek, pass gemini to override)
-  [ValidateSet("local","web","hybrid","")]
+  # -Mode  : local | web   (default: local)
+  # -Model : which model to use when Mode is web
+  #          web → deepseek (default) | deepseek-r | gemini | gemini-pro | groq
+  [ValidateSet("local","web","")]
   [string]$Mode  = "",
   [string]$Model = ""
 )
@@ -13,10 +12,9 @@ $root = $PSScriptRoot
 # ── Resolve Mode + Model → profile name ──────────────────────────────────────
 $resolvedProfile = ""
 switch ($Mode.ToLower()) {
-  "local"  { $resolvedProfile = "local" }
-  "web"    { $resolvedProfile = if ($Model) { $Model } else { "deepseek" } }
-  "hybrid" { $resolvedProfile = if ($Model) { "hybrid-$Model" } else { "hybrid" } }
-  default  { $resolvedProfile = "" }   # no override — use default in agent.profiles.json
+  "local" { $resolvedProfile = "local" }
+  "web"   { $resolvedProfile = if ($Model) { $Model } else { "deepseek" } }
+  default { $resolvedProfile = "" }   # no override — use default in agent.profiles.json
 }
 
 if ($resolvedProfile) {

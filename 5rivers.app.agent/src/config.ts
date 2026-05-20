@@ -20,7 +20,7 @@ const PROFILES_PATH = resolve(__dirname, '../agent.profiles.json');
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface SingleProfile {
+interface Profile {
   description?: string;
   provider: string;
   model?: string;
@@ -29,21 +29,9 @@ interface SingleProfile {
   host?: string;
 }
 
-interface HybridProfile {
-  description?: string;
-  local: string;
-  cloud: string;
-}
-
-type Profile = SingleProfile | HybridProfile;
-
 interface ProfilesFile {
   default?: string;
   profiles: Record<string, Profile>;
-}
-
-function isHybrid(p: Profile): p is HybridProfile {
-  return 'local' in p && 'cloud' in p;
 }
 
 // ─── Load profiles ────────────────────────────────────────────────────────────
@@ -61,17 +49,6 @@ function loadProfiles(): ProfilesFile {
 // ─── Apply a profile to process.env ──────────────────────────────────────────
 
 function applyProfile(profile: Profile): void {
-  if (isHybrid(profile)) {
-    delete process.env.LLM_PROVIDER;
-    process.env.LLM_PROVIDER_LOCAL = profile.local;
-    process.env.LLM_PROVIDER_CLOUD = profile.cloud;
-    process.env.LLM_HYBRID_FALLBACK = 'true';
-    return;
-  }
-
-  // Single-provider
-  delete process.env.LLM_PROVIDER_LOCAL;
-  delete process.env.LLM_PROVIDER_CLOUD;
   process.env.LLM_PROVIDER = profile.provider;
 
   if (profile.model) {
@@ -104,8 +81,6 @@ interface ParsedArgs {
   profile?:          string;
   provider?:         string;
   model?:            string;
-  local?:            string;
-  cloud?:            string;
   reasoning?:        boolean;
   reasoningEffort?:  string;
   remaining:         string[];
@@ -126,12 +101,6 @@ export function parseArgs(argv: string[] = process.argv.slice(2)): ParsedArgs {
     }
     if (arg === '--model' && next) {
       result.model = next; i += 2; continue;
-    }
-    if (arg === '--local' && next) {
-      result.local = next; i += 2; continue;
-    }
-    if (arg === '--cloud' && next) {
-      result.cloud = next; i += 2; continue;
     }
     if (arg === '--reasoning') {
       result.reasoning = true; i++; continue;
@@ -168,14 +137,7 @@ export function applyConfig(argv?: string[]): string {
   }
 
   // Step 2 — overlay explicit CLI flags (highest priority)
-  if (args.local && args.cloud) {
-    delete process.env.LLM_PROVIDER;
-    process.env.LLM_PROVIDER_LOCAL = args.local;
-    process.env.LLM_PROVIDER_CLOUD = args.cloud;
-    process.env.LLM_HYBRID_FALLBACK = 'true';
-  } else if (args.provider) {
-    delete process.env.LLM_PROVIDER_LOCAL;
-    delete process.env.LLM_PROVIDER_CLOUD;
+  if (args.provider) {
     process.env.LLM_PROVIDER = args.provider;
   }
 
@@ -212,8 +174,6 @@ export function switchProfile(nameOrProvider: string): string {
   // Treat as raw provider name (e.g. "/provider deepseek")
   const validProviders = ['gemini', 'groq', 'deepseek', 'lmstudio', 'ollama'];
   if (validProviders.includes(nameOrProvider.toLowerCase())) {
-    delete process.env.LLM_PROVIDER_LOCAL;
-    delete process.env.LLM_PROVIDER_CLOUD;
     process.env.LLM_PROVIDER = nameOrProvider.toLowerCase();
     return `✅ Provider set to "${nameOrProvider}": ${describeActiveConfig()}`;
   }
@@ -238,11 +198,7 @@ export function listProfiles(): string {
 // ─── Describe current config ──────────────────────────────────────────────────
 
 export function describeActiveConfig(): string {
-  const local = process.env.LLM_PROVIDER_LOCAL;
-  const cloud = process.env.LLM_PROVIDER_CLOUD;
-  if (local && cloud) return `hybrid (local=${local}, cloud=${cloud})`;
-
-  const provider = (process.env.LLM_PROVIDER ?? 'ollama').toLowerCase();
+  const provider = (process.env.LLM_PROVIDER ?? 'lmstudio').toLowerCase();
   const modelEnv: Record<string, string | undefined> = {
     deepseek: process.env.DEEPSEEK_MODEL,
     gemini:   process.env.GEMINI_MODEL,

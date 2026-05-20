@@ -32,16 +32,6 @@
       "description": "Groq (fast inference, free tier)",
       "provider": "groq",
       "model": "llama-3.3-70b-versatile"
-    },
-    "hybrid": {
-      "description": "LM Studio locally, DeepSeek for cloud fallback",
-      "local": "lmstudio",
-      "cloud": "deepseek"
-    },
-    "hybrid-gemini": {
-      "description": "LM Studio locally, Gemini for cloud fallback",
-      "local": "lmstudio",
-      "cloud": "gemini"
     }
   }
 }
