@@ -808,6 +808,15 @@ export function getProvider(name?: string): LLMProvider {
   return created;
 }
 
+/**
+ * Clear all cached provider instances.
+ * Call this after changing process.env provider/model settings at runtime
+ * (e.g. from a /profile command) so the next turn picks up fresh instances.
+ */
+export function clearProviderRegistry(): void {
+  _providerRegistry.clear();
+}
+
 function createProvider(name: string): LLMProvider {
   if (name === 'gemini') {
     const model = process.env.GEMINI_MODEL ?? 'gemini-2.5-flash';
