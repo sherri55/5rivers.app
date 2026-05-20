@@ -34,8 +34,6 @@ import {
   type Message,
 } from './conversation.js';
 import { getAutoToken, clearAutoToken } from './auth.js';
-import { parseOCROutputMulti } from './ocr-parser.js';
-import { processDocuments, formatWriteResults, type PendingDocAction } from './document-processor.js';
 import {
   routePipelineTurn,
   getPhase as getPipelinePhase,
@@ -836,14 +834,10 @@ function createProvider(name: string): LLMProvider {
   if (name === 'lmstudio') {
     const host        = process.env.LMSTUDIO_HOST        ?? 'http://localhost:1234';
     const toolModel   = process.env.LMSTUDIO_TOOL_MODEL;
-    const visionModel = process.env.LMSTUDIO_VISION_MODEL;
-    const visionHost  = process.env.LMSTUDIO_VISION_HOST  ?? host;
     if (!toolModel) {
       throw new Error('[lmstudio] LMSTUDIO_TOOL_MODEL is not set in .env — required when multiple models are loaded in LM Studio');
     }
-    console.log('[llm] Provider: LM Studio');
-    console.log(`[llm]   tool  : ${toolModel} @ ${host}`);
-    console.log(`[llm]   vision: ${visionModel ?? '(unset — images will be skipped)'} @ ${visionHost}`);
+    console.log(`[llm] Provider: LM Studio (${toolModel} @ ${host})`);
     probeLMStudioModels(host).catch(() => {});
     return new LMStudioProvider();
   }
@@ -854,144 +848,6 @@ function createProvider(name: string): LLMProvider {
     return new OllamaProvider();
   }
   throw new Error(`[llm] Unknown provider "${name}" — set LLM_PROVIDER to one of: gemini, groq, deepseek, lmstudio, ollama`);
-}
-
-// ─── OCR pre-processing (vision model) ───────────────────────────────────────
-
-/**
- * Reference prompt for the OCR/vision model (google/gemma-4-e4b).
- * Paste into LM Studio → Model Preset → System Prompt for the vision model.
- * NOT sent via the API.
- *
- * ─────────────────────────────────────────────────────────────────────────────
- * You are a document OCR engine for 5Rivers Trucking. Your ONLY job is to read
- * images and output structured data. You do NOT call tools, make decisions, or
- * take any action.
- *
- * First identify whether the image is a TICKET or a PAYSTUB, then extract:
- *
- * ━━ TICKET / TIMESHEET ━━
- * TYPE: ticket
- * DATE: <date as printed>
- * TICKET_NUMBER: <ticket or reference number, or "not visible">
- * COMPANY: <letterhead name — the organization that issued this ticket>
- * DISPATCHER: <value of "Trucking Co" / "Dispatched by" field, or "not visible">
- * UNIT: <truck number or unit ID, or "not visible">
- * DRIVER: <driver name or initials, or "not visible">
- * START_TIME: <as printed, or "not visible">
- * END_TIME: <as printed, or "not visible">
- * START_LOCATION: <haul from / origin, or "not visible">
- * END_LOCATION: <haul to / destination, or "not visible">
- * MATERIAL: <material type if shown, or "not visible">
- *
- * ━━ PAYSTUB / REMITTANCE ━━
- * TYPE: paystub
- * ISSUED_BY: <company name from the header — the company that is paying>
- * PERIOD_FROM: <pay period start date, or "not visible">
- * PERIOD_TO: <pay period end date, or "not visible">
- * LINE_ITEMS:
- * - DATE: <date as printed> | AMOUNT: <dollar amount for THAT ROW ONLY> | REF: <ref or ticket number, or "none">
- *
- * ━━ CRITICAL PAYSTUB RULES ━━
- * - Each row in the table = exactly one LINE_ITEMS entry. 20 rows → 20 entries.
- * - NEVER output the cheque total, grand total, or subtotal as a line item.
- * - NEVER combine multiple rows into one entry.
- * - Copy every date and amount exactly as printed — do not convert or reformat.
- * - Ignore rows labelled "Total", "Subtotal", "Grand Total", "Cheque Amount".
- *
- * ━━ GENERAL RULES ━━
- * - Copy all values exactly as printed — do not interpret, convert, or correct.
- * - If a field is not visible write "not visible".
- * - Output ONLY the structured data — no explanations, no commentary.
- * ─────────────────────────────────────────────────────────────────────────────
- */
-
-/**
- * Send images to the dedicated OCR/vision model via the OpenAI-compatible
- * /v1/chat/completions endpoint.
- * System prompt is managed entirely in LM Studio's model preset — not sent here.
- * Only the user turn (text + images) is sent.
- */
-async function callOCRModel(userMessage: string, images: ImageInput[]): Promise<string> {
-  const host  = process.env.LMSTUDIO_VISION_HOST ?? process.env.LMSTUDIO_HOST ?? 'http://localhost:1234';
-  const model = process.env.LMSTUDIO_VISION_MODEL;
-
-  if (!model) {
-    console.warn('[ocr] LMSTUDIO_VISION_MODEL is not set — skipping OCR');
-    return '[OCR skipped: LMSTUDIO_VISION_MODEL not configured]';
-  }
-
-  // Send the full extraction format as the user message so OCR output is
-  // deterministic regardless of LM Studio preset configuration.
-  const extractionInstruction = `Read this image carefully. Output ONLY structured data — no commentary.
-
-IMPORTANT: Analyze the ENTIRE document first. A single page may contain MULTIPLE entries (multiple tickets, multiple loads, multiple trips). Extract ALL of them.
-
-Determine if entries are TICKETs or PAYSTUBs.
-
-TICKET — output exactly (one block per entry):
-TYPE: ticket
-DATE: <date as printed>
-TICKET_NUMBER: <number or "not visible">
-COMPANY: <letterhead name>
-DISPATCHER: <"Trucking Co" / "Dispatched by" field, or "not visible">
-UNIT: <truck/unit number, or "not visible">
-DRIVER: <name or initials, or "not visible">
-START_TIME: <as printed, or "not visible">
-END_TIME: <as printed, or "not visible">
-START_LOCATION: <origin, or "not visible">
-END_LOCATION: <destination, or "not visible">
-MATERIAL: <type, or "not visible">
-
-PAYSTUB — output exactly:
-TYPE: paystub
-ISSUED_BY: <company from header — the payer>
-PERIOD_FROM: <start date, or "not visible">
-PERIOD_TO: <end date, or "not visible">
-LINE_ITEMS:
-- DATE: <date as printed> | AMOUNT: <dollar amount for THIS ROW ONLY> | REF: <ref or "none">
-
-CRITICAL RULES:
-- If the document has MULTIPLE entries, output each one separately with a line of --- between them.
-- Each table row = one LINE_ITEMS entry. 20 rows → 20 entries.
-- NEVER include totals, subtotals, or cheque amounts as line items.
-- Copy dates and amounts exactly as printed.
-- "not visible" for anything unreadable.`;
-
-  const userContent: unknown[] = [
-    { type: 'text', text: extractionInstruction },
-    ...images.map((img) => ({
-      type:      'image_url',
-      image_url: { url: `data:${img.mimeType};base64,${img.data}` },
-    })),
-  ];
-
-  const body = {
-    model,
-    messages: [
-      { role: 'user', content: userContent },
-    ],
-    stream: false,
-  };
-
-  const url = `${host}/v1/chat/completions`;
-  console.log(`[ocr] Sending ${images.length} image(s) to ${model} @ ${url}`);
-
-  try {
-    const res  = await fetch(url, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer lm-studio' },
-      body:    JSON.stringify(body),
-    });
-    const data = await res.json() as LMStudioResponse;
-    const result = parseLMStudioResponse(data, `ocr: ${model}`);
-    console.log(`[ocr] Full extraction (${result.content.length} chars):\n${result.content}`);
-    return result.content || '[OCR model returned no content]';
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error(`[ocr] Error: ${msg}`);
-    return `[OCR failed: ${msg}]`;
-  }
 }
 
 // ─── Supervision mode ────────────────────────────────────────────────────────
@@ -1013,8 +869,6 @@ interface PendingConfirmation {
 /** In-memory store of pending confirmations, keyed by "platform:userId". */
 const pendingConfirmations = new Map<string, PendingConfirmation>();
 
-/** Pending confirmations from the code-driven document processor. */
-const pendingDocConfirmations = new Map<string, PendingDocAction>();
 
 function supervisionKey(platform: string, userId: string): string {
   return `${platform}:${userId}`;
@@ -1040,17 +894,6 @@ function buildConfirmationText(writeCalls: NormalizedToolCall[]): string {
   return `⚠️ **Supervision mode** — I want to make the following change${plural}:\n\n${items}\n\nReply **yes** to confirm, **no** to cancel, or **change \`field\` to \`value\`** to edit a field first.`;
 }
 
-/** Rebuild a confirmation text block from doc-processor pending writes. */
-function buildDocConfirmationText(writes: Array<{ tool: string; args: Record<string, unknown> }>): string {
-  const items = writes.map((w, i) => {
-    const argLines = Object.entries(w.args)
-      .map(([k, v]) => `  - **${k}**: \`${JSON.stringify(v)}\``)
-      .join('\n');
-    return `${i + 1}. **${w.tool}**\n${argLines || '  *(no arguments)*'}`;
-  }).join('\n\n');
-  const plural = writes.length > 1 ? 's' : '';
-  return `⚠️ **Supervision mode** — I want to make the following change${plural}:\n\n${items}\n\nReply **yes** to confirm, **no** to cancel, or **change \`field\` to \`value\`** to edit a field first.`;
-}
 
 const CONFIRM_RE = /^\s*(yes|confirm|go\s*ahead|proceed|do\s*it|ok(?:ay)?|sure|yep|yeah|👍|y)\s*[.!]?\s*$/i;
 const CANCEL_RE  = /^\s*(no|cancel|stop|abort|nope|nah|👎|n)\s*[.!]?\s*$/i;
@@ -1367,7 +1210,6 @@ export function resetConversation(platform: string, userId: string): void {
   clearHistory(platform, userId);
   clearPipelineState(platform, userId);
   pendingConfirmations.delete(sKey);
-  pendingDocConfirmations.delete(sKey);
   console.log(`[reset] cleared all state for ${sKey}`);
 }
 
@@ -1548,81 +1390,6 @@ export async function processMessage(
       }
     }
 
-    // ── Document processor pending confirmations ─────────────────────────────
-    const pendingDoc = pendingDocConfirmations.get(sKey);
-    if (pendingDoc) {
-      const trimmed = userMessage.trim();
-
-      if (CONFIRM_RE.test(trimmed)) {
-        pendingDocConfirmations.delete(sKey);
-        // Execute each pre-built write operation
-        const writeResults: AgentResponse['toolCalls'] = [];
-        for (const w of pendingDoc.writes) {
-          const toolDef = ALL_TOOLS.find((t) => t.name === w.tool);
-          let result: string;
-          console.log(`[doc-confirm] ${w.tool} args: ${JSON.stringify(w.args)}`);
-          if (!toolDef) {
-            result = `Error: Unknown tool "${w.tool}"`;
-          } else {
-            try {
-              result = await toolDef.handler(client, w.args);
-            } catch (err) {
-              const errMsg = err instanceof Error ? err.message : String(err);
-              if (errMsg.includes('401') || errMsg.toLowerCase().includes('unauthorized')) {
-                clearAutoToken();
-                return { text: 'Session expired. Please send your message again.' };
-              }
-              result = `Error: ${errMsg}`;
-            }
-          }
-          console.log(`[doc-confirm] ${w.tool} → ${result.slice(0, 200)}`);
-          writeResults.push({ name: w.tool, args: w.args, result });
-        }
-        const summaryText = formatWriteResults(writeResults);
-        addMessage(platform, userId, { role: 'user', content: trimmed });
-        addMessage(platform, userId, { role: 'assistant', content: summaryText });
-        return { text: summaryText, toolCalls: writeResults };
-
-      } else if (CANCEL_RE.test(trimmed)) {
-        pendingDocConfirmations.delete(sKey);
-        const cancelText = '❌ Cancelled.';
-        addMessage(platform, userId, { role: 'user', content: trimmed });
-        addMessage(platform, userId, { role: 'assistant', content: cancelText });
-        return { text: cancelText };
-
-      } else {
-        // ── Check for an inline field modification ──────────────────────────
-        const mod = tryParseModification(trimmed);
-        if (mod) {
-          // pendingDoc.writes is Array<{ tool: string; args: Record<string, unknown> }>
-          // Wrap them temporarily as NormalizedToolCall for findFieldMatch
-          const wrapsForMatch: NormalizedToolCall[] = pendingDoc.writes.map((w, i) => ({
-            id: `doc-${i}`,
-            name: w.tool,
-            arguments: w.args,
-          }));
-          const match = findFieldMatch(mod.rawField, wrapsForMatch);
-          if (match) {
-            const coerced = coerceValue(mod.rawValue);
-            pendingDoc.writes[match.toolIndex].args[match.argKey] = coerced;
-            // Rebuild confirmation text
-            const updatedConfirmText = buildDocConfirmationText(pendingDoc.writes);
-            pendingDoc.confirmationText = updatedConfirmText;
-            pendingDocConfirmations.set(sKey, pendingDoc);
-            return {
-              text: `✏️ Updated **${match.argKey}** → \`${JSON.stringify(coerced)}\`\n\n${updatedConfirmText}`,
-            };
-          }
-          const allFields = pendingDoc.writes.flatMap((w) => Object.keys(w.args));
-          return {
-            text: `⚠️ Could not find a field matching "**${mod.rawField}**". Available fields: ${allFields.map((f) => `\`${f}\``).join(', ')}\n\n${pendingDoc.confirmationText}`,
-          };
-        }
-        return {
-          text: `⚠️ Pending action:\n\n${pendingDoc.confirmationText}\n\nReply **yes** to confirm, **no** to cancel, or **change \`field\` to \`value\`** to edit a field first.`,
-        };
-      }
-    }
   }
 
   // ── Three-phase Gemini pipeline routing ───────────────────────────────────
@@ -1673,60 +1440,11 @@ export async function processMessage(
   }
 
   if (!pipelineHandled && !resumingFromConfirmation) {
-    // OCR + code-driven document pipeline:
-    // Runs only when LM Studio is actually part of the current setup (single-
-    // provider or hybrid local tier) AND a vision model is configured AND the
-    // cloud provider isn't Gemini (Gemini has its own pipeline above).
-    // This prevents web-only modes (deepseek, groq, etc.) from trying to reach
-    // a local LM Studio even when LMSTUDIO_VISION_MODEL is still set in .env.
-    const lmstudioInUse =
-      (process.env.LLM_PROVIDER       ?? '').toLowerCase() === 'lmstudio' ||
-      (process.env.LLM_PROVIDER_LOCAL ?? '').toLowerCase() === 'lmstudio';
-    if (images && images.length > 0
-        && !!process.env.LMSTUDIO_VISION_MODEL
-        && cloudProviderName() !== 'gemini'
-        && lmstudioInUse) {
-      // ── Code-driven document pipeline ──────────────────────────────────────
-      // OCR → parse ALL entries → validate → present summary → confirm → execute.
-      // No LLM involved unless every entry is unknown.
-      const ocrText = await callOCRModel(userMessage, images);
-      const extractions = parseOCROutputMulti(ocrText);
-      const knownCount = extractions.filter((e) => e.type !== 'unknown').length;
-      console.log(`[doc-pipeline] Detected ${extractions.length} entry/entries (${knownCount} known)`);
-
-      if (knownCount > 0) {
-        const result = await processDocuments(extractions, client, isSupervisionEnabled());
-
-        if (result) {
-          // Record in conversation history for context
-          addMessage(platform, userId, { role: 'user', content: `${userMessage}\n\n[OCR]\n${ocrText}` });
-
-          if (result.needsConfirmation) {
-            const sKey = supervisionKey(platform, userId);
-            pendingDocConfirmations.set(sKey, result.needsConfirmation);
-            addMessage(platform, userId, { role: 'assistant', content: result.text });
-            return { text: result.text };
-          }
-
-          addMessage(platform, userId, { role: 'assistant', content: result.text });
-          return {
-            text: result.text,
-            toolCalls: result.actions
-              .filter((a) => a.status === 'success')
-              .map((a) => ({ name: a.tool, args: a.args, result: a.result })),
-          };
-        }
-      }
-
-      // All entries unknown or processor returned null → fall through to tool-calling model
-      const augmented = `${userMessage ? userMessage + '\n\n' : ''}[Image content extracted by OCR model]\n${ocrText}`;
-      addMessage(platform, userId, { role: 'user', content: augmented });
-    } else {
-      // Single-model mode (Groq / Ollama / LM Studio with a unified model):
-      // attach images directly and let the model handle vision itself.
-      const imageUrls = images?.map((img) => `data:${img.mimeType};base64,${img.data}`);
-      addMessage(platform, userId, { role: 'user', content: userMessage, imageUrls });
-    }
+    // Attach images directly — the active model handles vision itself.
+    // (Gemini uses its own pipeline above; all other providers receive images
+    //  inline via the standard message content array.)
+    const imageUrls = images?.map((img) => `data:${img.mimeType};base64,${img.data}`);
+    addMessage(platform, userId, { role: 'user', content: userMessage, imageUrls });
   }
 
   // ── Routing decision for this turn ─────────────────────────────────────────
