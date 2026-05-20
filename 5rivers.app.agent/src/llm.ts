@@ -1143,9 +1143,13 @@ function coerceValue(raw: string): unknown {
 
 function buildSystemPrompt(): string {
   const easternDate = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' });
-  const provider = (process.env.LLM_PROVIDER ?? 'ollama').toLowerCase();
 
-  if (provider === 'lmstudio') {
+  // Use the simplified prompt only when LM Studio is the *sole* provider.
+  // In hybrid mode (LLM_PROVIDER_LOCAL=lmstudio) or in web/cloud-only mode
+  // the full prompt is used — LM Studio in hybrid still receives it via API,
+  // and every cloud provider (DeepSeek, Gemini, Groq) needs the full context.
+  const singleProvider = (process.env.LLM_PROVIDER ?? '').toLowerCase();
+  if (singleProvider === 'lmstudio') {
     return buildSimplifiedPrompt(easternDate);
   }
   return buildFullPrompt(easternDate);
@@ -1670,14 +1674,18 @@ export async function processMessage(
 
   if (!pipelineHandled && !resumingFromConfirmation) {
     // OCR + code-driven document pipeline:
-    // Runs whenever a vision model is configured (LMSTUDIO_VISION_MODEL) and
-    // the cloud provider isn't Gemini — Gemini has its own pipeline above.
-    // This gives every non-Gemini path (Ollama, Groq, plain LM Studio, hybrid
-    // fall-through) free local OCR + the deterministic doc processor without
-    // requiring LLM_PROVIDER=lmstudio.
+    // Runs only when LM Studio is actually part of the current setup (single-
+    // provider or hybrid local tier) AND a vision model is configured AND the
+    // cloud provider isn't Gemini (Gemini has its own pipeline above).
+    // This prevents web-only modes (deepseek, groq, etc.) from trying to reach
+    // a local LM Studio even when LMSTUDIO_VISION_MODEL is still set in .env.
+    const lmstudioInUse =
+      (process.env.LLM_PROVIDER       ?? '').toLowerCase() === 'lmstudio' ||
+      (process.env.LLM_PROVIDER_LOCAL ?? '').toLowerCase() === 'lmstudio';
     if (images && images.length > 0
         && !!process.env.LMSTUDIO_VISION_MODEL
-        && cloudProviderName() !== 'gemini') {
+        && cloudProviderName() !== 'gemini'
+        && lmstudioInUse) {
       // ── Code-driven document pipeline ──────────────────────────────────────
       // OCR → parse ALL entries → validate → present summary → confirm → execute.
       // No LLM involved unless every entry is unknown.
