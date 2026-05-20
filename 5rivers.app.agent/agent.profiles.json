@@ -1,0 +1,47 @@
+{
+  "_comment": "Named provider profiles — API keys stay in .env, profiles are committed to git.",
+  "default": "local",
+  "profiles": {
+    "local": {
+      "description": "LM Studio (local GPU, no cost)",
+      "provider": "lmstudio"
+    },
+    "deepseek": {
+      "description": "DeepSeek chat (fast, low cost)",
+      "provider": "deepseek",
+      "model": "deepseek-chat"
+    },
+    "deepseek-r": {
+      "description": "DeepSeek reasoner (extended thinking, higher cost)",
+      "provider": "deepseek",
+      "model": "deepseek-reasoner",
+      "reasoning": true,
+      "reasoningEffort": "high"
+    },
+    "gemini": {
+      "description": "Gemini flash (fast, free tier)",
+      "provider": "gemini",
+      "model": "gemini-2.5-flash-lite"
+    },
+    "gemini-pro": {
+      "description": "Gemini pro (best quality)",
+      "provider": "gemini",
+      "model": "gemini-2.5-flash"
+    },
+    "groq": {
+      "description": "Groq (fast inference, free tier)",
+      "provider": "groq",
+      "model": "llama-3.3-70b-versatile"
+    },
+    "hybrid": {
+      "description": "LM Studio locally, DeepSeek for cloud fallback",
+      "local": "lmstudio",
+      "cloud": "deepseek"
+    },
+    "hybrid-gemini": {
+      "description": "LM Studio locally, Gemini for cloud fallback",
+      "local": "lmstudio",
+      "cloud": "gemini"
+    }
+  }
+}
