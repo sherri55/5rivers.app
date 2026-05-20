@@ -1,13 +1,29 @@
 param(
-  [string]$Profile = ""   # e.g. .\start.ps1 -Profile deepseek
+  # -Mode  : local | web | hybrid   (default: local)
+  # -Model : which cloud model to use when Mode is web or hybrid
+  #          web     → deepseek (default) | deepseek-r | gemini | gemini-pro | groq
+  #          hybrid  → gemini  (default cloud is deepseek, pass gemini to override)
+  [ValidateSet("local","web","hybrid","")]
+  [string]$Mode  = "",
+  [string]$Model = ""
 )
 
 $root = $PSScriptRoot
 
-# Pass the profile to the agent process via env var (picked up by config.ts)
-if ($Profile) {
-  $env:AGENT_PROFILE = $Profile
-  Write-Host "Agent profile: $Profile" -ForegroundColor Magenta
+# ── Resolve Mode + Model → profile name ──────────────────────────────────────
+$resolvedProfile = ""
+switch ($Mode.ToLower()) {
+  "local"  { $resolvedProfile = "local" }
+  "web"    { $resolvedProfile = if ($Model) { $Model } else { "deepseek" } }
+  "hybrid" { $resolvedProfile = if ($Model) { "hybrid-$Model" } else { "hybrid" } }
+  default  { $resolvedProfile = "" }   # no override — use default in agent.profiles.json
+}
+
+if ($resolvedProfile) {
+  $env:AGENT_PROFILE = $resolvedProfile
+  $modeLabel = if ($Mode) { $Mode } else { "default" }
+  $modelLabel = if ($Model) { " / $Model" } else { "" }
+  Write-Host "  Agent:   mode=$modeLabel$modelLabel  (profile: $resolvedProfile)" -ForegroundColor Magenta
 } else {
   Remove-Item Env:AGENT_PROFILE -ErrorAction SilentlyContinue
 }
@@ -38,7 +54,8 @@ Write-Host ""
 Write-Host "Starting 5Rivers (server + UI + agent + Telegram) in this window..." -ForegroundColor Cyan
 Write-Host "  Server  : http://localhost:4000" -ForegroundColor White
 Write-Host "  UI      : http://localhost:5173" -ForegroundColor White
-Write-Host "  Agent   : interactive prompt (CLI + Telegram bot)" -ForegroundColor White
+$agentMode = if ($resolvedProfile) { "$resolvedProfile profile" } else { "default profile" }
+Write-Host "  Agent   : CLI + Telegram  ($agentMode)" -ForegroundColor White
 Write-Host ""
 Write-Host "Press Ctrl+C to stop everything." -ForegroundColor DarkGray
 Write-Host ""
