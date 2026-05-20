@@ -222,6 +222,102 @@ class GroqProvider implements LLMProvider {
   }
 }
 
+// ─── DeepSeek provider (OpenAI-compatible REST, cloud) ───────────────────────
+
+const DEEPSEEK_BASE_URL = 'https://api.deepseek.com';
+
+type DeepSeekResponse = {
+  choices?: Array<{
+    message: {
+      content?: string;
+      reasoning_content?: string;
+      tool_calls?: Array<{ id: string; function: { name: string; arguments: string } }>;
+    };
+  }>;
+  error?: { message?: string; code?: string };
+};
+
+class DeepSeekProvider implements LLMProvider {
+  async chat(messages: Message[], toolFilter?: ReadonlySet<string>): Promise<NormalizedResponse> {
+    const apiKey = process.env.DEEPSEEK_API_KEY;
+    if (!apiKey) throw new Error('[deepseek] DEEPSEEK_API_KEY is not set in .env');
+
+    const model          = process.env.DEEPSEEK_MODEL ?? 'deepseek-chat';
+    const reasoningModel = (process.env.DEEPSEEK_REASONING ?? 'false').toLowerCase() !== 'false';
+
+    const body: Record<string, unknown> = {
+      model,
+      messages: messages.map((m) => {
+        if (m.role === 'tool') {
+          return { role: 'tool', tool_call_id: m.tool_call_id ?? 'unknown', content: m.content };
+        }
+        if (m.role === 'assistant' && m.tool_calls?.length) {
+          return {
+            role: 'assistant',
+            content: m.content || null,
+            tool_calls: m.tool_calls.map((tc) => ({
+              id: tc.id ?? 'unknown',
+              type: 'function',
+              function: { name: tc.function.name, arguments: JSON.stringify(tc.function.arguments) },
+            })),
+          };
+        }
+        return { role: m.role, content: m.content };
+      }),
+      tools:       getToolDefs(toolFilter),
+      tool_choice: 'auto',
+      stream:      false,
+    };
+
+    // Opt into extended thinking when DEEPSEEK_REASONING=true
+    // (only compatible with deepseek-reasoner / models that support it)
+    if (reasoningModel) {
+      body['reasoning_effort'] = process.env.DEEPSEEK_REASONING_EFFORT ?? 'medium';
+    }
+
+    const res  = await fetch(`${DEEPSEEK_BASE_URL}/chat/completions`, {
+      method:  'POST',
+      headers: {
+        'Content-Type':  'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(body),
+    });
+
+    const data = await res.json() as DeepSeekResponse;
+
+    if (data.error?.message) {
+      throw new Error(`[deepseek] API error: ${data.error.message}`);
+    }
+    if (!data.choices?.length) {
+      throw new Error(`[deepseek] No choices in response — ${JSON.stringify(data).slice(0, 200)}`);
+    }
+
+    const msg = data.choices[0].message;
+
+    if (msg.reasoning_content) {
+      console.log(`[deepseek] reasoning: ${msg.reasoning_content.slice(0, 120)}…`);
+    }
+
+    const snippet  = (msg.content ?? '').slice(0, 120);
+    const tcCount  = msg.tool_calls?.length ?? 0;
+    console.log(`[deepseek] content="${snippet}${snippet.length === 120 ? '…' : ''}" tool_calls=${tcCount}`);
+
+    const toolCalls = msg.tool_calls?.map((tc) => ({
+      id:   tc.id,
+      name: tc.function.name,
+      arguments: ((): Record<string, unknown> => {
+        try {
+          const parsed = tc.function.arguments ? JSON.parse(tc.function.arguments) : {};
+          return (parsed !== null && typeof parsed === 'object') ? parsed as Record<string, unknown> : {};
+        } catch { return {}; }
+      })(),
+    }));
+
+    return { content: msg.content || '', toolCalls };
+  }
+}
+
 // ─── LM Studio provider (direct fetch — OpenAI-compatible, local GPU) ────────
 
 type LMStudioResponse = {
@@ -722,6 +818,12 @@ function createProvider(name: string): LLMProvider {
     console.log(`[llm] Provider: Groq (${process.env.GROQ_MODEL ?? 'llama-3.1-70b-versatile'})`);
     return new GroqProvider();
   }
+  if (name === 'deepseek') {
+    const model     = process.env.DEEPSEEK_MODEL     ?? 'deepseek-chat';
+    const reasoning = process.env.DEEPSEEK_REASONING ?? 'false';
+    console.log(`[llm] Provider: DeepSeek (${model}${reasoning !== 'false' ? ', reasoning=' + (process.env.DEEPSEEK_REASONING_EFFORT ?? 'medium') : ''})`);
+    return new DeepSeekProvider();
+  }
   if (name === 'lmstudio') {
     const host        = process.env.LMSTUDIO_HOST        ?? 'http://localhost:1234';
     const toolModel   = process.env.LMSTUDIO_TOOL_MODEL;
@@ -742,7 +844,7 @@ function createProvider(name: string): LLMProvider {
     console.log(`[llm] Provider: Ollama (${process.env.OLLAMA_MODEL ?? 'llama3.1'} @ ${cleanHost})`);
     return new OllamaProvider();
   }
-  throw new Error(`[llm] Unknown provider "${name}" — set LLM_PROVIDER to one of: gemini, groq, lmstudio, ollama`);
+  throw new Error(`[llm] Unknown provider "${name}" — set LLM_PROVIDER to one of: gemini, groq, deepseek, lmstudio, ollama`);
 }
 
 // ─── OCR pre-processing (vision model) ───────────────────────────────────────
