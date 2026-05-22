@@ -29,6 +29,12 @@ export interface LLMProvider {
  */
 export declare function getProvider(name?: string): LLMProvider;
 /**
+ * Clear all cached provider instances.
+ * Call this after changing process.env provider/model settings at runtime
+ * (e.g. from a /profile command) so the next turn picks up fresh instances.
+ */
+export declare function clearProviderRegistry(): void;
+/**
  * Wipe everything we hold for a (platform, userId) conversation:
  *   • the chat history (system prompt + all turns)
  *   • the three-phase pipeline state (current phase, parsed data)
@@ -47,6 +53,17 @@ export interface AgentResponse {
         result: string;
     }>;
 }
+/**
+ * Events emitted by processMessage during the agent loop.
+ * Callers can use these to stream progress to the client (e.g. via SSE).
+ *
+ *   tool  — fired before each tool is executed; carries the raw tool name
+ *           so the caller can translate it to a human-friendly label.
+ */
+export type AgentStreamEvent = {
+    type: 'tool';
+    name: string;
+};
 export interface ImageInput {
     data: string;
     mimeType: string;
@@ -58,4 +75,4 @@ export interface ImageInput {
  * When SUPERVISION_MODE=true (default), any write tool calls are held and the
  * user is shown a confirmation prompt before they are executed.
  */
-export declare function processMessage(platform: string, userId: string, userMessage: string, authToken?: string, images?: ImageInput[]): Promise<AgentResponse>;
+export declare function processMessage(platform: string, userId: string, userMessage: string, authToken?: string, images?: ImageInput[], onEvent?: (event: AgentStreamEvent) => void): Promise<AgentResponse>;

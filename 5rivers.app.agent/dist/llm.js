@@ -26,10 +26,9 @@ import { createRestClient } from '../../5rivers.app.mcp/dist/rest-client.js';
 import { ALL_TOOLS } from '../../5rivers.app.mcp/dist/tools.js';
 import { getHistory, addMessage, setSystemPrompt, stripImageUrls, clearHistory, } from './conversation.js';
 import { getAutoToken, clearAutoToken } from './auth.js';
-import { parseOCROutputMulti } from './ocr-parser.js';
-import { processDocuments, formatWriteResults } from './document-processor.js';
-import { routePipelineTurn, getPhase as getPipelinePhase, clearState as clearPipelineState, describePhase, getImages as getPipelineImages, setState as setPipelineState, getState as getPipelineState, } from './pipeline.js';
-import { chatWithFallback, routeTurn, cloudProviderName, hybridEnabled, } from './provider-router.js';
+import { routePipelineTurn, getPhase as getPipelinePhase, clearState as clearPipelineState, describePhase, getImages as getPipelineImages, setState as setPipelineState, getState as getPipelineState, buildHtmlParserMessage, PARSER_OUTPUT_SCHEMA, } from './pipeline.js';
+import { sanitizeForProvider } from './conversation.js';
+import { buildMemoryPromptSection, recordJobPattern, parseNameFromToolResult } from './memory.js';
 const API_URL = process.env.FIVE_RIVERS_API_URL ?? 'http://localhost:4000/api';
 // ─── Tool definitions (same format for both providers) ───────────────────────
 // Tools the agent should never call — auth is handled internally
@@ -46,6 +45,57 @@ function getToolDefs(toolFilter) {
             parameters: t.inputSchema,
         },
     }));
+}
+// ─── Vision-capable provider selection ────────────────────────────────────────
+//
+// Not every provider can handle inline images. deepseek-chat and groq's
+// llama-3.3-70b are text-only; their APIs reject multi-part content arrays
+// with `image_url` parts. This helper returns the right provider for an
+// image-bearing call — the active one if it can do vision, otherwise Gemini
+// as a free fallback (if configured).
+const VISION_CAPABLE_PROVIDERS = new Set(['gemini', 'lmstudio', 'ollama']);
+function pickVisionProvider() {
+    const main = (process.env.LLM_PROVIDER ?? 'lmstudio').toLowerCase();
+    if (VISION_CAPABLE_PROVIDERS.has(main))
+        return main;
+    if (process.env.GEMINI_API_KEY) {
+        console.log(`[vision] "${main}" is text-only — routing image through gemini`);
+        return 'gemini';
+    }
+    throw new Error(`[vision] Active provider "${main}" cannot process images, and ` +
+        `GEMINI_API_KEY is not set. Either set GEMINI_API_KEY in .env or pick a ` +
+        `vision-capable provider (gemini, lmstudio, ollama).`);
+}
+// ─── Shared OpenAI-compatible message formatter ───────────────────────────────
+//
+// Converts a Message to the OpenAI chat-completion format.
+// User messages with imageUrls become multi-part content arrays
+// (text + image_url parts) as required by the vision API.
+function toOpenAIMessage(m) {
+    if (m.role === 'tool') {
+        return { role: 'tool', tool_call_id: m.tool_call_id ?? 'unknown', content: m.content };
+    }
+    if (m.role === 'assistant' && m.tool_calls?.length) {
+        return {
+            role: 'assistant',
+            content: m.content || null,
+            tool_calls: m.tool_calls.map((tc) => ({
+                id: tc.id ?? 'unknown',
+                type: 'function',
+                function: { name: tc.function.name, arguments: JSON.stringify(tc.function.arguments) },
+            })),
+        };
+    }
+    if (m.role === 'user' && m.imageUrls?.length) {
+        return {
+            role: 'user',
+            content: [
+                ...(m.content ? [{ type: 'text', text: m.content }] : []),
+                ...m.imageUrls.map((url) => ({ type: 'image_url', image_url: { url } })),
+            ],
+        };
+    }
+    return { role: m.role, content: m.content };
 }
 // ─── Ollama provider ──────────────────────────────────────────────────────────
 let _ollama = null;
@@ -100,31 +150,8 @@ class GroqProvider {
     }
     async chat(messages, toolFilter) {
         const model = process.env.GROQ_MODEL ?? 'llama-3.3-70b-versatile';
-        // Convert to Groq message format (OpenAI-compatible)
-        const groqMessages = messages.map((m) => {
-            if (m.role === 'tool') {
-                return {
-                    role: 'tool',
-                    tool_call_id: m.tool_call_id ?? 'unknown',
-                    content: m.content,
-                };
-            }
-            if (m.role === 'assistant' && m.tool_calls?.length) {
-                return {
-                    role: 'assistant',
-                    content: m.content || null,
-                    tool_calls: m.tool_calls.map((tc) => ({
-                        id: tc.id ?? 'unknown',
-                        type: 'function',
-                        function: {
-                            name: tc.function.name,
-                            arguments: JSON.stringify(tc.function.arguments),
-                        },
-                    })),
-                };
-            }
-            return { role: m.role, content: m.content };
-        });
+        // Convert to Groq message format (OpenAI-compatible, vision-aware)
+        const groqMessages = messages.map((m) => toOpenAIMessage(m));
         const response = await this.getClient().chat.completions.create({
             model,
             messages: groqMessages,
@@ -136,6 +163,65 @@ class GroqProvider {
             return { content: '', toolCalls: [] };
         }
         const msg = response.choices[0].message;
+        const toolCalls = msg.tool_calls?.map((tc) => ({
+            id: tc.id,
+            name: tc.function.name,
+            arguments: (() => {
+                try {
+                    const parsed = tc.function.arguments ? JSON.parse(tc.function.arguments) : {};
+                    return (parsed !== null && typeof parsed === 'object') ? parsed : {};
+                }
+                catch {
+                    return {};
+                }
+            })(),
+        }));
+        return { content: msg.content || '', toolCalls };
+    }
+}
+// ─── DeepSeek provider (OpenAI-compatible REST, cloud) ───────────────────────
+const DEEPSEEK_BASE_URL = 'https://api.deepseek.com';
+class DeepSeekProvider {
+    async chat(messages, toolFilter) {
+        const apiKey = process.env.DEEPSEEK_API_KEY;
+        if (!apiKey)
+            throw new Error('[deepseek] DEEPSEEK_API_KEY is not set in .env');
+        const model = process.env.DEEPSEEK_MODEL ?? 'deepseek-chat';
+        const reasoningModel = (process.env.DEEPSEEK_REASONING ?? 'false').toLowerCase() !== 'false';
+        const body = {
+            model,
+            messages: messages.map(toOpenAIMessage),
+            tools: getToolDefs(toolFilter),
+            tool_choice: 'auto',
+            stream: false,
+        };
+        // Opt into extended thinking when DEEPSEEK_REASONING=true
+        // (only compatible with deepseek-reasoner / models that support it)
+        if (reasoningModel) {
+            body['reasoning_effort'] = process.env.DEEPSEEK_REASONING_EFFORT ?? 'medium';
+        }
+        const res = await fetch(`${DEEPSEEK_BASE_URL}/chat/completions`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (data.error?.message) {
+            throw new Error(`[deepseek] API error: ${data.error.message}`);
+        }
+        if (!data.choices?.length) {
+            throw new Error(`[deepseek] No choices in response — ${JSON.stringify(data).slice(0, 200)}`);
+        }
+        const msg = data.choices[0].message;
+        if (msg.reasoning_content) {
+            console.log(`[deepseek] reasoning: ${msg.reasoning_content.slice(0, 120)}…`);
+        }
+        const snippet = (msg.content ?? '').slice(0, 120);
+        const tcCount = msg.tool_calls?.length ?? 0;
+        console.log(`[deepseek] content="${snippet}${snippet.length === 120 ? '…' : ''}" tool_calls=${tcCount}`);
         const toolCalls = msg.tool_calls?.map((tc) => ({
             id: tc.id,
             name: tc.function.name,
@@ -171,6 +257,36 @@ async function probeLMStudioModels(host) {
         console.warn('[lmstudio] Could not probe /v1/models:', err instanceof Error ? err.message : err);
     }
 }
+/**
+ * Quick check: does LM Studio have at least one model loaded?
+ * Uses a short 3-second timeout so an unreachable / empty LM Studio fails
+ * fast instead of waiting for a full chat-completion timeout.
+ * Returns false if LM Studio is unreachable or has no loaded models.
+ */
+async function lmStudioHasModels(host) {
+    try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 3000);
+        const res = await fetch(`${host}/v1/models`, {
+            headers: { Authorization: 'Bearer lm-studio' },
+            signal: controller.signal,
+        });
+        clearTimeout(timer);
+        const data = await res.json();
+        const loaded = data.data ?? [];
+        if (loaded.length) {
+            console.log(`[lmstudio] ${loaded.length} model(s) loaded: ${loaded.map((m) => m.id).join(', ')}`);
+            return true;
+        }
+        console.warn('[lmstudio] No models loaded — will fall back to cloud');
+        return false;
+    }
+    catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn(`[lmstudio] /v1/models unreachable (${msg}) — will fall back to cloud`);
+        return false;
+    }
+}
 function parseLMStudioResponse(data, label) {
     if (data.error?.message) {
         throw new Error(`LM Studio (${label}): ${data.error.message}`);
@@ -198,6 +314,85 @@ function parseLMStudioResponse(data, label) {
     }));
     return { content: msg.content || '', toolCalls };
 }
+/**
+ * Call the tool model (LMSTUDIO_TOOL_MODEL) with a single text-only message
+ * and NO tool definitions — used for the HTML-parsing step in the local OCR
+ * pipeline where the model must return pure JSON and must not be tempted to
+ * call any tools.
+ *
+ * Direct REST call, bypasses LMStudioProvider.chat() (which always injects
+ * all tool declarations and runs the /v1/models probe on every call).
+ */
+async function callLMStudioParser(html, context) {
+    const host = process.env.LMSTUDIO_HOST ?? 'http://localhost:1234';
+    const model = process.env.LMSTUDIO_TOOL_MODEL;
+    if (!model)
+        throw new Error('[lmstudio] LMSTUDIO_TOOL_MODEL is not set in .env');
+    const url = `${host}/v1/chat/completions`;
+    const { content } = buildHtmlParserMessage(html, context);
+    console.log(`[pipeline:parser] HTML → JSON via ${model} (${html.length} chars of HTML)`);
+    const body = {
+        model,
+        messages: [{ role: 'user', content }],
+        // Structured-output mode: enforce the exact parser schema so the model
+        // cannot return markdown fences, prose, or wrong field names.
+        // strict: false — allows nullable fields (most local models need this).
+        response_format: {
+            type: 'json_schema',
+            json_schema: {
+                name: 'document_extraction',
+                strict: false,
+                schema: PARSER_OUTPUT_SCHEMA,
+            },
+        },
+        // No "tools" key — model must output raw JSON, not call a function.
+        stream: false,
+    };
+    const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer lm-studio' },
+        body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    return parseLMStudioResponse(data, `parser: ${model}`).content;
+}
+/**
+ * Call the dedicated OCR model (LMSTUDIO_OCR_MODEL, default "chandra-ocr-2")
+ * with one or more images and return the raw HTML string it produces.
+ *
+ * This is a direct REST call — not routed through LMStudioProvider — so it
+ * can target a different model than LMSTUDIO_TOOL_MODEL.
+ */
+async function callLMStudioOCR(images) {
+    const host = process.env.LMSTUDIO_HOST ?? 'http://localhost:1234';
+    const model = process.env.LMSTUDIO_OCR_MODEL ?? 'chandra-ocr-2';
+    const url = `${host}/v1/chat/completions`;
+    console.log(`[ocr] Sending ${images.length} image(s) to ${model} @ ${url}`);
+    const content = [
+        {
+            type: 'text',
+            text: 'Convert this document image to structured HTML. Preserve all text exactly as printed. Use <u> tags for filled/handwritten values and data-label attributes for field names. Represent each table row as a <tr> element.',
+        },
+        ...images.map((img) => ({
+            type: 'image_url',
+            image_url: { url: `data:${img.mimeType};base64,${img.data}` },
+        })),
+    ];
+    const body = {
+        model,
+        messages: [{ role: 'user', content }],
+        stream: false,
+    };
+    const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer lm-studio' },
+        body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    const html = parseLMStudioResponse(data, `ocr: ${model}`).content;
+    console.log(`[ocr] HTML extracted (${html.length} chars)`);
+    return html;
+}
 class LMStudioProvider {
     async chat(messages, toolFilter) {
         const host = process.env.LMSTUDIO_HOST ?? 'http://localhost:1234';
@@ -205,30 +400,24 @@ class LMStudioProvider {
         const model = process.env.LMSTUDIO_TOOL_MODEL;
         if (!model)
             throw new Error('LMSTUDIO_TOOL_MODEL is not set in .env');
+        // Fast precheck — surface a clear error in < 3 s if LM Studio is reachable
+        // but has no model loaded, rather than waiting for the full chat-completion
+        // timeout.
+        if (!(await lmStudioHasModels(host))) {
+            throw new Error('[lmstudio] No models loaded — load a model in LM Studio and try again');
+        }
+        // Drop ONLY empty system messages. A non-empty system message is set by
+        // the pipeline router (Validator/Creator prompts) and MUST reach the model
+        // — without it the model can't tell which role it's playing and ends up
+        // asking the user to "provide the structured data" the Parser already gave.
+        //
+        // In idle mode the agent explicitly sets an empty system prompt so LM
+        // Studio falls back to whatever its model preset provides.
         const body = {
             model,
-            // System messages are excluded — system prompt is managed in LM Studio's model preset.
-            // Temperature, top_p, and all sampling settings are also managed there.
-            // The agent only sends conversation turns and tool definitions.
             messages: messages
-                .filter((m) => m.role !== 'system')
-                .map((m) => {
-                if (m.role === 'tool') {
-                    return { role: 'tool', tool_call_id: m.tool_call_id ?? 'unknown', content: m.content };
-                }
-                if (m.role === 'assistant' && m.tool_calls?.length) {
-                    return {
-                        role: 'assistant',
-                        content: m.content || null,
-                        tool_calls: m.tool_calls.map((tc) => ({
-                            id: tc.id ?? 'unknown',
-                            type: 'function',
-                            function: { name: tc.function.name, arguments: JSON.stringify(tc.function.arguments) },
-                        })),
-                    };
-                }
-                return { role: m.role, content: m.content };
-            }),
+                .filter((m) => !(m.role === 'system' && !m.content?.trim()))
+                .map(toOpenAIMessage),
             tools: getToolDefs(toolFilter),
             tool_choice: 'auto',
             stream: false,
@@ -538,10 +727,9 @@ class GeminiProvider {
 }
 // ─── Provider registry ────────────────────────────────────────────────────────
 //
-// Each provider name maps to its own lazy singleton. This replaces the old
-// single-provider singleton so the hybrid router can hand back whichever one
-// the current turn calls for (local LM Studio for simple tasks, cloud Gemini
-// for complex tasks or fallback).
+// Each provider name maps to its own lazy singleton, so switching providers at
+// runtime (via /profile or /provider commands) just looks up a different entry
+// without re-instantiating the active one.
 const _providerRegistry = new Map();
 /**
  * Resolve a provider by name. When `name` is omitted, falls back to
@@ -560,6 +748,14 @@ export function getProvider(name) {
     _providerRegistry.set(resolved, created);
     return created;
 }
+/**
+ * Clear all cached provider instances.
+ * Call this after changing process.env provider/model settings at runtime
+ * (e.g. from a /profile command) so the next turn picks up fresh instances.
+ */
+export function clearProviderRegistry() {
+    _providerRegistry.clear();
+}
 function createProvider(name) {
     if (name === 'gemini') {
         const model = process.env.GEMINI_MODEL ?? 'gemini-2.5-flash';
@@ -570,17 +766,19 @@ function createProvider(name) {
         console.log(`[llm] Provider: Groq (${process.env.GROQ_MODEL ?? 'llama-3.1-70b-versatile'})`);
         return new GroqProvider();
     }
+    if (name === 'deepseek') {
+        const model = process.env.DEEPSEEK_MODEL ?? 'deepseek-chat';
+        const reasoning = process.env.DEEPSEEK_REASONING ?? 'false';
+        console.log(`[llm] Provider: DeepSeek (${model}${reasoning !== 'false' ? ', reasoning=' + (process.env.DEEPSEEK_REASONING_EFFORT ?? 'medium') : ''})`);
+        return new DeepSeekProvider();
+    }
     if (name === 'lmstudio') {
         const host = process.env.LMSTUDIO_HOST ?? 'http://localhost:1234';
         const toolModel = process.env.LMSTUDIO_TOOL_MODEL;
-        const visionModel = process.env.LMSTUDIO_VISION_MODEL;
-        const visionHost = process.env.LMSTUDIO_VISION_HOST ?? host;
         if (!toolModel) {
             throw new Error('[lmstudio] LMSTUDIO_TOOL_MODEL is not set in .env — required when multiple models are loaded in LM Studio');
         }
-        console.log('[llm] Provider: LM Studio');
-        console.log(`[llm]   tool  : ${toolModel} @ ${host}`);
-        console.log(`[llm]   vision: ${visionModel ?? '(unset — images will be skipped)'} @ ${visionHost}`);
+        console.log(`[llm] Provider: LM Studio (${toolModel} @ ${host})`);
         probeLMStudioModels(host).catch(() => { });
         return new LMStudioProvider();
     }
@@ -590,137 +788,7 @@ function createProvider(name) {
         console.log(`[llm] Provider: Ollama (${process.env.OLLAMA_MODEL ?? 'llama3.1'} @ ${cleanHost})`);
         return new OllamaProvider();
     }
-    throw new Error(`[llm] Unknown provider "${name}" — set LLM_PROVIDER to one of: gemini, groq, lmstudio, ollama`);
-}
-// ─── OCR pre-processing (vision model) ───────────────────────────────────────
-/**
- * Reference prompt for the OCR/vision model (google/gemma-4-e4b).
- * Paste into LM Studio → Model Preset → System Prompt for the vision model.
- * NOT sent via the API.
- *
- * ─────────────────────────────────────────────────────────────────────────────
- * You are a document OCR engine for 5Rivers Trucking. Your ONLY job is to read
- * images and output structured data. You do NOT call tools, make decisions, or
- * take any action.
- *
- * First identify whether the image is a TICKET or a PAYSTUB, then extract:
- *
- * ━━ TICKET / TIMESHEET ━━
- * TYPE: ticket
- * DATE: <date as printed>
- * TICKET_NUMBER: <ticket or reference number, or "not visible">
- * COMPANY: <letterhead name — the organization that issued this ticket>
- * DISPATCHER: <value of "Trucking Co" / "Dispatched by" field, or "not visible">
- * UNIT: <truck number or unit ID, or "not visible">
- * DRIVER: <driver name or initials, or "not visible">
- * START_TIME: <as printed, or "not visible">
- * END_TIME: <as printed, or "not visible">
- * START_LOCATION: <haul from / origin, or "not visible">
- * END_LOCATION: <haul to / destination, or "not visible">
- * MATERIAL: <material type if shown, or "not visible">
- *
- * ━━ PAYSTUB / REMITTANCE ━━
- * TYPE: paystub
- * ISSUED_BY: <company name from the header — the company that is paying>
- * PERIOD_FROM: <pay period start date, or "not visible">
- * PERIOD_TO: <pay period end date, or "not visible">
- * LINE_ITEMS:
- * - DATE: <date as printed> | AMOUNT: <dollar amount for THAT ROW ONLY> | REF: <ref or ticket number, or "none">
- *
- * ━━ CRITICAL PAYSTUB RULES ━━
- * - Each row in the table = exactly one LINE_ITEMS entry. 20 rows → 20 entries.
- * - NEVER output the cheque total, grand total, or subtotal as a line item.
- * - NEVER combine multiple rows into one entry.
- * - Copy every date and amount exactly as printed — do not convert or reformat.
- * - Ignore rows labelled "Total", "Subtotal", "Grand Total", "Cheque Amount".
- *
- * ━━ GENERAL RULES ━━
- * - Copy all values exactly as printed — do not interpret, convert, or correct.
- * - If a field is not visible write "not visible".
- * - Output ONLY the structured data — no explanations, no commentary.
- * ─────────────────────────────────────────────────────────────────────────────
- */
-/**
- * Send images to the dedicated OCR/vision model via the OpenAI-compatible
- * /v1/chat/completions endpoint.
- * System prompt is managed entirely in LM Studio's model preset — not sent here.
- * Only the user turn (text + images) is sent.
- */
-async function callOCRModel(userMessage, images) {
-    const host = process.env.LMSTUDIO_VISION_HOST ?? process.env.LMSTUDIO_HOST ?? 'http://localhost:1234';
-    const model = process.env.LMSTUDIO_VISION_MODEL;
-    if (!model) {
-        console.warn('[ocr] LMSTUDIO_VISION_MODEL is not set — skipping OCR');
-        return '[OCR skipped: LMSTUDIO_VISION_MODEL not configured]';
-    }
-    // Send the full extraction format as the user message so OCR output is
-    // deterministic regardless of LM Studio preset configuration.
-    const extractionInstruction = `Read this image carefully. Output ONLY structured data — no commentary.
-
-IMPORTANT: Analyze the ENTIRE document first. A single page may contain MULTIPLE entries (multiple tickets, multiple loads, multiple trips). Extract ALL of them.
-
-Determine if entries are TICKETs or PAYSTUBs.
-
-TICKET — output exactly (one block per entry):
-TYPE: ticket
-DATE: <date as printed>
-TICKET_NUMBER: <number or "not visible">
-COMPANY: <letterhead name>
-DISPATCHER: <"Trucking Co" / "Dispatched by" field, or "not visible">
-UNIT: <truck/unit number, or "not visible">
-DRIVER: <name or initials, or "not visible">
-START_TIME: <as printed, or "not visible">
-END_TIME: <as printed, or "not visible">
-START_LOCATION: <origin, or "not visible">
-END_LOCATION: <destination, or "not visible">
-MATERIAL: <type, or "not visible">
-
-PAYSTUB — output exactly:
-TYPE: paystub
-ISSUED_BY: <company from header — the payer>
-PERIOD_FROM: <start date, or "not visible">
-PERIOD_TO: <end date, or "not visible">
-LINE_ITEMS:
-- DATE: <date as printed> | AMOUNT: <dollar amount for THIS ROW ONLY> | REF: <ref or "none">
-
-CRITICAL RULES:
-- If the document has MULTIPLE entries, output each one separately with a line of --- between them.
-- Each table row = one LINE_ITEMS entry. 20 rows → 20 entries.
-- NEVER include totals, subtotals, or cheque amounts as line items.
-- Copy dates and amounts exactly as printed.
-- "not visible" for anything unreadable.`;
-    const userContent = [
-        { type: 'text', text: extractionInstruction },
-        ...images.map((img) => ({
-            type: 'image_url',
-            image_url: { url: `data:${img.mimeType};base64,${img.data}` },
-        })),
-    ];
-    const body = {
-        model,
-        messages: [
-            { role: 'user', content: userContent },
-        ],
-        stream: false,
-    };
-    const url = `${host}/v1/chat/completions`;
-    console.log(`[ocr] Sending ${images.length} image(s) to ${model} @ ${url}`);
-    try {
-        const res = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: 'Bearer lm-studio' },
-            body: JSON.stringify(body),
-        });
-        const data = await res.json();
-        const result = parseLMStudioResponse(data, `ocr: ${model}`);
-        console.log(`[ocr] Full extraction (${result.content.length} chars):\n${result.content}`);
-        return result.content || '[OCR model returned no content]';
-    }
-    catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        console.error(`[ocr] Error: ${msg}`);
-        return `[OCR failed: ${msg}]`;
-    }
+    throw new Error(`[llm] Unknown provider "${name}" — set LLM_PROVIDER to one of: gemini, groq, deepseek, lmstudio, ollama`);
 }
 // ─── Supervision mode ────────────────────────────────────────────────────────
 /** Returns true when the tool name represents a mutating (write) operation. */
@@ -729,8 +797,6 @@ function isWriteTool(name) {
 }
 /** In-memory store of pending confirmations, keyed by "platform:userId". */
 const pendingConfirmations = new Map();
-/** Pending confirmations from the code-driven document processor. */
-const pendingDocConfirmations = new Map();
 function supervisionKey(platform, userId) {
     return `${platform}:${userId}`;
 }
@@ -750,17 +816,6 @@ function buildConfirmationText(writeCalls) {
         return `${i + 1}. **${tc.name}**\n${argLines || '  *(no arguments)*'}`;
     }).join('\n\n');
     const plural = writeCalls.length > 1 ? 's' : '';
-    return `⚠️ **Supervision mode** — I want to make the following change${plural}:\n\n${items}\n\nReply **yes** to confirm, **no** to cancel, or **change \`field\` to \`value\`** to edit a field first.`;
-}
-/** Rebuild a confirmation text block from doc-processor pending writes. */
-function buildDocConfirmationText(writes) {
-    const items = writes.map((w, i) => {
-        const argLines = Object.entries(w.args)
-            .map(([k, v]) => `  - **${k}**: \`${JSON.stringify(v)}\``)
-            .join('\n');
-        return `${i + 1}. **${w.tool}**\n${argLines || '  *(no arguments)*'}`;
-    }).join('\n\n');
-    const plural = writes.length > 1 ? 's' : '';
     return `⚠️ **Supervision mode** — I want to make the following change${plural}:\n\n${items}\n\nReply **yes** to confirm, **no** to cancel, or **change \`field\` to \`value\`** to edit a field first.`;
 }
 const CONFIRM_RE = /^\s*(yes|confirm|go\s*ahead|proceed|do\s*it|ok(?:ay)?|sure|yep|yeah|👍|y)\s*[.!]?\s*$/i;
@@ -849,7 +904,9 @@ function coerceValue(raw) {
 // ─── System prompt ────────────────────────────────────────────────────────────
 function buildSystemPrompt() {
     const easternDate = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' });
-    const provider = (process.env.LLM_PROVIDER ?? 'ollama').toLowerCase();
+    // LM Studio gets a short prompt (the long system prompt lives in its model
+    // preset); every cloud provider needs the full instructional prompt.
+    const provider = (process.env.LLM_PROVIDER ?? 'lmstudio').toLowerCase();
     if (provider === 'lmstudio') {
         return buildSimplifiedPrompt(easternDate);
     }
@@ -882,7 +939,13 @@ list_dispatchers / list_companies / list_drivers / list_units return:
   NO_MATCH            → show the full list, ask user which is correct
 Never invent a UUID.
 
-Company = ticket letterhead (companyId). Dispatcher = "Trucking Co" field (dispatcherId).`;
+Company = ticket letterhead (companyId). Dispatcher = "Trucking Co" field (dispatcherId).
+
+━━ BREAKS (hourly jobs only) ━━
+Hourly jobs can have unpaid breaks (lunch, coffee, etc.).
+breaks field = JSON array: [{"start":"HH:MM","end":"HH:MM","tag":"Lunch"}]
+Extract break times from ticket text/images when present.
+Pass breaks to create_job / update_job. Paid hours = (end−start) minus total break time.${buildMemoryPromptSection()}`;
 }
 /**
  * Full prompt for Groq / Ollama providers.
@@ -972,9 +1035,17 @@ Step 4 — Show a confirmation table BEFORE marking anything.
 
 Step 5 — Show final results table (same format as PATH A Step 3).
 
+━━ BREAKS (hourly jobs only) ━━
+Hourly jobs can have unpaid breaks that reduce paid hours.
+  breaks field = JSON array: [{"start":"HH:MM","end":"HH:MM","tag":"Lunch"},{"start":"HH:MM","end":"HH:MM","tag":"Coffee"}]
+  • Extract break start/end times from ticket text or images when present.
+  • Pass breaks to create_job / update_job. If no breaks visible, omit the field.
+  • Paid hours = (endTime − startTime) − total break minutes.
+  • Tag is optional but useful (e.g. "Lunch", "Coffee", "Break").
+
 ━━ REQUIRED FIELDS ━━
 create_job: jobDate (required), jobTypeId (required).
-create_job_type: companyId (required), title format "Company - Route - Rate" (required).`;
+create_job_type: companyId (required), title format "Company - Route - Rate" (required).${buildMemoryPromptSection()}`;
 }
 // ─── Pipeline image-attachment helper ────────────────────────────────────────
 /**
@@ -1047,7 +1118,6 @@ export function resetConversation(platform, userId) {
     clearHistory(platform, userId);
     clearPipelineState(platform, userId);
     pendingConfirmations.delete(sKey);
-    pendingDocConfirmations.delete(sKey);
     console.log(`[reset] cleared all state for ${sKey}`);
 }
 /**
@@ -1057,7 +1127,7 @@ export function resetConversation(platform, userId) {
  * When SUPERVISION_MODE=true (default), any write tool calls are held and the
  * user is shown a confirmation prompt before they are executed.
  */
-export async function processMessage(platform, userId, userMessage, authToken, images) {
+export async function processMessage(platform, userId, userMessage, authToken, images, onEvent) {
     const resolvedToken = authToken?.trim() || (await getAutoToken());
     if (!resolvedToken) {
         return {
@@ -1070,6 +1140,13 @@ export async function processMessage(platform, userId, userMessage, authToken, i
      *  turn. Used at the end of processMessage to clear the buffered images so
      *  they can't leak onto a later, unrelated create_job. */
     let imagesAttachedThisTurn = false;
+    /**
+     * Session-level name resolution cache.
+     * Populated from USE_ID responses (which include "NAME: <display>") so we
+     * can record human-readable patterns to memory after create_job succeeds.
+     * Key = entity type ('company' | 'dispatcher' | 'jobType' | 'driver' | 'unit').
+     */
+    const resolvedNames = {};
     // ── Supervision mode: handle a pending confirmation ───────────────────────
     let resumingFromConfirmation = false;
     if (isSupervisionEnabled()) {
@@ -1095,6 +1172,7 @@ export async function processMessage(platform, userId, userMessage, authToken, i
                 for (const tc of pending.toolCalls) {
                     const toolDef = ALL_TOOLS.find((t) => t.name === tc.name);
                     let result;
+                    onEvent?.({ type: 'tool', name: tc.name });
                     console.log(`[tool] ${tc.name} args: ${JSON.stringify(tc.arguments)}`);
                     if (!toolDef) {
                         result = `Error: Unknown tool "${tc.name}"`;
@@ -1119,6 +1197,35 @@ export async function processMessage(platform, userId, userMessage, authToken, i
                     // Pipeline: attach the original ticket image to the newly-created job.
                     if (await maybeAttachImagesToJob(client, platform, userId, tc.name, result)) {
                         imagesAttachedThisTurn = true;
+                    }
+                    // Name resolution cache (supervision path)
+                    const resolvedNameSupervision = parseNameFromToolResult(result);
+                    if (resolvedNameSupervision) {
+                        if (tc.name === 'list_companies')
+                            resolvedNames['company'] = resolvedNameSupervision;
+                        if (tc.name === 'list_dispatchers')
+                            resolvedNames['dispatcher'] = resolvedNameSupervision;
+                        if (tc.name === 'list_job_types')
+                            resolvedNames['jobType'] = resolvedNameSupervision;
+                        if (tc.name === 'list_drivers')
+                            resolvedNames['driver'] = resolvedNameSupervision;
+                        if (tc.name === 'list_units')
+                            resolvedNames['unit'] = resolvedNameSupervision;
+                    }
+                    // Memory: record pattern after successful create_job (supervision path)
+                    if (tc.name === 'create_job' && !result.startsWith('Error')) {
+                        const company = resolvedNames['company'];
+                        const dispatcher = resolvedNames['dispatcher'];
+                        const jobType = resolvedNames['jobType'];
+                        if (company && dispatcher && jobType) {
+                            recordJobPattern({
+                                companyName: company,
+                                dispatcherName: dispatcher,
+                                jobTypeName: jobType,
+                                driverName: resolvedNames['driver'],
+                                unitName: resolvedNames['unit'],
+                            });
+                        }
                     }
                     toolCalls.push({ name: tc.name, args: tc.arguments, result });
                     addMessage(platform, userId, { role: 'tool', content: result, tool_call_id: tc.id, tool_call_name: tc.name });
@@ -1170,97 +1277,84 @@ export async function processMessage(platform, userId, userMessage, authToken, i
                 };
             }
         }
-        // ── Document processor pending confirmations ─────────────────────────────
-        const pendingDoc = pendingDocConfirmations.get(sKey);
-        if (pendingDoc) {
-            const trimmed = userMessage.trim();
-            if (CONFIRM_RE.test(trimmed)) {
-                pendingDocConfirmations.delete(sKey);
-                // Execute each pre-built write operation
-                const writeResults = [];
-                for (const w of pendingDoc.writes) {
-                    const toolDef = ALL_TOOLS.find((t) => t.name === w.tool);
-                    let result;
-                    console.log(`[doc-confirm] ${w.tool} args: ${JSON.stringify(w.args)}`);
-                    if (!toolDef) {
-                        result = `Error: Unknown tool "${w.tool}"`;
-                    }
-                    else {
-                        try {
-                            result = await toolDef.handler(client, w.args);
-                        }
-                        catch (err) {
-                            const errMsg = err instanceof Error ? err.message : String(err);
-                            if (errMsg.includes('401') || errMsg.toLowerCase().includes('unauthorized')) {
-                                clearAutoToken();
-                                return { text: 'Session expired. Please send your message again.' };
-                            }
-                            result = `Error: ${errMsg}`;
-                        }
-                    }
-                    console.log(`[doc-confirm] ${w.tool} → ${result.slice(0, 200)}`);
-                    writeResults.push({ name: w.tool, args: w.args, result });
-                }
-                const summaryText = formatWriteResults(writeResults);
-                addMessage(platform, userId, { role: 'user', content: trimmed });
-                addMessage(platform, userId, { role: 'assistant', content: summaryText });
-                return { text: summaryText, toolCalls: writeResults };
-            }
-            else if (CANCEL_RE.test(trimmed)) {
-                pendingDocConfirmations.delete(sKey);
-                const cancelText = '❌ Cancelled.';
-                addMessage(platform, userId, { role: 'user', content: trimmed });
-                addMessage(platform, userId, { role: 'assistant', content: cancelText });
-                return { text: cancelText };
-            }
-            else {
-                // ── Check for an inline field modification ──────────────────────────
-                const mod = tryParseModification(trimmed);
-                if (mod) {
-                    // pendingDoc.writes is Array<{ tool: string; args: Record<string, unknown> }>
-                    // Wrap them temporarily as NormalizedToolCall for findFieldMatch
-                    const wrapsForMatch = pendingDoc.writes.map((w, i) => ({
-                        id: `doc-${i}`,
-                        name: w.tool,
-                        arguments: w.args,
-                    }));
-                    const match = findFieldMatch(mod.rawField, wrapsForMatch);
-                    if (match) {
-                        const coerced = coerceValue(mod.rawValue);
-                        pendingDoc.writes[match.toolIndex].args[match.argKey] = coerced;
-                        // Rebuild confirmation text
-                        const updatedConfirmText = buildDocConfirmationText(pendingDoc.writes);
-                        pendingDoc.confirmationText = updatedConfirmText;
-                        pendingDocConfirmations.set(sKey, pendingDoc);
-                        return {
-                            text: `✏️ Updated **${match.argKey}** → \`${JSON.stringify(coerced)}\`\n\n${updatedConfirmText}`,
-                        };
-                    }
-                    const allFields = pendingDoc.writes.flatMap((w) => Object.keys(w.args));
-                    return {
-                        text: `⚠️ Could not find a field matching "**${mod.rawField}**". Available fields: ${allFields.map((f) => `\`${f}\``).join(', ')}\n\n${pendingDoc.confirmationText}`,
-                    };
-                }
-                return {
-                    text: `⚠️ Pending action:\n\n${pendingDoc.confirmationText}\n\nReply **yes** to confirm, **no** to cancel, or **change \`field\` to \`value\`** to edit a field first.`,
-                };
-            }
-        }
     }
     // ── Three-phase Gemini pipeline routing ───────────────────────────────────
     // For Gemini only: when an image arrives, or when the user is mid-pipeline,
     // route through the Parser → Validator → Creator state machine. The router
     // sets the system prompt + user message itself, so we skip the normal flow
-    // below when it took ownership. Gated on the *cloud* provider name so the
-    // pipeline still runs in hybrid mode (where LLM_PROVIDER may be unset).
+    // below when it took ownership. Runs for every provider.
     let activeToolFilter;
     let pipelineHandled = false;
-    if (cloudProviderName() === 'gemini') {
+    {
         const easternDate = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' });
         const pipelineImages = images?.map((img) => ({
             data: img.data,
             mimeType: img.mimeType,
         }));
+        // One-shot chat function for the Parser phase.
+        //
+        // LOCAL (lmstudio): two-step — first call chandra-ocr-2 (or
+        //   LMSTUDIO_OCR_MODEL) with the raw image to get structured HTML, then
+        //   call the tool model (LMSTUDIO_TOOL_MODEL) with that HTML to produce
+        //   the extracted JSON.  Neither model needs to be vision-capable for the
+        //   second step; the HTML carries all the text data.
+        //
+        // WEB (gemini / deepseek / groq): pass images directly to the cloud
+        //   model via pickVisionProvider(), which falls back to Gemini if the
+        //   chosen model is text-only.
+        //
+        // CRITICAL: the parser is a one-shot extractor — it MUST output JSON, not
+        // call tools. We pass an EMPTY tool filter so the model sees zero tools.
+        // Without this, Gemini sees all 20+ tools and frequently picks one (e.g.
+        // list_companies) instead of producing JSON; the resulting empty content
+        // then makes the Validator say "the JSON data is missing".
+        const NO_TOOLS = new Set();
+        const callProvider = async (msgs) => {
+            const mainProvider = (process.env.LLM_PROVIDER ?? 'lmstudio').toLowerCase();
+            if (mainProvider === 'lmstudio') {
+                // Find the user message that carries the images
+                const imgMsg = msgs.find((m) => m.role === 'user' && (m.imageUrls?.length ?? 0) > 0);
+                if (imgMsg?.imageUrls?.length) {
+                    // Reconstruct PipelineImage list from data URIs
+                    const imgList = imgMsg.imageUrls.map((uri) => {
+                        const match = uri.match(/^data:([^;]+);base64,(.+)$/s);
+                        if (!match)
+                            throw new Error(`[ocr] Unrecognised image URI format`);
+                        return { mimeType: match[1], data: match[2] };
+                    });
+                    // Step 1 — OCR model: image → HTML
+                    const html = await callLMStudioOCR(imgList);
+                    // Step 2 — Tool model: HTML → JSON (no tools — pure structured output)
+                    // callLMStudioParser is a direct fetch that omits the tools key.
+                    const parts = (imgMsg.content ?? '').split('\n\n---\n\n');
+                    const context = parts.length > 1 ? parts.slice(1).join('\n\n---\n\n') : '';
+                    return callLMStudioParser(html, context);
+                }
+                // No images in this call — forward text-only messages to tool model
+                const toolProvider = getProvider('lmstudio');
+                const sanitized = sanitizeForProvider(msgs, 'lmstudio');
+                const response = await toolProvider.chat(sanitized, NO_TOOLS);
+                return response.content;
+            }
+            // Web mode — pass images directly to the vision-capable provider.
+            // pickVisionProvider() handles text-only cloud providers (e.g.
+            // deepseek-chat) by falling back to Gemini when GEMINI_API_KEY is set.
+            const providerName = pickVisionProvider();
+            const provider = getProvider(providerName);
+            const sanitized = sanitizeForProvider(msgs, providerName);
+            const response = await provider.chat(sanitized, NO_TOOLS);
+            // Diagnostic: surface empty parser output IMMEDIATELY so we don't end
+            // up seeding the Validator with an empty JSON block (which is exactly
+            // what causes the "the JSON data is missing" failure mode).
+            if (!response.content?.trim()) {
+                console.error(`[pipeline:parser] ❌ ${providerName} returned empty content`);
+                console.error(`[pipeline:parser]    toolCalls=${response.toolCalls?.length ?? 0} — model tried to call a tool instead of returning JSON`);
+                throw new Error(`[pipeline:parser] ${providerName} returned no JSON. ` +
+                    `The model may have tried to call a tool instead of extracting. ` +
+                    `Try a different model or re-upload the image.`);
+            }
+            return response.content;
+        };
         const routing = await routePipelineTurn({
             platform,
             userId,
@@ -1268,6 +1362,7 @@ export async function processMessage(platform, userId, userMessage, authToken, i
             images: pipelineImages,
             resumingFromConfirmation,
             easternDate,
+            callProvider,
         });
         if (routing.handled) {
             pipelineHandled = true;
@@ -1276,86 +1371,43 @@ export async function processMessage(platform, userId, userMessage, authToken, i
         }
     }
     // ── Normal flow: add user message ─────────────────────────────────────────
-    // System prompt is injected for Groq / Ollama / Gemini; for LM Studio it
-    // lives in the model preset and is intentionally not sent via the API.
-    // In hybrid mode the local tier is LM Studio, so we still skip there — but
-    // the cloud tier (Gemini) needs the prompt, so we always set it when the
-    // cloud is in use. Simplest correct rule: skip the prompt only when the
-    // configured single provider is LM Studio.
+    // For every provider except LM Studio we inject the full instructional
+    // prompt. LM Studio's idle system prompt lives in its model preset — but we
+    // still set an EMPTY system prompt here to displace any stale Validator /
+    // Creator prompt left over from a previous pipeline turn. (LMStudioProvider
+    // drops empty system messages, so the preset takes over.)
     if (!pipelineHandled) {
-        const single = (process.env.LLM_PROVIDER ?? '').toLowerCase();
-        const skipForLMStudio = single === 'lmstudio'; // back-compat single-provider mode
-        if (!skipForLMStudio) {
+        const provider = (process.env.LLM_PROVIDER ?? 'lmstudio').toLowerCase();
+        if (provider === 'lmstudio') {
+            setSystemPrompt(platform, userId, '');
+        }
+        else {
             setSystemPrompt(platform, userId, buildSystemPrompt());
         }
     }
     if (!pipelineHandled && !resumingFromConfirmation) {
-        // OCR + code-driven document pipeline:
-        // Runs whenever a vision model is configured (LMSTUDIO_VISION_MODEL) and
-        // the cloud provider isn't Gemini — Gemini has its own pipeline above.
-        // This gives every non-Gemini path (Ollama, Groq, plain LM Studio, hybrid
-        // fall-through) free local OCR + the deterministic doc processor without
-        // requiring LLM_PROVIDER=lmstudio.
-        if (images && images.length > 0
-            && !!process.env.LMSTUDIO_VISION_MODEL
-            && cloudProviderName() !== 'gemini') {
-            // ── Code-driven document pipeline ──────────────────────────────────────
-            // OCR → parse ALL entries → validate → present summary → confirm → execute.
-            // No LLM involved unless every entry is unknown.
-            const ocrText = await callOCRModel(userMessage, images);
-            const extractions = parseOCROutputMulti(ocrText);
-            const knownCount = extractions.filter((e) => e.type !== 'unknown').length;
-            console.log(`[doc-pipeline] Detected ${extractions.length} entry/entries (${knownCount} known)`);
-            if (knownCount > 0) {
-                const result = await processDocuments(extractions, client, isSupervisionEnabled());
-                if (result) {
-                    // Record in conversation history for context
-                    addMessage(platform, userId, { role: 'user', content: `${userMessage}\n\n[OCR]\n${ocrText}` });
-                    if (result.needsConfirmation) {
-                        const sKey = supervisionKey(platform, userId);
-                        pendingDocConfirmations.set(sKey, result.needsConfirmation);
-                        addMessage(platform, userId, { role: 'assistant', content: result.text });
-                        return { text: result.text };
-                    }
-                    addMessage(platform, userId, { role: 'assistant', content: result.text });
-                    return {
-                        text: result.text,
-                        toolCalls: result.actions
-                            .filter((a) => a.status === 'success')
-                            .map((a) => ({ name: a.tool, args: a.args, result: a.result })),
-                    };
-                }
-            }
-            // All entries unknown or processor returned null → fall through to tool-calling model
-            const augmented = `${userMessage ? userMessage + '\n\n' : ''}[Image content extracted by OCR model]\n${ocrText}`;
-            addMessage(platform, userId, { role: 'user', content: augmented });
+        // Attach images only if the active provider supports vision — otherwise
+        // the request would crash with "unknown variant `image_url`" (deepseek)
+        // or similar. The pipeline normally handles images via pickVisionProvider
+        // before we reach here; this branch is a safety net for fall-through cases
+        // (parser threw, no GEMINI_API_KEY, etc.).
+        const provider = (process.env.LLM_PROVIDER ?? 'lmstudio').toLowerCase();
+        const canSendImages = VISION_CAPABLE_PROVIDERS.has(provider);
+        if (images?.length && !canSendImages) {
+            console.warn(`[llm] Dropping ${images.length} image(s) — "${provider}" does not support vision`);
         }
-        else {
-            // Single-model mode (Groq / Ollama / LM Studio with a unified model):
-            // attach images directly and let the model handle vision itself.
-            const imageUrls = images?.map((img) => `data:${img.mimeType};base64,${img.data}`);
-            addMessage(platform, userId, { role: 'user', content: userMessage, imageUrls });
-        }
-    }
-    // ── Routing decision for this turn ─────────────────────────────────────────
-    // Hybrid mode: 'local' for simple text turns, 'cloud' for images / pipeline /
-    // post-fallback. Single-provider mode: always 'cloud' (which resolves to
-    // LLM_PROVIDER inside chatWithFallback). Once a fallback fires, currentTier
-    // sticks at 'cloud' for the rest of the turn so we don't bounce back to a
-    // model that just gave up.
-    let currentTier = routeTurn({
-        hasImages: !!images?.length,
-        phase: getPipelinePhase(platform, userId),
-    });
-    if (hybridEnabled()) {
-        console.log(`[router] route=${currentTier} (hybrid: local=${process.env.LLM_PROVIDER_LOCAL}, cloud=${process.env.LLM_PROVIDER_CLOUD})`);
+        const imageUrls = canSendImages
+            ? images?.map((img) => `data:${img.mimeType};base64,${img.data}`)
+            : undefined;
+        addMessage(platform, userId, { role: 'user', content: userMessage, imageUrls });
     }
     // ── Agent loop ────────────────────────────────────────────────────────────
     const MAX_ITERATIONS = 10;
     let iterations = 0;
     while (iterations < MAX_ITERATIONS) {
         iterations++;
-        console.log(`[llm] Sending to ${process.env.LLM_PROVIDER ?? 'ollama'} (iteration ${iterations})...`);
+        const providerName = (process.env.LLM_PROVIDER ?? 'lmstudio').toLowerCase();
+        console.log(`[llm] Sending to ${providerName} (iteration ${iterations})...`);
         // Strip excluded tool calls (e.g. login) from history before sending to LLM
         const rawHistory = getHistory(platform, userId);
         const excludedIds = new Set(rawHistory
@@ -1378,14 +1430,10 @@ export async function processMessage(platform, userId, userMessage, authToken, i
             .filter(Boolean);
         let response;
         try {
-            const routed = await chatWithFallback(history, activeToolFilter, currentTier);
-            response = routed.response;
-            // Sticky upgrade: once we've fallen back to cloud, stay on cloud for
-            // the remainder of this turn (don't keep retrying a failing local model).
-            if (routed.fallbackReason)
-                currentTier = routed.tier;
+            const provider = getProvider(providerName);
+            const sanitized = sanitizeForProvider(history, providerName);
+            response = await provider.chat(sanitized, activeToolFilter);
             // Free image data from history after the first LLM call.
-            // Only relevant for single-model mode where images were attached directly.
             if (iterations === 1 && !resumingFromConfirmation)
                 stripImageUrls(platform, userId);
         }
@@ -1436,6 +1484,7 @@ export async function processMessage(platform, userId, userMessage, authToken, i
             for (const tc of response.toolCalls) {
                 const toolDef = ALL_TOOLS.find((t) => t.name === tc.name);
                 let result;
+                onEvent?.({ type: 'tool', name: tc.name });
                 console.log(`[tool] ${tc.name} args: ${JSON.stringify(tc.arguments)}`);
                 if (!toolDef) {
                     result = `Error: Unknown tool "${tc.name}"`;
@@ -1471,6 +1520,35 @@ export async function processMessage(platform, userId, userMessage, authToken, i
                 // Pipeline: attach the original ticket image to the newly-created job.
                 if (await maybeAttachImagesToJob(client, platform, userId, tc.name, result)) {
                     imagesAttachedThisTurn = true;
+                }
+                // ── Name resolution cache — capture display names from list_* USE_ID responses ──
+                const resolvedName = parseNameFromToolResult(result);
+                if (resolvedName) {
+                    if (tc.name === 'list_companies')
+                        resolvedNames['company'] = resolvedName;
+                    if (tc.name === 'list_dispatchers')
+                        resolvedNames['dispatcher'] = resolvedName;
+                    if (tc.name === 'list_job_types')
+                        resolvedNames['jobType'] = resolvedName;
+                    if (tc.name === 'list_drivers')
+                        resolvedNames['driver'] = resolvedName;
+                    if (tc.name === 'list_units')
+                        resolvedNames['unit'] = resolvedName;
+                }
+                // ── Memory: record job pattern after a successful create_job ──────────
+                if (tc.name === 'create_job' && !result.startsWith('Error')) {
+                    const company = resolvedNames['company'];
+                    const dispatcher = resolvedNames['dispatcher'];
+                    const jobType = resolvedNames['jobType'];
+                    if (company && dispatcher && jobType) {
+                        recordJobPattern({
+                            companyName: company,
+                            dispatcherName: dispatcher,
+                            jobTypeName: jobType,
+                            driverName: resolvedNames['driver'],
+                            unitName: resolvedNames['unit'],
+                        });
+                    }
                 }
                 toolCalls.push({ name: tc.name, args: tc.arguments, result });
                 // Store tool result — include tool_call_id for Groq/OpenAI, tool_call_name for Gemini

@@ -24,7 +24,7 @@ import { applyConfig } from './config.js';
 const _activeConfig = applyConfig();
 console.log(`[agent] Active config: ${_activeConfig}`);
 
-export { processMessage, resetConversation, type AgentResponse } from './llm.js';
+export { processMessage, resetConversation, type AgentResponse, type AgentStreamEvent } from './llm.js';
 export { getToken, setToken, removeToken, hasToken, loadAuthMap, getAutoToken, clearAutoToken } from './auth.js';
 export {
   getHistory,

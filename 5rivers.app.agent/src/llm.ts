@@ -42,6 +42,8 @@ import {
   getImages as getPipelineImages,
   setState as setPipelineState,
   getState as getPipelineState,
+  buildHtmlParserMessage,
+  PARSER_OUTPUT_SCHEMA,
   type PipelineImage,
 } from './pipeline.js';
 import type { RestClient } from '../../5rivers.app.mcp/dist/rest-client.js';
@@ -414,6 +416,94 @@ function parseLMStudioResponse(data: LMStudioResponse, label: string): Normalize
   return { content: msg.content || '', toolCalls };
 }
 
+/**
+ * Call the tool model (LMSTUDIO_TOOL_MODEL) with a single text-only message
+ * and NO tool definitions — used for the HTML-parsing step in the local OCR
+ * pipeline where the model must return pure JSON and must not be tempted to
+ * call any tools.
+ *
+ * Direct REST call, bypasses LMStudioProvider.chat() (which always injects
+ * all tool declarations and runs the /v1/models probe on every call).
+ */
+async function callLMStudioParser(html: string, context: string): Promise<string> {
+  const host  = process.env.LMSTUDIO_HOST      ?? 'http://localhost:1234';
+  const model = process.env.LMSTUDIO_TOOL_MODEL;
+  if (!model) throw new Error('[lmstudio] LMSTUDIO_TOOL_MODEL is not set in .env');
+
+  const url = `${host}/v1/chat/completions`;
+  const { content } = buildHtmlParserMessage(html, context);
+
+  console.log(`[pipeline:parser] HTML → JSON via ${model} (${html.length} chars of HTML)`);
+
+  const body = {
+    model,
+    messages: [{ role: 'user', content }],
+    // Structured-output mode: enforce the exact parser schema so the model
+    // cannot return markdown fences, prose, or wrong field names.
+    // strict: false — allows nullable fields (most local models need this).
+    response_format: {
+      type: 'json_schema',
+      json_schema: {
+        name:   'document_extraction',
+        strict: false,
+        schema: PARSER_OUTPUT_SCHEMA,
+      },
+    },
+    // No "tools" key — model must output raw JSON, not call a function.
+    stream: false,
+  };
+
+  const res  = await fetch(url, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer lm-studio' },
+    body:    JSON.stringify(body),
+  });
+  const data = await res.json() as LMStudioResponse;
+  return parseLMStudioResponse(data, `parser: ${model}`).content;
+}
+
+/**
+ * Call the dedicated OCR model (LMSTUDIO_OCR_MODEL, default "chandra-ocr-2")
+ * with one or more images and return the raw HTML string it produces.
+ *
+ * This is a direct REST call — not routed through LMStudioProvider — so it
+ * can target a different model than LMSTUDIO_TOOL_MODEL.
+ */
+async function callLMStudioOCR(images: PipelineImage[]): Promise<string> {
+  const host  = process.env.LMSTUDIO_HOST      ?? 'http://localhost:1234';
+  const model = process.env.LMSTUDIO_OCR_MODEL ?? 'chandra-ocr-2';
+  const url   = `${host}/v1/chat/completions`;
+
+  console.log(`[ocr] Sending ${images.length} image(s) to ${model} @ ${url}`);
+
+  const content: Array<Record<string, unknown>> = [
+    {
+      type: 'text',
+      text: 'Convert this document image to structured HTML. Preserve all text exactly as printed. Use <u> tags for filled/handwritten values and data-label attributes for field names. Represent each table row as a <tr> element.',
+    },
+    ...images.map((img) => ({
+      type: 'image_url',
+      image_url: { url: `data:${img.mimeType};base64,${img.data}` },
+    })),
+  ];
+
+  const body = {
+    model,
+    messages: [{ role: 'user', content }],
+    stream: false,
+  };
+
+  const res  = await fetch(url, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer lm-studio' },
+    body:    JSON.stringify(body),
+  });
+  const data = await res.json() as LMStudioResponse;
+  const html = parseLMStudioResponse(data, `ocr: ${model}`).content;
+  console.log(`[ocr] HTML extracted (${html.length} chars)`);
+  return html;
+}
+
 class LMStudioProvider implements LLMProvider {
   async chat(messages: Message[], toolFilter?: ReadonlySet<string>): Promise<NormalizedResponse> {
     const host  = process.env.LMSTUDIO_HOST ?? 'http://localhost:1234';
@@ -428,13 +518,17 @@ class LMStudioProvider implements LLMProvider {
       throw new Error('[lmstudio] No models loaded — load a model in LM Studio and try again');
     }
 
+    // Drop ONLY empty system messages. A non-empty system message is set by
+    // the pipeline router (Validator/Creator prompts) and MUST reach the model
+    // — without it the model can't tell which role it's playing and ends up
+    // asking the user to "provide the structured data" the Parser already gave.
+    //
+    // In idle mode the agent explicitly sets an empty system prompt so LM
+    // Studio falls back to whatever its model preset provides.
     const body: Record<string, unknown> = {
       model,
-      // System messages are excluded — system prompt is managed in LM Studio's model preset.
-      // Temperature, top_p, and all sampling settings are also managed there.
-      // The agent only sends conversation turns and tool definitions.
       messages: messages
-        .filter((m) => m.role !== 'system')
+        .filter((m) => !(m.role === 'system' && !m.content?.trim()))
         .map(toOpenAIMessage),
       tools:       getToolDefs(toolFilter),
       tool_choice: 'auto',
@@ -1216,6 +1310,16 @@ export interface AgentResponse {
   toolCalls?: Array<{ name: string; args: Record<string, unknown>; result: string }>;
 }
 
+/**
+ * Events emitted by processMessage during the agent loop.
+ * Callers can use these to stream progress to the client (e.g. via SSE).
+ *
+ *   tool  — fired before each tool is executed; carries the raw tool name
+ *           so the caller can translate it to a human-friendly label.
+ */
+export type AgentStreamEvent =
+  | { type: 'tool'; name: string };
+
 export interface ImageInput {
   data: string;   // base64-encoded image data (no data URI prefix)
   mimeType: string; // e.g. 'image/jpeg'
@@ -1234,6 +1338,7 @@ export async function processMessage(
   userMessage: string,
   authToken?: string,
   images?: ImageInput[],
+  onEvent?: (event: AgentStreamEvent) => void,
 ): Promise<AgentResponse> {
   const resolvedToken = authToken?.trim() || (await getAutoToken());
   if (!resolvedToken) {
@@ -1287,6 +1392,7 @@ export async function processMessage(
         for (const tc of pending.toolCalls) {
           const toolDef = ALL_TOOLS.find((t) => t.name === tc.name);
           let result: string;
+          onEvent?.({ type: 'tool', name: tc.name });
           console.log(`[tool] ${tc.name} args: ${JSON.stringify(tc.arguments)}`);
           if (!toolDef) {
             result = `Error: Unknown tool "${tc.name}"`;
@@ -1406,16 +1512,75 @@ export async function processMessage(
 
     // One-shot chat function for the Parser phase.
     //
-    // The active provider handles text/tool-calling — but several providers
-    // we support are text-only (deepseek-chat, groq llama-3.3-70b). For
-    // those, we fall back to Gemini for the parser step IF GEMINI_API_KEY is
-    // set. The user's choice of -Model still drives Validator/Creator and
-    // every non-image turn; only image extraction is routed to vision.
+    // LOCAL (lmstudio): two-step — first call chandra-ocr-2 (or
+    //   LMSTUDIO_OCR_MODEL) with the raw image to get structured HTML, then
+    //   call the tool model (LMSTUDIO_TOOL_MODEL) with that HTML to produce
+    //   the extracted JSON.  Neither model needs to be vision-capable for the
+    //   second step; the HTML carries all the text data.
+    //
+    // WEB (gemini / deepseek / groq): pass images directly to the cloud
+    //   model via pickVisionProvider(), which falls back to Gemini if the
+    //   chosen model is text-only.
+    //
+    // CRITICAL: the parser is a one-shot extractor — it MUST output JSON, not
+    // call tools. We pass an EMPTY tool filter so the model sees zero tools.
+    // Without this, Gemini sees all 20+ tools and frequently picks one (e.g.
+    // list_companies) instead of producing JSON; the resulting empty content
+    // then makes the Validator say "the JSON data is missing".
+    const NO_TOOLS: ReadonlySet<string> = new Set();
+
     const callProvider = async (msgs: Message[]): Promise<string> => {
+      const mainProvider = (process.env.LLM_PROVIDER ?? 'lmstudio').toLowerCase();
+
+      if (mainProvider === 'lmstudio') {
+        // Find the user message that carries the images
+        const imgMsg = msgs.find((m) => m.role === 'user' && (m.imageUrls?.length ?? 0) > 0);
+
+        if (imgMsg?.imageUrls?.length) {
+          // Reconstruct PipelineImage list from data URIs
+          const imgList: PipelineImage[] = imgMsg.imageUrls.map((uri) => {
+            const match = uri.match(/^data:([^;]+);base64,(.+)$/s);
+            if (!match) throw new Error(`[ocr] Unrecognised image URI format`);
+            return { mimeType: match[1], data: match[2] };
+          });
+
+          // Step 1 — OCR model: image → HTML
+          const html = await callLMStudioOCR(imgList);
+
+          // Step 2 — Tool model: HTML → JSON (no tools — pure structured output)
+          // callLMStudioParser is a direct fetch that omits the tools key.
+          const parts   = (imgMsg.content ?? '').split('\n\n---\n\n');
+          const context = parts.length > 1 ? parts.slice(1).join('\n\n---\n\n') : '';
+          return callLMStudioParser(html, context);
+        }
+
+        // No images in this call — forward text-only messages to tool model
+        const toolProvider = getProvider('lmstudio');
+        const sanitized    = sanitizeForProvider(msgs, 'lmstudio');
+        const response     = await toolProvider.chat(sanitized, NO_TOOLS);
+        return response.content;
+      }
+
+      // Web mode — pass images directly to the vision-capable provider.
+      // pickVisionProvider() handles text-only cloud providers (e.g.
+      // deepseek-chat) by falling back to Gemini when GEMINI_API_KEY is set.
       const providerName = pickVisionProvider();
-      const provider = getProvider(providerName);
-      const sanitized = sanitizeForProvider(msgs, providerName);
-      const response = await provider.chat(sanitized, undefined);
+      const provider     = getProvider(providerName);
+      const sanitized    = sanitizeForProvider(msgs, providerName);
+      const response     = await provider.chat(sanitized, NO_TOOLS);
+
+      // Diagnostic: surface empty parser output IMMEDIATELY so we don't end
+      // up seeding the Validator with an empty JSON block (which is exactly
+      // what causes the "the JSON data is missing" failure mode).
+      if (!response.content?.trim()) {
+        console.error(`[pipeline:parser] ❌ ${providerName} returned empty content`);
+        console.error(`[pipeline:parser]    toolCalls=${response.toolCalls?.length ?? 0} — model tried to call a tool instead of returning JSON`);
+        throw new Error(
+          `[pipeline:parser] ${providerName} returned no JSON. ` +
+          `The model may have tried to call a tool instead of extracting. ` +
+          `Try a different model or re-upload the image.`,
+        );
+      }
       return response.content;
     };
 
@@ -1437,12 +1602,16 @@ export async function processMessage(
   }
 
   // ── Normal flow: add user message ─────────────────────────────────────────
-  // The system prompt is injected for every provider except LM Studio — LM
-  // Studio's system prompt lives in the model preset and is filtered out by
-  // its provider, so injecting one here would be discarded anyway.
+  // For every provider except LM Studio we inject the full instructional
+  // prompt. LM Studio's idle system prompt lives in its model preset — but we
+  // still set an EMPTY system prompt here to displace any stale Validator /
+  // Creator prompt left over from a previous pipeline turn. (LMStudioProvider
+  // drops empty system messages, so the preset takes over.)
   if (!pipelineHandled) {
     const provider = (process.env.LLM_PROVIDER ?? 'lmstudio').toLowerCase();
-    if (provider !== 'lmstudio') {
+    if (provider === 'lmstudio') {
+      setSystemPrompt(platform, userId, '');
+    } else {
       setSystemPrompt(platform, userId, buildSystemPrompt());
     }
   }
@@ -1553,6 +1722,7 @@ export async function processMessage(
         const toolDef = ALL_TOOLS.find((t) => t.name === tc.name);
         let result: string;
 
+        onEvent?.({ type: 'tool', name: tc.name });
         console.log(`[tool] ${tc.name} args: ${JSON.stringify(tc.arguments)}`);
 
         if (!toolDef) {

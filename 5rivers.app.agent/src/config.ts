@@ -129,11 +129,25 @@ export function applyConfig(argv?: string[]): string {
   // Step 1 — apply named profile as a base
   // Priority: --profile flag > AGENT_PROFILE env var > "default" in profiles json
   const profileName = args.profile ?? process.env.AGENT_PROFILE ?? pf.default;
+  const source = args.profile
+    ? '--profile CLI flag'
+    : process.env.AGENT_PROFILE
+      ? 'AGENT_PROFILE env var'
+      : 'default in agent.profiles.json';
+
   if (profileName && pf.profiles[profileName]) {
     applyProfile(pf.profiles[profileName]);
-  } else if (args.profile) {
+    console.log(`[config] Applied profile "${profileName}" (from ${source}) → provider=${pf.profiles[profileName].provider}`);
+  } else if (profileName) {
+    // profileName is set (from anywhere) but doesn't match — LOUD warning.
+    // Without this the old silent-fallback meant a typo like AGENT_PROFILE=google
+    // would invisibly fall back to .env's LLM_PROVIDER=lmstudio.
     const available = Object.keys(pf.profiles).join(', ');
-    console.warn(`[config] Unknown profile "${args.profile}". Available: ${available}`);
+    console.warn('[config] ╔══════════════════════════════════════════════════════════════════╗');
+    console.warn(`[config] ║  ⚠️  Unknown profile "${profileName}" (from ${source})`);
+    console.warn(`[config] ║      Available profiles: ${available}`);
+    console.warn(`[config] ║      Falling back to .env (LLM_PROVIDER=${process.env.LLM_PROVIDER ?? 'lmstudio'})`);
+    console.warn('[config] ╚══════════════════════════════════════════════════════════════════╝');
   }
 
   // Step 2 — overlay explicit CLI flags (highest priority)
