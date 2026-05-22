@@ -171,75 +171,170 @@ const BUSINESS_SUFFIXES = [
     'group', 'and', '&',
 ];
 const SUFFIX_RE = new RegExp(`\\b(${BUSINESS_SUFFIXES.join('|')})\\b`, 'gi');
-/** Normalise a name for fuzzy comparison: lowercase, no punctuation, no business suffixes.
- *  Also strips the possessive "'s" so that "Lucy's" and "Lucy" produce the same form. */
+/**
+ * Connector / preposition words that link two location names in route titles.
+ * Stripping these makes "On Site to On Site" === "On Site ⇄ On Site" (the
+ * ⇄ is already converted to whitespace by the punctuation step). Also helps
+ * matches like "Hunt Pit → Bostwick" ≡ "Hunt Pit to Bostwick".
+ *
+ * Word boundaries (`\b`) keep this safe: it strips the literal word "to" but
+ * leaves "Toronto", "auto", "into" unchanged.
+ */
+const ROUTE_CONNECTORS = [
+    'to', 'from', 'via', 'between', 'vs',
+    // The arrow characters (→ ⇄ ↔ ⟷ etc.) are already converted to whitespace
+    // by the [^a-z0-9\s] punctuation strip; no need to list them here.
+];
+const ROUTE_CONNECTORS_RE = new RegExp(`\\b(${ROUTE_CONNECTORS.join('|')})\\b`, 'gi');
+/** Normalise a name for fuzzy comparison: lowercase, no punctuation, no
+ *  business suffixes, no route connectors. Strips possessive "'s" so
+ *  "Lucy's" === "Lucy". */
 function normaliseName(name) {
     return name
         .toLowerCase()
         .replace(/[''`]\s*s\b/gi, '') // strip possessive 's: "lucy's" → "lucy"
         .replace(/[''`]/g, '') // smart quotes / apostrophes (any survivors)
-        .replace(/[^a-z0-9\s]/g, ' ') // punctuation → space
-        .replace(SUFFIX_RE, ' ') // strip business suffixes
+        .replace(/[^a-z0-9\s]/g, ' ') // punctuation / arrows / dashes → space
+        .replace(SUFFIX_RE, ' ') // strip business suffixes (Inc, Ltd, Co, …)
+        .replace(ROUTE_CONNECTORS_RE, ' ') // strip route connectors (to, from, via, …)
         .replace(/\s+/g, ' ')
         .trim();
 }
+/** Whitespace-collapsed normalisation — makes "On site" === "onsite", "Van Bree" === "VanBree".
+ *  Used as a second-pass match when token-based comparison fails. */
+function compactName(name) {
+    return normaliseName(name).replace(/\s+/g, '');
+}
+/** Standard Levenshtein edit distance. O(n·m) with a single-row DP buffer. */
+function levenshtein(a, b) {
+    if (a === b)
+        return 0;
+    if (!a.length)
+        return b.length;
+    if (!b.length)
+        return a.length;
+    const m = a.length, n = b.length;
+    const dp = new Array(n + 1);
+    for (let j = 0; j <= n; j++)
+        dp[j] = j;
+    for (let i = 1; i <= m; i++) {
+        let prev = dp[0];
+        dp[0] = i;
+        for (let j = 1; j <= n; j++) {
+            const tmp = dp[j];
+            dp[j] = a.charCodeAt(i - 1) === b.charCodeAt(j - 1)
+                ? prev
+                : Math.min(prev, dp[j], dp[j - 1]) + 1;
+            prev = tmp;
+        }
+    }
+    return dp[n];
+}
+/** Levenshtein similarity in [0, 1] — 1.0 = identical, 0.0 = totally different. */
+function levSimilarity(a, b) {
+    const maxLen = Math.max(a.length, b.length);
+    if (maxLen === 0)
+        return 1;
+    return 1 - levenshtein(a, b) / maxLen;
+}
 /**
- * Score how well `search` matches `candidate` (higher = better).
- *  3 — exact normalised match
- *  2 — one contains the other (substring)
- *  1+frac — word-overlap fraction
- *  0 — no overlap
+ * Score how well `search` matches `candidate` (higher = better). Five tiers:
+ *  3.0  — exact normalised match              ("Birnam" ≡ "BIRNAM")
+ *  2.8  — exact match after collapsing spaces ("On site" ≡ "Onsite")
+ *  2.0  — one contains the other (substring)  ("Birnam" ⊂ "Birnam Aggregates")
+ *  1.8  — compact substring                   ("on site" ⊂ "on site to on site" after collapse)
+ *  0.4–1.6 — best of word-overlap fraction or Levenshtein similarity (typo-tolerant)
+ *  0.0  — no overlap, no near-typo
  */
 function fuzzyScore(search, candidate) {
     const ns = normaliseName(search);
     const nc = normaliseName(candidate);
     if (!ns || !nc)
         return 0;
+    // Tier 1: exact normalised
     if (ns === nc)
         return 3;
+    // Tier 2: whitespace-insensitive exact   ("On site" ≡ "Onsite")
+    const cs = ns.replace(/\s+/g, '');
+    const cc = nc.replace(/\s+/g, '');
+    if (cs === cc)
+        return 2.8;
+    // Tier 3: substring (token-preserving)
     if (nc.includes(ns) || ns.includes(nc))
         return 2;
+    // Tier 4: compact substring             ("onsite" ⊂ "onsitetoonsite")
+    if (cs.length >= 3 && cc.length >= 3 && (cc.includes(cs) || cs.includes(cc))) {
+        return 1.8;
+    }
+    // Tier 5: word-overlap fraction OR Levenshtein similarity (whichever is stronger)
     const sw = new Set(ns.split(' ').filter(Boolean));
     const cw = nc.split(' ').filter(Boolean);
-    if (!sw.size || !cw.length)
-        return 0;
-    const overlap = cw.filter((w) => sw.has(w)).length;
-    return overlap / Math.max(sw.size, cw.length);
+    const wordOverlap = (!sw.size || !cw.length)
+        ? 0
+        : cw.filter((w) => sw.has(w)).length / Math.max(sw.size, cw.length);
+    // Levenshtein on the compact forms — catches typos, missing characters, etc.
+    // Only sensible when both strings are short enough that 1–2 edits is meaningful.
+    let typoSim = 0;
+    const longer = Math.max(cs.length, cc.length);
+    if (longer > 0 && longer <= 30) {
+        const sim = levSimilarity(cs, cc);
+        // Map similarity → score band: 0.85→1.4, 0.75→0.9, 0.65→0.4, below 0.65 → 0
+        if (sim >= 0.85)
+            typoSim = 1.4;
+        else if (sim >= 0.75)
+            typoSim = 0.9;
+        else if (sim >= 0.65)
+            typoSim = 0.4;
+    }
+    return Math.max(wordOverlap, typoSim);
 }
 /**
  * Resolve a fuzzy search to one of three actions the model can act on immediately:
  *
  *  USE    — one clear winner; the model should use record.id directly
  *  CHOOSE — multiple plausible matches; model should use the first unless context says otherwise
- *  NONE   — nothing matched; model should present allRecords to the user
+ *  NONE   — nothing matched well; return the closest few candidates by edit distance
+ *           (rather than dumping all 40+ records — that wastes context)
  *
  * Thresholds:
- *  score ≥ 2  (exact/substring after suffix-strip) → USE if clearly ahead of 2nd place
- *  score 1–2  (word overlap)                       → USE if only one result, otherwise CHOOSE
- *  score  0                                         → NONE
+ *  score ≥ 1.8 (exact / substring / compact)  → USE if clearly ahead of 2nd place
+ *  score 0.4–1.8 (word overlap / typo)        → CHOOSE: present top candidates
+ *  score 0                                     → NONE: surface nearest 5 by Levenshtein
  */
 function fuzzyResolve(records, search) {
     const scored = records
         .map((r) => ({ r, score: fuzzyScore(search, r.name) }))
-        .filter(({ score }) => score > 0)
         .sort((a, b) => b.score - a.score);
-    if (scored.length === 0)
-        return { action: 'NONE', allRecords: records };
-    const [first, second] = scored;
+    const withScore = scored.filter(({ score }) => score > 0);
+    if (withScore.length === 0) {
+        // No tier-1-4 or word-overlap match. Fall back to Levenshtein similarity
+        // over the entire list to surface the nearest 5 — much more useful than
+        // dumping every record so the model can spot a typo.
+        const cs = compactName(search);
+        const nearest = records
+            .map((r) => ({ r, sim: levSimilarity(cs, compactName(r.name)) }))
+            .sort((a, b) => b.sim - a.sim)
+            .slice(0, 5)
+            .map(({ r }) => r);
+        return { action: 'NONE', nearest, totalCount: records.length };
+    }
+    const [first, second] = withScore;
     const secondScore = second?.score ?? 0;
     // Clear winner: strong score AND meaningfully ahead of the next candidate
-    const clearWinner = first.score >= 2 ||
+    const clearWinner = first.score >= 1.8 ||
         (first.score >= 1 && (!second || first.score - secondScore >= 0.4)) ||
-        scored.length === 1;
+        withScore.length === 1;
     if (clearWinner) {
         const note = first.score === 3 ? 'exact match' :
-            first.score >= 2 ? `matched after stripping business suffix from "${search}"` :
-                `best word-overlap match for "${search}"`;
+            first.score >= 2.8 ? `matched after collapsing whitespace ("${search}" ≈ "${first.r.name}")` :
+                first.score >= 2 ? `matched after stripping business suffix from "${search}"` :
+                    first.score >= 1.8 ? `compact-substring match for "${search}"` :
+                        `best near-match for "${search}"`;
         return { action: 'USE', record: first.r, note };
     }
     return {
         action: 'CHOOSE',
-        candidates: scored.slice(0, 4).map(({ r, score }) => ({ ...r, _score: score })),
+        candidates: withScore.slice(0, 4).map(({ r, score }) => ({ ...r, _score: score })),
     };
 }
 /**
@@ -271,13 +366,20 @@ function formatFuzzyResult(result, entityLabel, search) {
             `INSTRUCTION: Use the first match. If context clearly points to a different one, use that instead.`,
         ].join('\n');
     }
-    // NONE
-    const all = result.allRecords.map((r) => `  - ${r.name}  (id: ${r.id})`).join('\n');
+    // NONE — return the nearest few by edit distance instead of the entire list
+    if (result.nearest.length === 0) {
+        return [
+            `NO_MATCH: No ${entityLabel} matched "${search}".`,
+            `There are no ${entityLabel}s on file at all.`,
+            `INSTRUCTION: Ask the user if they want to create one.`,
+        ].join('\n');
+    }
+    const nearestList = result.nearest.map((r) => `  - ${r.name}  (id: ${r.id})`).join('\n');
     return [
         `NO_MATCH: No ${entityLabel} matched "${search}".`,
-        `All ${entityLabel}s:`,
-        all,
-        `INSTRUCTION: Show the user this list and ask them to identify the correct ${entityLabel}.`,
+        `Nearest ${result.nearest.length} of ${result.totalCount} ${entityLabel}s by similarity:`,
+        nearestList,
+        `INSTRUCTION: If one of these looks like a typo of "${search}", use it. Otherwise show the user this short list (NOT the entire ${entityLabel} list) and ask them to pick or to create a new one.`,
     ].join('\n');
 }
 // ─── Job field projection ────────────────────────────────────────────────────
@@ -292,6 +394,34 @@ function formatFuzzyResult(result, entityLabel, search) {
  *    the human-readable *Name fields are kept instead.
  */
 function projectJob(job) {
+    // Surface breaks in a human-readable form. The DB stores them as a JSON
+    // string; parse and summarise so the model can reason about paid hours.
+    let breaksDisplay = null;
+    let breakMinutes = 0;
+    if (typeof job.breaks === 'string' && job.breaks.trim()) {
+        try {
+            const arr = JSON.parse(job.breaks);
+            if (Array.isArray(arr) && arr.length) {
+                const parts = [];
+                for (const b of arr) {
+                    if (!b?.start || !b?.end)
+                        continue;
+                    const [sh, sm] = b.start.split(':').map(Number);
+                    const [eh, em] = b.end.split(':').map(Number);
+                    if ([sh, sm, eh, em].some(Number.isNaN))
+                        continue;
+                    const mins = (eh * 60 + em) - (sh * 60 + sm);
+                    if (mins > 0) {
+                        breakMinutes += mins;
+                        parts.push(`${b.tag ?? 'Break'} ${b.start}-${b.end} (${mins}m)`);
+                    }
+                }
+                if (parts.length)
+                    breaksDisplay = parts.join('; ');
+            }
+        }
+        catch { /* malformed JSON — ignore */ }
+    }
     return {
         id: job.id,
         date: job.jobDate, // work date — NOT createdAt/updatedAt
@@ -309,6 +439,7 @@ function projectJob(job) {
         driverPaid: job.driverPaid,
         ticketNumber: job.ticketIds,
         notes: job.notes,
+        ...(breaksDisplay ? { breaks: breaksDisplay, breakMinutes } : {}),
     };
 }
 // ── Read Tools ──────────────────────────────────────────────
@@ -536,32 +667,35 @@ const list_units = {
 };
 const list_carriers = {
     name: 'list_carriers',
-    description: 'List all carriers. Use for "list carriers", "show carriers".',
+    description: 'List all carriers. Supports fuzzy name search — strips business suffixes and handles spacing/typos.',
     inputSchema: {
         type: 'object',
         properties: {
-            search: { type: 'string', description: 'Search by name.' },
+            search: { type: 'string', description: 'Fuzzy search by name. Strips business suffixes (Inc, Ltd, …) and route connectors (to/from/via).' },
             limit: { type: 'number', default: 50 },
         },
     },
     handler: async (client, args) => {
-        const result = await client.carriers.list({
-            limit: Math.min(Number(args.limit) || 50, 100),
-            search: args.search ? String(args.search) : undefined,
-        });
+        // Fetch broadly — client-side fuzzy resolution scores against the full pool,
+        // not just what the backend's SQL LIKE happens to match.
+        const result = await client.carriers.list({ limit: 200 });
         if (result.data.length === 0)
             return 'No carriers found.';
-        return json({ total: result.total, carriers: result.data });
+        const search = String(args.search ?? '').trim() || undefined;
+        if (!search)
+            return json({ total: result.data.length, carriers: result.data });
+        const resolution = fuzzyResolve(result.data, search);
+        return formatFuzzyResult(resolution, 'carrier', search);
     },
 };
 const list_job_types = {
     name: 'list_job_types',
-    description: 'List job types, optionally filtered by company. Use for "show job types", "what job types does company X have".',
+    description: 'List job types, optionally filtered by company. Supports fuzzy title search — strips route connectors (to/from/via/arrows) so "Hunt to Bostwick" matches "Hunt ⇄ Bostwick", "Onsite" matches "On Site → On Site".',
     inputSchema: {
         type: 'object',
         properties: {
             companyId: { type: 'string', description: 'Filter by company ID.' },
-            search: { type: 'string', description: 'Search by title.' },
+            search: { type: 'string', description: 'Fuzzy search by title. Strips route connectors and business suffixes.' },
             limit: { type: 'number', default: 50 },
         },
     },
@@ -569,21 +703,30 @@ const list_job_types = {
         const filters = {};
         if (args.companyId)
             filters.companyId = String(args.companyId);
-        const result = await client.jobTypes.list({
-            limit: Math.min(Number(args.limit) || 50, 100),
-            filters,
-            search: args.search ? String(args.search) : undefined,
-        });
+        // Fetch broadly (no backend search filter) so client-side fuzzy resolution
+        // can score against the full pool of titles, not just SQL LIKE hits.
+        const result = await client.jobTypes.list({ limit: 200, filters });
         if (result.data.length === 0)
             return 'No job types found.';
-        // Annotate job types with null rateOfJob
+        // Annotate job types with null rateOfJob (rate-pending marker).
         const annotated = result.data.map((jt) => {
             if (jt.rateOfJob === null || jt.rateOfJob === undefined) {
                 return { ...jt, rateOfJob: null, _ratePending: true };
             }
             return jt;
         });
-        return json({ total: result.total, jobTypes: annotated });
+        const search = String(args.search ?? '').trim() || undefined;
+        if (!search)
+            return json({ total: annotated.length, jobTypes: annotated });
+        // Job types use `title` instead of `name`. Adapt for the shared fuzzy
+        // helper by mapping title → name (preserving everything else).
+        const named = annotated.map((jt) => ({
+            ...jt,
+            id: String(jt.id ?? ''),
+            name: String(jt.title ?? jt.name ?? ''),
+        }));
+        const resolution = fuzzyResolve(named, search);
+        return formatFuzzyResult(resolution, 'job type', search);
     },
 };
 const list_expenses = {
@@ -621,21 +764,23 @@ const list_expenses = {
 };
 const list_expense_categories = {
     name: 'list_expense_categories',
-    description: 'List expense categories. Use for "show expense categories", "what categories do we have".',
+    description: 'List expense categories. Supports fuzzy name search — strips business suffixes and connector words.',
     inputSchema: {
         type: 'object',
         properties: {
-            search: { type: 'string', description: 'Search by name.' },
+            search: { type: 'string', description: 'Fuzzy search by category name.' },
         },
     },
     handler: async (client, args) => {
-        const result = await client.expenseCategories.list({
-            limit: 100,
-            search: args.search ? String(args.search) : undefined,
-        });
+        // Fetch broadly — client-side fuzzy resolution scores against the full pool.
+        const result = await client.expenseCategories.list({ limit: 200 });
         if (result.data.length === 0)
             return 'No expense categories found.';
-        return json({ total: result.total, categories: result.data });
+        const search = String(args.search ?? '').trim() || undefined;
+        if (!search)
+            return json({ total: result.data.length, categories: result.data });
+        const resolution = fuzzyResolve(result.data, search);
+        return formatFuzzyResult(resolution, 'expense category', search);
     },
 };
 const get_monthly_profit = {
@@ -668,9 +813,67 @@ const get_expenses_by_category = {
     },
 };
 // ── Write Tools ─────────────────────────────────────────────
+// ─── Breaks normalisation helper ─────────────────────────────────────────────
+//
+// The DB stores breaks as a JSON string in NVARCHAR(MAX):
+//   '[{"start":"12:00","end":"12:30","tag":"Lunch"}]'
+//
+// The LLM has breaks as an array of objects coming straight from the Parser
+// output. Accept either form (array OR pre-stringified JSON) and always emit
+// the canonical string the server expects. Drops malformed entries silently.
+//
+// Also normalises time formats: "12:30 PM" → "12:30" (24h), trims tag whitespace.
+function normaliseBreaks(value) {
+    if (value === undefined || value === null || value === '')
+        return null;
+    let arr;
+    if (typeof value === 'string') {
+        try {
+            arr = JSON.parse(value);
+        }
+        catch {
+            return null;
+        }
+    }
+    else {
+        arr = value;
+    }
+    if (!Array.isArray(arr))
+        return null;
+    const cleaned = [];
+    for (const b of arr) {
+        if (!b || typeof b !== 'object')
+            continue;
+        const obj = b;
+        const start = to24h(obj.start);
+        const end = to24h(obj.end);
+        const tag = typeof obj.tag === 'string' ? obj.tag.trim() : 'Break';
+        if (start && end && start < end)
+            cleaned.push({ start, end, tag: tag || 'Break' });
+    }
+    return cleaned.length ? JSON.stringify(cleaned) : null;
+}
+/** Convert "12:30", "12:30 PM", "12:30PM", "12 PM" → "HH:MM" 24-hour. */
+function to24h(v) {
+    if (typeof v !== 'string')
+        return '';
+    const m = v.trim().match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM|am|pm)?$/);
+    if (!m)
+        return '';
+    let h = parseInt(m[1], 10);
+    const min = m[2] ? parseInt(m[2], 10) : 0;
+    const ampm = (m[3] ?? '').toUpperCase();
+    if (Number.isNaN(h) || Number.isNaN(min) || h < 0 || h > 23 || min < 0 || min > 59)
+        return '';
+    if (ampm === 'PM' && h < 12)
+        h += 12;
+    if (ampm === 'AM' && h === 12)
+        h = 0;
+    return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
+}
 const create_job = {
     name: 'create_job',
-    description: 'Create a new job. Requires jobDate and jobTypeId at minimum. Use after confirming details with the user.',
+    description: 'Create a new job. Requires jobDate and jobTypeId at minimum. Use after confirming details with the user. For hourly jobs, pass `breaks` (an array of {start, end, tag} objects) when the ticket shows a lunch/coffee break — paid hours will be (endTime − startTime) minus the total break time.',
     inputSchema: {
         type: 'object',
         properties: {
@@ -687,21 +890,36 @@ const create_job = {
             loads: { type: 'number', description: 'Number of loads.' },
             amount: { type: 'number', description: 'Job amount in dollars.' },
             ticketIds: { type: 'string', description: 'Ticket number(s) — single number like "4521" or comma-separated "4521,4522".' },
+            breaks: {
+                type: 'array',
+                description: 'Hourly-job unpaid breaks. Each entry: {"start":"HH:MM","end":"HH:MM","tag":"Lunch"}. ' +
+                    'Times in 24h format. Omit or pass [] if no breaks. Paid hours = (endTime − startTime) − sum of break durations.',
+                items: {
+                    type: 'object',
+                    properties: {
+                        start: { type: 'string', description: 'Break start HH:MM (24h).' },
+                        end: { type: 'string', description: 'Break end HH:MM (24h).' },
+                        tag: { type: 'string', description: 'Label (e.g. "Lunch", "Coffee", "Break").' },
+                    },
+                    required: ['start', 'end'],
+                },
+            },
         },
         required: ['jobDate', 'jobTypeId'],
     },
     handler: async (client, args) => {
         const data = {};
         for (const [k, v] of Object.entries(args)) {
-            if (v !== undefined && v !== null && v !== '') {
-                if (k === 'jobDate')
-                    data[k] = parseDateArg(String(v));
-                // Accept 'ticketNumber' as an alias for 'ticketIds' (from OCR pipeline)
-                else if (k === 'ticketNumber')
-                    data['ticketIds'] = v;
-                else
-                    data[k] = v;
-            }
+            if (v === undefined || v === null || v === '')
+                continue;
+            if (k === 'jobDate')
+                data[k] = parseDateArg(String(v));
+            else if (k === 'ticketNumber')
+                data['ticketIds'] = v;
+            else if (k === 'breaks')
+                data['breaks'] = normaliseBreaks(v);
+            else
+                data[k] = v;
         }
         const job = await client.jobs.create(data);
         return `Job created successfully:\n${json(job)}`;
@@ -709,7 +927,7 @@ const create_job = {
 };
 const update_job = {
     name: 'update_job',
-    description: 'Update an existing job. Use for "change end time", "update job amount", etc.',
+    description: 'Update an existing job. Use for "change end time", "update job amount", "add a break", etc.',
     inputSchema: {
         type: 'object',
         properties: {
@@ -724,6 +942,20 @@ const update_job = {
             amount: { type: 'number', description: 'New amount.' },
             weight: { type: 'string', description: 'New weight.' },
             loads: { type: 'number', description: 'New loads count.' },
+            breaks: {
+                type: 'array',
+                description: 'Replace the job\'s unpaid breaks. Each entry: {"start":"HH:MM","end":"HH:MM","tag":"Lunch"}. ' +
+                    'Pass an empty array [] to clear all breaks. Omit to leave breaks unchanged.',
+                items: {
+                    type: 'object',
+                    properties: {
+                        start: { type: 'string' },
+                        end: { type: 'string' },
+                        tag: { type: 'string' },
+                    },
+                    required: ['start', 'end'],
+                },
+            },
             jobPaid: { type: 'boolean', description: 'Mark job as paid/received from client.' },
             driverPaid: { type: 'boolean', description: 'Mark driver as paid for this job.' },
             notes: { type: 'string', description: 'Job notes.' },
@@ -734,12 +966,19 @@ const update_job = {
         const id = String(args.id);
         const data = {};
         for (const [k, v] of Object.entries(args)) {
-            if (k !== 'id' && v !== undefined && v !== null && v !== '') {
-                if (k === 'jobDate')
-                    data[k] = parseDateArg(String(v));
-                else
-                    data[k] = v;
+            if (k === 'id')
+                continue;
+            if (v === undefined || v === null || v === '')
+                continue;
+            if (k === 'jobDate')
+                data[k] = parseDateArg(String(v));
+            else if (k === 'breaks') {
+                // For update, "[]" means "clear breaks" — pass null/empty string to server.
+                const normalised = normaliseBreaks(v);
+                data['breaks'] = normalised; // null is allowed; service treats undefined as "no change"
             }
+            else
+                data[k] = v;
         }
         const job = await client.jobs.update(id, data);
         return `Job updated successfully:\n${json(job)}`;

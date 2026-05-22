@@ -1,19 +1,32 @@
 param(
   # -Mode  : local | web   (default: local)
   # -Model : which model to use when Mode is web
-  #          web → deepseek (default) | deepseek-r | gemini | gemini-pro | groq
+  #          web → deepseek (default) | deepseek-r | gemini | gemini-pro | google | groq
+  #          "google" is an alias for "gemini".
   [ValidateSet("local","web","")]
   [string]$Mode  = "",
+  [ValidateSet("","deepseek","deepseek-r","gemini","gemini-pro","google","groq")]
   [string]$Model = ""
 )
 
 $root = $PSScriptRoot
 
+# ── Map common aliases to canonical profile names ────────────────────────────
+# "google" is the natural shorthand users will type for Gemini.
+$modelAliases = @{
+  "google" = "gemini"
+}
+$canonicalModel = if ($Model -and $modelAliases.ContainsKey($Model.ToLower())) {
+  $modelAliases[$Model.ToLower()]
+} else {
+  $Model
+}
+
 # ── Resolve Mode + Model → profile name ──────────────────────────────────────
 $resolvedProfile = ""
 switch ($Mode.ToLower()) {
   "local" { $resolvedProfile = "local" }
-  "web"   { $resolvedProfile = if ($Model) { $Model } else { "deepseek" } }
+  "web"   { $resolvedProfile = if ($canonicalModel) { $canonicalModel } else { "deepseek" } }
   default { $resolvedProfile = "" }   # no override — use default in agent.profiles.json
 }
 
