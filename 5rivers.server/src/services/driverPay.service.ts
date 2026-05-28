@@ -70,10 +70,37 @@ function extractEasternHM(val: unknown): { h: number; m: number } | null {
   return null;
 }
 
+/**
+ * Sum of break minutes from a job's `breaks` JSON column.
+ * Breaks are stored as: '[{"start":"HH:MM","end":"HH:MM","tag":"Lunch"}, …]'.
+ * Drivers don't get paid for breaks — these minutes must be deducted from
+ * the hourly pay calculation. Returns 0 on null / malformed JSON.
+ */
+function sumBreakMinutes(breaks: string | null | undefined): number {
+  if (!breaks) return 0;
+  try {
+    const arr = JSON.parse(breaks) as Array<{ start?: string; end?: string }>;
+    if (!Array.isArray(arr)) return 0;
+    let total = 0;
+    for (const b of arr) {
+      if (!b?.start || !b?.end) continue;
+      const [sh, sm] = b.start.split(':').map(Number);
+      const [eh, em] = b.end.split(':').map(Number);
+      if ([sh, sm, eh, em].some(Number.isNaN)) continue;
+      const mins = (eh * 60 + em) - (sh * 60 + sm);
+      if (mins > 0) total += mins;
+    }
+    return total;
+  } catch {
+    return 0;
+  }
+}
+
 function calcDriverPay(row: {
   jobAmount: number | null;
   startTime: unknown;
   endTime: unknown;
+  breaks: string | null;
   loads: number | null;
   payType: string;
   hourlyRate: number;
@@ -84,7 +111,10 @@ function calcDriverPay(row: {
       const start = extractEasternHM(row.startTime);
       const end = extractEasternHM(row.endTime);
       if (!start || !end) return 0;
-      const hours = (end.h * 60 + end.m - (start.h * 60 + start.m)) / 60;
+      let mins = (end.h * 60 + end.m) - (start.h * 60 + start.m);
+      // Subtract unpaid breaks — drivers aren't paid for lunch / coffee breaks.
+      mins -= sumBreakMinutes(row.breaks);
+      const hours = mins / 60;
       return Math.max(0, hours) * Number(row.hourlyRate);
     }
     case 'PERCENTAGE':
@@ -168,6 +198,7 @@ export async function listDriverPaySummaries(
       jobAmount: number | null;
       startTime: string | null;
       endTime: string | null;
+      breaks: string | null;
       loads: number | null;
       payType: string;
       hourlyRate: number;
@@ -176,12 +207,14 @@ export async function listDriverPaySummaries(
   >(
     // Same rationale as above — use effectiveAmount so calculated values
     // (not just overrides) flow into driver-pay calculations.
+    // `breaks` is needed so HOURLY pay correctly excludes lunch / coffee
+    // break minutes (matches what the customer is billed in vJobsEffective).
     `SELECT j.driverId, j.id AS jobId, j.jobDate, jt.title AS jobTypeTitle,
             c.name AS companyName,
             jt.startLocation AS jobTypeStartLocation,
             jt.endLocation   AS jobTypeEndLocation,
             jt.dispatchType  AS jobTypeDispatchType,
-            j.effectiveAmount AS jobAmount, j.startTime, j.endTime, j.loads,
+            j.effectiveAmount AS jobAmount, j.startTime, j.endTime, j.breaks, j.loads,
             d.payType, d.hourlyRate, d.percentageRate
      FROM vJobsEffective j
      INNER JOIN JobTypes jt ON jt.id = j.jobTypeId

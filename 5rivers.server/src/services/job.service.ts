@@ -262,6 +262,34 @@ export interface ComputeAmountInputs {
   weight?: string | null;
   startTime?: string | Date | null;
   endTime?: string | Date | null;
+  /**
+   * Unpaid break intervals (lunch / coffee) — JSON string as stored in the
+   * Jobs.breaks column: '[{"start":"HH:MM","end":"HH:MM","tag":"Lunch"}]'.
+   * Hourly amount = rate × (gross hours − total break hours). Other
+   * dispatch types ignore this.
+   */
+  breaks?: string | null;
+}
+
+/** Sum break minutes from a Jobs.breaks JSON string. Returns 0 on null / malformed. */
+function totalBreakMinutes(breaks: string | null | undefined): number {
+  if (!breaks) return 0;
+  try {
+    const arr = JSON.parse(breaks) as Array<{ start?: string; end?: string }>;
+    if (!Array.isArray(arr)) return 0;
+    let total = 0;
+    for (const b of arr) {
+      if (!b?.start || !b?.end) continue;
+      const [sh, sm] = b.start.split(':').map(Number);
+      const [eh, em] = b.end.split(':').map(Number);
+      if ([sh, sm, eh, em].some(Number.isNaN)) continue;
+      const mins = (eh * 60 + em) - (sh * 60 + sm);
+      if (mins > 0) total += mins;
+    }
+    return total;
+  } catch {
+    return 0;
+  }
 }
 
 /**
@@ -282,7 +310,7 @@ export interface ComputeAmountInputs {
  * the UI's default branch.
  */
 export function computeJobAmountFromInputs(input: ComputeAmountInputs): number | null {
-  const { rateOfJob, dispatchType, loads, weight, startTime, endTime } = input;
+  const { rateOfJob, dispatchType, loads, weight, startTime, endTime, breaks } = input;
   if (rateOfJob == null || rateOfJob <= 0) return null;
 
   // Lowercase + trim so 'Hourly' / ' HOURLY ' / 'load' all match.
@@ -299,8 +327,12 @@ export function computeJobAmountFromInputs(input: ComputeAmountInputs): number |
       const start = new Date(startTime).getTime();
       const end = new Date(endTime).getTime();
       if (isNaN(start) || isNaN(end) || end <= start) return null;
-      const hours = (end - start) / (1000 * 60 * 60);
-      return Math.round(rateOfJob * hours * 100) / 100;
+      // Subtract unpaid break minutes — mirrors the OPENJSON subquery in
+      // vJobsEffective so the JS formula stays in sync with the SQL view.
+      const grossHours = (end - start) / (1000 * 60 * 60);
+      const breakHours = totalBreakMinutes(breaks) / 60;
+      const paidHours  = Math.max(0, grossHours - breakHours);
+      return Math.round(rateOfJob * paidHours * 100) / 100;
     }
     case 'tonnage': {
       if (!weight) return null;
@@ -336,7 +368,8 @@ export async function computeJobAmount(
   loads: number | null | undefined,
   weight: string | null | undefined,
   startTime: string | Date | null | undefined,
-  endTime: string | Date | null | undefined
+  endTime: string | Date | null | undefined,
+  breaks?: string | null
 ): Promise<number | null> {
   const jt = await getJobTypeById(jobTypeId, organizationId);
   if (!jt) return null;
@@ -347,6 +380,7 @@ export async function computeJobAmount(
     weight,
     startTime,
     endTime,
+    breaks,
   });
 }
 

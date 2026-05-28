@@ -21,6 +21,29 @@ export function formatCurrency(value: number | null | undefined): string {
  * NULL `amount` column is "rate pending" or just "not explicitly entered yet,
  * but derivable from the type's rate".
  */
+/** Sum break minutes from a Jobs.breaks JSON string. Mirrors the server-side
+ *  helpers in job.service.ts and driverPay.service.ts so the UI preview stays
+ *  in sync with what the DB / driver-pay actually computes. */
+export function totalBreakMinutes(breaks: string | null | undefined): number {
+  if (!breaks) return 0;
+  try {
+    const arr = JSON.parse(breaks) as Array<{ start?: string; end?: string }>;
+    if (!Array.isArray(arr)) return 0;
+    let total = 0;
+    for (const b of arr) {
+      if (!b?.start || !b?.end) continue;
+      const [sh, sm] = b.start.split(':').map(Number);
+      const [eh, em] = b.end.split(':').map(Number);
+      if ([sh, sm, eh, em].some(Number.isNaN)) continue;
+      const mins = (eh * 60 + em) - (sh * 60 + sm);
+      if (mins > 0) total += mins;
+    }
+    return total;
+  } catch {
+    return 0;
+  }
+}
+
 export function computeJobPreviewAmount(opts: {
   rate: number | null | undefined;
   dispatchType: string | null | undefined;
@@ -28,8 +51,10 @@ export function computeJobPreviewAmount(opts: {
   endTime: string | null | undefined;
   loads: number | null | undefined;
   weight: string | null | undefined;
+  /** JSON string of unpaid break intervals; deducted from hourly amount. */
+  breaks?: string | null | undefined;
 }): number | null {
-  const { rate, dispatchType, startTime, endTime, loads, weight } = opts;
+  const { rate, dispatchType, startTime, endTime, loads, weight, breaks } = opts;
   if (rate == null || rate === 0) return null;
 
   switch ((dispatchType ?? '').toLowerCase()) {
@@ -49,8 +74,11 @@ export function computeJobPreviewAmount(opts: {
       const start = new Date(startTime).getTime();
       const end   = new Date(endTime).getTime();
       if (isNaN(start) || isNaN(end) || end <= start) return null;
-      const hours = (end - start) / (1000 * 60 * 60);
-      return Math.round(rate * hours * 100) / 100;
+      // Subtract unpaid break minutes so the preview matches vJobsEffective.
+      const grossHours = (end - start) / (1000 * 60 * 60);
+      const breakHours = totalBreakMinutes(breaks) / 60;
+      const paidHours  = Math.max(0, grossHours - breakHours);
+      return Math.round(rate * paidHours * 100) / 100;
     }
     case 'tonnage': {
       if (!weight) return null;
